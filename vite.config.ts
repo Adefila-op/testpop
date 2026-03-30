@@ -10,9 +10,12 @@ export default defineConfig(({ command, mode }) => {
 
   return {
     define: {
-      // Expose VITE_SECURE_API_BASE_URL to the build
+      // Expose backend API URLs to the build
       "import.meta.env.VITE_SECURE_API_BASE_URL": JSON.stringify(
         env.VITE_SECURE_API_BASE_URL || env.VITE_API_BASE || ""
+      ),
+      "import.meta.env.VITE_PINATA_API_BASE_URL": JSON.stringify(
+        env.VITE_PINATA_API_BASE_URL || ""
       ),
     },
     server: {
