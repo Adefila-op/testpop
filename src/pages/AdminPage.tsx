@@ -645,9 +645,9 @@ const AdminPage = () => {
         wallet: normalizedWallet,
         name: sanitizedName,
         tag: newTag || "Other",
-        status: "approved",
+        status: "pending",  // Start as pending for review
         joined_at: now,
-        approved_at: now,
+        // approved_at: null,  // Remove this - will be set when approved
         updated_at: now,
       });
     } catch (error) {
@@ -661,10 +661,10 @@ const AdminPage = () => {
       wallet: normalizedWallet,
       name: sanitizedName,
       tag: newTag || "Other",
-      status: "approved",
+      status: "pending",  // Start as pending
       joinedAt: new Date().toLocaleDateString("en-GB", { month: "short", year: "numeric" }),
       joined_at: now,
-      approved_at: now,
+      // approved_at: undefined,  // Not approved yet
     };
 
     setWhitelist(p => [...p, newEntry]);
@@ -771,7 +771,10 @@ const AdminPage = () => {
   }, [products, orders, whitelist]);
 
   useEffect(() => {
-    syncArtistWhitelist(whitelist);
+    // Only sync cache when data is loaded from server, not on optimistic updates
+    if (whitelist.length > 0 && !whitelist.some(entry => entry.status === 'updating')) {
+      syncArtistWhitelist(whitelist);
+    }
   }, [whitelist]);
 
   return (

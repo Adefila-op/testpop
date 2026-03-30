@@ -2,6 +2,9 @@ import { Shield, Wallet, AlertTriangle, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useWallet } from "@/hooks/useContracts";
 import { isAdminWallet } from "@/lib/admin";
+import { establishSecureSession } from "@/lib/secureAuth";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
 
 /**
  * Wraps the admin panel. Shows a lock screen if:
@@ -10,6 +13,32 @@ import { isAdminWallet } from "@/lib/admin";
  */
 const AdminGuard = ({ children }: { children: React.ReactNode }) => {
   const { address, isConnected, isConnecting, connectWallet, disconnect } = useWallet();
+  const [sessionEstablished, setSessionEstablished] = useState(false);
+  const [sessionError, setSessionError] = useState<string | null>(null);
+
+  // Establish secure session when admin wallet is verified
+  useEffect(() => {
+    if (isConnected && isAdminWallet(address) && !sessionEstablished) {
+      establishSecureSession(address)
+        .then(() => {
+          setSessionEstablished(true);
+          setSessionError(null);
+        })
+        .catch((error) => {
+          console.error("Failed to establish secure session:", error);
+          setSessionError("Failed to authenticate with backend");
+          toast.error("Authentication failed. Please refresh and try again.");
+        });
+    }
+  }, [address, isConnected, sessionEstablished]);
+
+  // Reset session when wallet disconnects
+  useEffect(() => {
+    if (!isConnected) {
+      setSessionEstablished(false);
+      setSessionError(null);
+    }
+  }, [isConnected]);
 
   // ── Not connected ───────────────────────────────────────────────────────────
   if (!isConnected) {
@@ -61,6 +90,46 @@ const AdminGuard = ({ children }: { children: React.ReactNode }) => {
   }
 
   // ── Authorised ──────────────────────────────────────────────────────────────
+  if (sessionError) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center px-6 text-center">
+        <div className="h-20 w-20 rounded-3xl bg-destructive/10 flex items-center justify-center mb-6">
+          <AlertTriangle className="h-10 w-10 text-destructive" />
+        </div>
+        <h1 className="text-2xl font-bold text-foreground mb-2">Authentication Error</h1>
+        <p className="text-sm text-muted-foreground mb-2 max-w-xs">
+          Failed to establish secure session with the backend.
+        </p>
+        <p className="text-xs font-mono text-muted-foreground bg-secondary px-3 py-1.5 rounded-lg mb-8 max-w-xs">
+          {sessionError}
+        </p>
+        <Button
+          variant="outline"
+          onClick={() => window.location.reload()}
+          className="rounded-full px-8 h-11 gap-2"
+        >
+          <LogOut className="h-4 w-4" />
+          Refresh Page
+        </Button>
+      </div>
+    );
+  }
+
+  if (!sessionEstablished) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center px-6 text-center">
+        <div className="h-20 w-20 rounded-3xl bg-secondary flex items-center justify-center mb-6">
+          <Shield className="h-10 w-10 text-primary animate-pulse" />
+        </div>
+        <h1 className="text-2xl font-bold text-foreground mb-2">Establishing Secure Session</h1>
+        <p className="text-sm text-muted-foreground mb-8 max-w-xs">
+          Authenticating with the backend server...
+        </p>
+        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
+      </div>
+    );
+  }
+
   return <>{children}</>;
 };
 
