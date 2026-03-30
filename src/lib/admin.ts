@@ -3,7 +3,7 @@
  * Loaded from VITE_ADMIN_WALLET environment variable.
  * If not set, admin page will deny all access.
  */
-const ADMIN_WALLET_RAW = import.meta.env.VITE_ADMIN_WALLET || "";
+const ADMIN_WALLET_RAW = import.meta.env.VITE_ADMIN_WALLET?.trim() || "";
 
 export const ADMIN_WALLET = ADMIN_WALLET_RAW.toLowerCase();
 
