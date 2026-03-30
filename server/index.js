@@ -9,7 +9,7 @@ import { ethers } from "ethers";
 
 const {
   PORT = "8787",
-  FRONTEND_ORIGIN = "http://localhost:5173",
+  FRONTEND_ORIGIN = "http://localhost:5173,https://testpop-one.vercel.app",
   APP_JWT_SECRET,
   SUPABASE_URL,
   SUPABASE_SERVICE_ROLE_KEY,
@@ -28,6 +28,16 @@ if (!APP_JWT_SECRET) {
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
   throw new Error("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required");
 }
+
+// Log startup configuration
+console.log("═══════════════════════════════════════════════════════════");
+console.log("🚀 PopUp API Starting");
+console.log("═══════════════════════════════════════════════════════════");
+console.log("📍 Environment:", NODE_ENV);
+console.log("🌐 Frontend Origin:", FRONTEND_ORIGIN);
+console.log("🔐 Admin Wallets:", ADMIN_WALLETS || "none");
+console.log("═══════════════════════════════════════════════════════════");
+
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
   auth: { persistSession: false, autoRefreshToken: false },
@@ -332,14 +342,31 @@ async function deployArtistContractForWallet(wallet) {
 }
 
 app.use(helmet());
+
+// Log CORS configuration
+const corsOrigins = FRONTEND_ORIGIN.split(",").map((item) => item.trim()).filter(Boolean);
+console.log("🔐 CORS Origins configured:", corsOrigins);
+
 app.use(
   cors({
-    origin: FRONTEND_ORIGIN.split(",").map((item) => item.trim()).filter(Boolean),
+    origin: corsOrigins,
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
   })
 );
+
+// Explicit OPTIONS handler for preflight requests
+app.options('*', cors());
+
 app.use(express.json({ limit: "2mb" }));
 app.use(cookieParser());
+
+// Log all requests
+app.use((req, res, next) => {
+  console.log(`📨 ${req.method} ${req.path}`);
+  next();
+});
 
 app.get("/health", (_req, res) => {
   res.json({ ok: true, service: "popup-api", env: NODE_ENV });
@@ -1011,6 +1038,21 @@ app.get("/admin/artists", authRequired, adminRequired, async (req, res) => {
 });
 
 const port = Number(PORT) || 3000;
+
+// 404 handler
+app.use((_req, res) => {
+  res.status(404).json({ error: "Endpoint not found" });
+});
+
+// Error handler
+app.use((err, _req, res, _next) => {
+  console.error("❌ Unhandled error:", err);
+  res.status(err.status || 500).json({ 
+    error: err.message || "Internal server error",
+    path: _req.path,
+    method: _req.method
+  });
+});
 
 // Only listen locally, not on Vercel serverless
 if (NODE_ENV !== 'production' && !process.env.VERCEL) {
