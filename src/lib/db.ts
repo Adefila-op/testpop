@@ -551,6 +551,13 @@ export async function updateWhitelistEntry(id: string, updates: any) {
   });
 }
 
+export async function deleteWhitelistEntry(id: string) {
+  console.log(`🗑️ Deleting whitelist entry: ${id}`);
+  return secureApiRequest<void>(`/whitelist/${id}`, {
+    method: "DELETE",
+  });
+}
+
 // ──────────────────────────────────────────────
 //  Analytics Operations
 // ──────────────────────────────────────────────

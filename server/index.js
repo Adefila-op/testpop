@@ -545,6 +545,16 @@ app.patch("/whitelist/:id", authRequired, adminRequired, async (req, res) => {
   return res.json(data);
 });
 
+app.delete("/whitelist/:id", authRequired, adminRequired, async (req, res) => {
+  const { error } = await supabase
+    .from("whitelist")
+    .delete()
+    .eq("id", req.params.id);
+
+  if (error) return res.status(400).json({ error: error.message });
+  return res.status(204).send();
+});
+
 app.post("/pinata/file", authRequired, upload.single("file"), async (req, res) => {
   try {
     requireEnv(PINATA_JWT, "PINATA_JWT");

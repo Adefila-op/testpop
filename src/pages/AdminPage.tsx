@@ -25,8 +25,11 @@ import { getAllArtists, getAllDrops, resolveArtistForWallet } from "@/lib/artist
 import { validateProductForm, validateFileUpload, isValidWalletAddress, sanitizeString } from "@/lib/validation";
 import {
   createProduct as dbCreateProduct,
+  addToWhitelist as dbAddToWhitelist,
+  deleteWhitelistEntry as dbDeleteWhitelistEntry,
   updateProduct as dbUpdateProduct,
   updateOrder as dbUpdateOrder,
+  updateWhitelistEntry as dbUpdateWhitelistEntry,
 } from "@/lib/db";
 import { useSupabaseAllProducts, useSupabaseAllDrops } from "@/hooks/useSupabase";
 import { useApproveArtist } from "@/lib/adminApi";
@@ -576,17 +579,18 @@ const AdminPage = () => {
 
     setWhitelist(p => p.map(e => e.id === id ? { ...e, status: "rejected" } : e));
 
-    const { error } = await supabase
-      .from("whitelist")
-      .update({ status: "rejected", updated_at: new Date().toISOString() })
-      .eq("wallet", entry.wallet.toLowerCase());
-
-    if (error) {
-      console.error("❌ Failed to reject artist in Supabase:", error);
-      setWhitelist(p => p.map(e => e.id === id ? { ...e, status: "pending" } : e));
-      toast.error("Failed to reject artist — try again");
+    try {
+      await dbUpdateWhitelistEntry(id, {
+        status: "rejected",
+        approved_at: null,
+      });
+    } catch (error) {
+      console.error("❌ Failed to reject artist via admin API:", error);
+      setWhitelist(p => p.map(e => e.id === id ? { ...e, status: entry.status } : e));
+      toast.error(error instanceof Error ? error.message : "Failed to reject artist");
       return;
     }
+
     toast.error("Artist rejected");
   };
 
@@ -596,17 +600,15 @@ const AdminPage = () => {
 
     setWhitelist(p => p.filter(e => e.id !== id));
 
-    const { error } = await supabase
-      .from("whitelist")
-      .delete()
-      .eq("wallet", entry.wallet.toLowerCase());
-
-    if (error) {
-      console.error("❌ Failed to remove artist from Supabase:", error);
+    try {
+      await dbDeleteWhitelistEntry(id);
+    } catch (error) {
+      console.error("❌ Failed to remove artist via admin API:", error);
       setWhitelist(p => [...p, entry]);
-      toast.error("Failed to remove artist — try again");
+      toast.error(error instanceof Error ? error.message : "Failed to remove artist");
       return;
     }
+
     toast.info("Artist removed");
   };
   const addArtist = async () => {
@@ -637,31 +639,20 @@ const AdminPage = () => {
     const normalizedWallet = newWallet.trim().toLowerCase();
     const now = new Date().toISOString();
 
-    if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY) {
-      toast.error("Whitelist is unavailable because Supabase is not configured in Vercel yet.");
-      return;
-    }
-
-    const { data: inserted, error } = await supabase
-      .from("whitelist")
-      .upsert(
-        {
-          wallet: normalizedWallet,
-          name: sanitizedName,
-          tag: newTag || "Other",
-          status: "approved",
-          joined_at: now,
-          approved_at: now,
-          updated_at: now,
-        },
-        { onConflict: "wallet" }
-      )
-      .select()
-      .single();
-
-    if (error) {
-      console.error("❌ Failed to save artist to Supabase:", error);
-      toast.error(`Failed to whitelist artist: ${error.message}`);
+    let inserted;
+    try {
+      inserted = await dbAddToWhitelist({
+        wallet: normalizedWallet,
+        name: sanitizedName,
+        tag: newTag || "Other",
+        status: "approved",
+        joined_at: now,
+        approved_at: now,
+        updated_at: now,
+      });
+    } catch (error) {
+      console.error("❌ Failed to save artist via admin API:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to whitelist artist");
       return;
     }
 
