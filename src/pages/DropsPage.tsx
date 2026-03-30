@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { recordPageVisit } from "@/lib/analyticsStore";
 import { useSupabaseLiveDrops } from "@/hooks/useSupabase";
+import { detectAssetTypeFromUri, type AssetType } from "@/lib/assetTypes";
 
 const filters = ["All", "Auction", "Drop", "Campaign"];
 
@@ -28,9 +29,11 @@ const DropsPage = () => {
           artist: artist?.name || "Unknown Artist",
           priceEth: drop.price_eth ? parseFloat(drop.price_eth).toFixed(4) : "0",
           image: drop.image_url || "",
+          previewUri: drop.preview_uri,
           type: (drop.type || "drop").toLowerCase() as "drop" | "auction" | "campaign",
           status: drop.status as "live" | "draft" | "ended",
           endsIn: drop.ends_at ? `${Math.max(0, Math.floor((new Date(drop.ends_at).getTime() - Date.now()) / (1000 * 60 * 60)))}h` : "--",
+          assetType: (drop.asset_type || "image") as AssetType,
         };
       });
   }, [supabaseDrops]);
@@ -110,11 +113,22 @@ const DropsPage = () => {
             className="rounded-2xl bg-card shadow-card overflow-hidden animate-fade-in group"
             style={{ animationDelay: `${index * 80}ms` }}
           >
-            <div className="relative aspect-square overflow-hidden">
-              <img src={drop.image} alt={drop.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-              <Badge className="absolute top-2 left-2 bg-background/80 text-foreground backdrop-blur-sm text-[10px]">
-                {drop.type}
-              </Badge>
+            <div className="relative aspect-square overflow-hidden bg-secondary">
+              <img 
+                src={drop.assetType === 'video' && drop.previewUri ? drop.previewUri : drop.image} 
+                alt={drop.title} 
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
+              />
+              <div className="absolute top-2 left-2 flex gap-1 flex-wrap">
+                <Badge className="bg-background/80 text-foreground backdrop-blur-sm text-[10px]">
+                  {drop.type}
+                </Badge>
+                {drop.assetType && drop.assetType !== 'image' && (
+                  <Badge className="bg-primary/80 text-primary-foreground backdrop-blur-sm text-[10px] capitalize">
+                    {drop.assetType}
+                  </Badge>
+                )}
+              </div>
               {drop.status === "live" && <span className="absolute top-2 right-2 h-2.5 w-2.5 rounded-full bg-primary animate-pulse" />}
             </div>
             <div className="p-3">

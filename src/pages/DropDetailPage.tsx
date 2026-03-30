@@ -12,6 +12,12 @@ import { recordDropView } from "@/lib/analyticsStore";
 import { getAllArtists } from "@/lib/artistStore";
 import { useSupabaseAllDrops } from "@/hooks/useSupabase";
 import { Web3Error } from "@/lib/types";
+import { detectAssetTypeFromUri, type AssetType } from "@/lib/assetTypes";
+import ImageViewer from "@/components/collection/ImageViewer";
+import { VideoViewer } from "@/components/collection/VideoViewer";
+import { AudioPlayer } from "@/components/collection/AudioPlayer";
+import { PdfReader } from "@/components/collection/PdfReader";
+import { EpubReader } from "@/components/collection/EpubReader";
 
 const DropDetailPage = () => {
   const { id } = useParams();
@@ -63,6 +69,8 @@ const DropDetailPage = () => {
       contractKind: foundDrop.contract_kind,
       poap: false,
       poapNote: "",
+      assetType: (foundDrop.asset_type || "image") as AssetType,
+      previewUri: foundDrop.preview_uri || undefined,
     };
   }, [id, allDrops]);
 
@@ -369,8 +377,28 @@ const DropDetailPage = () => {
   return (
     <div className="space-y-0 pb-4">
       <div className="relative">
-        <div className="aspect-square overflow-hidden">
-          <img src={drop.image} alt={drop.title} className="w-full h-full object-cover" />
+        <div className="aspect-square overflow-hidden bg-secondary">
+          {drop.assetType === 'image' && (
+            <img src={drop.image} alt={drop.title} className="w-full h-full object-cover" />
+          )}
+          {drop.assetType === 'video' && (
+            <VideoViewer 
+              src={drop.image} 
+              poster={drop.previewUri} 
+              alt={drop.title}
+            />
+          )}
+          {drop.assetType === 'audio' && (
+            <div className="w-full h-full flex items-center justify-center">
+              <AudioPlayer src={drop.image} title={drop.title} />
+            </div>
+          )}
+          {drop.assetType === 'pdf' && (
+            <PdfReader src={drop.image} title={drop.title} />
+          )}
+          {drop.assetType === 'epub' && (
+            <EpubReader src={drop.image} title={drop.title} />
+          )}
         </div>
         <button onClick={() => navigate(-1)} className="absolute top-3 left-3 p-2 rounded-full bg-background/60 backdrop-blur-sm">
           <ArrowLeft className="h-4 w-4 text-foreground" />
@@ -391,7 +419,12 @@ const DropDetailPage = () => {
       <div className="px-4 pt-4 space-y-4">
         <div className="flex items-start justify-between">
           <div>
-            <Badge variant="secondary" className="text-[10px] mb-1">{drop.type}</Badge>
+            <div className="flex gap-1 mb-2 flex-wrap">
+              <Badge variant="secondary" className="text-[10px]">{drop.type}</Badge>
+              {drop.assetType && drop.assetType !== 'image' && (
+                <Badge variant="outline" className="text-[10px] capitalize">{drop.assetType}</Badge>
+              )}
+            </div>
             <h1 className="text-xl font-bold text-foreground">{drop.title}</h1>
             <p className="text-sm text-muted-foreground">{drop.artist} · {drop.edition}</p>
           </div>
