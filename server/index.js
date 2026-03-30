@@ -33,7 +33,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
   auth: { persistSession: false, autoRefreshToken: false },
 });
 
-const app = express();
+const chapp = express();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
 
 // Nonce storage moved to Supabase (see: auth/challenge and auth/verify endpoints)
@@ -1011,9 +1011,13 @@ app.get("/admin/artists", authRequired, adminRequired, async (req, res) => {
 });
 
 const port = Number(PORT) || 3000;
-app.listen(port, () => {
-  console.log(`PopUp API listening on http://localhost:${port}`);
-});
+
+// Only listen locally, not on Vercel serverless
+if (NODE_ENV !== 'production' && !process.env.VERCEL) {
+  app.listen(port, () => {
+    console.log(`PopUp API listening on http://localhost:${port}`);
+  });
+}
 
 // Export app for serverless (Vercel)
 export default app;
