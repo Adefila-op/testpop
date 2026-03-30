@@ -16,6 +16,9 @@ const {
   SUPABASE_JWT_SECRET,
   PINATA_JWT,
   ADMIN_WALLETS = "",
+  BASE_SEPOLIA_RPC_URL = "https://sepolia.base.org",
+  ART_DROP_FACTORY_ADDRESS = "0xFd58d0f5F0423201Edb756d0f44D667106fc5705",
+  DEPLOYER_PRIVATE_KEY,
   NODE_ENV = "development",
 } = process.env;
 
@@ -141,6 +144,72 @@ function adminRequired(req, res, next) {
 
 function sameWalletOrAdmin(targetWallet, auth) {
   return auth?.role === "admin" || normalizeWallet(targetWallet) === auth?.wallet;
+}
+
+const FACTORY_ABI = [
+  {
+    inputs: [{ internalType: "address", name: "_artistWallet", type: "address" }],
+    name: "deployArtDrop",
+    outputs: [{ internalType: "address", name: "", type: "address" }],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "address", name: "_artist", type: "address" }],
+    name: "getArtistContract",
+    outputs: [{ internalType: "address", name: "", type: "address" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, internalType: "address", name: "artist", type: "address" },
+      { indexed: true, internalType: "address", name: "artDropContract", type: "address" },
+      { indexed: true, internalType: "address", name: "founder", type: "address" },
+      { indexed: false, internalType: "uint256", name: "timestamp", type: "uint256" },
+    ],
+    name: "ArtDropDeployed",
+    type: "event",
+  },
+];
+
+async function deployArtistContractForWallet(wallet) {
+  requireEnv(DEPLOYER_PRIVATE_KEY, "DEPLOYER_PRIVATE_KEY");
+  requireEnv(BASE_SEPOLIA_RPC_URL, "BASE_SEPOLIA_RPC_URL");
+  requireEnv(ART_DROP_FACTORY_ADDRESS, "ART_DROP_FACTORY_ADDRESS");
+
+  const artistWallet = ethers.getAddress(wallet);
+  const provider = new ethers.JsonRpcProvider(BASE_SEPOLIA_RPC_URL);
+  const signer = new ethers.Wallet(DEPLOYER_PRIVATE_KEY, provider);
+  const factory = new ethers.Contract(ART_DROP_FACTORY_ADDRESS, FACTORY_ABI, signer);
+
+  const tx = await factory.deployArtDrop(artistWallet);
+  const receipt = await tx.wait();
+
+  const deployedEvent = receipt.logs
+    .map((log) => {
+      try {
+        return factory.interface.parseLog(log);
+      } catch {
+        return null;
+      }
+    })
+    .find((event) => event?.name === "ArtDropDeployed");
+
+  const contractAddress =
+    deployedEvent?.args?.artDropContract ||
+    deployedEvent?.args?.[1] ||
+    (await factory.getArtistContract(artistWallet));
+
+  if (!contractAddress || contractAddress === ethers.ZeroAddress) {
+    throw new Error("Factory deployment succeeded but contract address could not be resolved");
+  }
+
+  return {
+    contractAddress: ethers.getAddress(contractAddress),
+    deploymentTx: tx.hash,
+  };
 }
 
 app.use(helmet());
@@ -585,6 +654,9 @@ app.post("/admin/approve-artist", authRequired, adminRequired, async (req, res) 
 
     if (approve && deployContract && !contractAddress) {
       try {
+        const deployment = await deployArtistContractForWallet(normalized);
+        contractAddress = deployment.contractAddress;
+        deploymentTx = deployment.deploymentTx;
         // For now, log that deployment would happen here
         // In production, you would call ArtDropFactory.deployArtistContract()
         console.log("🚀 Contract deployment for artist:", normalized);
@@ -598,7 +670,7 @@ app.post("/admin/approve-artist", authRequired, adminRequired, async (req, res) 
         // 4. Extract contract address from event logs
       } catch (err) {
         console.error("❌ Contract deployment error:", err);
-        deploymentError = err.message;
+        deploymentError = err instanceof Error ? err.message : "Unknown deployment error";
       }
     }
 
@@ -629,7 +701,7 @@ app.post("/admin/approve-artist", authRequired, adminRequired, async (req, res) 
       success: true,
       artist: updatedArtist,
       deployment: {
-        status: contractAddress ? "deployed" : "pending",
+        status: contractAddress ? "deployed" : deploymentError ? "failed" : "pending",
         address: contractAddress,
         tx: deploymentTx,
         error: deploymentError,

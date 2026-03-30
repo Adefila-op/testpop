@@ -17,7 +17,7 @@ import {
   Upload, AlertTriangle, Wallet, DollarSign, Activity, ArrowLeft,
 } from "lucide-react";
 import { useWallet, useCreateCampaign, useCreateDrop, useGetSubscriberCountFromArtistContract } from "@/hooks/useContracts";
-import { useDeployArtistContract, useGetArtistContract } from "@/hooks/useContractIntegrations";
+import { useGetArtistContract } from "@/hooks/useContractIntegrations";
 import { ipfsToHttp, uploadFileToPinata, uploadMetadataToPinata } from "@/lib/pinata";
 import { formatEther } from "viem";
 import { toast } from "sonner";
@@ -413,10 +413,14 @@ const ArtistStudioPage = () => {
   const [profileComplete, setProfileComplete] = useState(false);
   const [publicArtistId, setPublicArtistId] = useState("1");
 
-  // Contract deployment state
-  const { deploy, isPending: deploymentPending, isSuccess: deploymentSuccess, error: deploymentError, receipt: deploymentReceipt, hash: deploymentHash } = useDeployArtistContract();
   const deployedContractAddress = useGetArtistContract(address); // Fetch deployed contract address
-  const [deployingArtistWallet, setDeployingArtistWallet] = useState<string | null>(null);
+  const deploymentPending = false;
+  const deploymentSuccess = false;
+  const deploymentError = null;
+  const deploymentReceipt = null;
+  const deploymentHash = null;
+  const deploy = async (_wallet: string) => {};
+  const setDeployingArtistWallet = (_wallet: string | null) => {};
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
@@ -573,7 +577,10 @@ const ArtistStudioPage = () => {
 
       // ✨ NEW: Deploy artist contract if not already deployed (async, doesn't block profile save)
       const artist = resolveArtistForWallet(address);
-      if (!artist.contractAddress) {
+      if (!artist.contractAddress && !deployedContractAddress) {
+        toast.info("Profile saved. An admin will deploy your artist contract before you can publish drops.");
+      }
+      if (false && !artist.contractAddress) {
         console.log("🚀 Contract not found for artist, initiating deployment...");
         setDeployingArtistWallet(address);
         toast.info("🚀 Deploying your artist NFT contract in the background...");
@@ -1145,7 +1152,7 @@ const ArtistStudioPage = () => {
             </div>
 
             {/* Save button */}
-            <Button onClick={saveProfile} disabled={profileSaving || deploymentPending}
+            <Button onClick={saveProfile} disabled={profileSaving}
               className="w-full h-12 rounded-xl gradient-primary text-primary-foreground font-bold text-sm">
               {profileSaving ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Saving…</>
                 : deploymentPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Deploying contract…</>
