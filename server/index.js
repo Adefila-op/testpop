@@ -606,16 +606,6 @@ app.get("/health", (_req, res) => {
   res.json({ ok: true, service: "popup-api", env: NODE_ENV });
 });
 
-app.get("/", (_req, res) => {
-  console.log("✅ / root endpoint called");
-  res.json({ 
-    status: "API is running", 
-    service: "popup-api",
-    env: NODE_ENV,
-    message: "Use /api/* routes for API access, or check /health for server status"
-  });
-});
-
 // ╔═══════════════════════════════════════════════════════════════════════════╗
 // ║ AUTH ROUTES - Registered at both /path and /api/path for Vercel           ║
 // ╚═══════════════════════════════════════════════════════════════════════════╝
