@@ -614,12 +614,23 @@ app.get("/debug/dist-status", (req, res) => {
   const indexExists = fs.existsSync(indexPath);
   const dirContents = distExists ? fs.readdirSync(distPath).slice(0, 10) : [];
   
+  // Also check parent directory
+  const parentPath = path.join(__dirname, '..');
+  const parentContents = fs.readdirSync(parentPath).slice(0, 20);
+  
+  // Check if dist exists in parent
+  const distInParent = fs.existsSync(path.join(parentPath, 'dist'));
+  
   res.json({
     "__dirname": __dirname,
+    "process.cwd()": process.cwd(),
     "distPath": distPath,
     "distExists": distExists,
     "indexExists": indexExists,
     "distContents": dirContents,
+    "parentPath": parentPath,
+    "distInParent": distInParent,
+    "parentContents": parentContents,
     "NODE_ENV": NODE_ENV
   });
 });
