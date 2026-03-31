@@ -596,17 +596,18 @@ app.get("/", (_req, res) => {
   });
 });
 
-app.post("/auth/challenge", authLimiter, async (req, res) => {
+// ╔═══════════════════════════════════════════════════════════════════════════╗
+// ║ AUTH ROUTES - Registered at both /path and /api/path for Vercel           ║
+// ╚═══════════════════════════════════════════════════════════════════════════╝
+
+const authChallengeImpl = async (req, res) => {
   try {
     const wallet = normalizeWallet(req.body?.wallet);
     if (!ethers.isAddress(wallet)) {
       return res.status(400).json({ error: "Invalid wallet address" });
     }
 
-    // Clean up expired nonces from database
     await cleanupExpiredNonces();
-
-    // Issue new nonce (stored in Supabase)
     const { nonce, issuedAt } = await issueNonce(wallet);
     const message = makeChallengeMessage(wallet, nonce, issuedAt);
 
@@ -616,55 +617,13 @@ app.post("/auth/challenge", authLimiter, async (req, res) => {
     const isDev = NODE_ENV === 'development';
     return res.status(500).json({ error: isDev ? error.message : "Failed to issue challenge" });
   }
-});
+};
 
-// Also create /api/auth/challenge route for Vercel
-app.post("/api/auth/challenge", authLimiter, async (req, res) => {
-  try {
-    const wallet = normalizeWallet(req.body?.wallet);
-    if (!ethers.isAddress(wallet)) {
-      return res.status(400).json({ error: "Invalid wallet address" });
-    }
+// Register at both /auth/challenge and /api/auth/challenge
+app.post("/auth/challenge", authLimiter, authChallengeImpl);
+app.post("/api/auth/challenge", authLimiter, authChallengeImpl);
 
-    // Clean up expired nonces from database
-    await cleanupExpiredNonces();
-
-    // Issue new nonce (stored in Supabase)
-    const { nonce, issuedAt } = await issueNonce(wallet);
-    const message = makeChallengeMessage(wallet, nonce, issuedAt);
-
-    return res.json({ wallet, nonce, issuedAt, message });
-  } catch (error) {
-    console.error("Challenge error:", error);
-    const isDev = NODE_ENV === 'development';
-    return res.status(500).json({ error: isDev ? error.message : "Failed to issue challenge" });
-  }
-});
-
-// Also create /api/auth/challenge route for Vercel
-app.post("/api/auth/challenge", authLimiter, async (req, res) => {
-  try {
-    const wallet = normalizeWallet(req.body?.wallet);
-    if (!ethers.isAddress(wallet)) {
-      return res.status(400).json({ error: "Invalid wallet address" });
-    }
-
-    // Clean up expired nonces from database
-    await cleanupExpiredNonces();
-
-    // Issue new nonce (stored in Supabase)
-    const { nonce, issuedAt } = await issueNonce(wallet);
-    const message = makeChallengeMessage(wallet, nonce, issuedAt);
-
-    return res.json({ wallet, nonce, issuedAt, message });
-  } catch (error) {
-    console.error("Challenge error:", error);
-    const isDev = NODE_ENV === 'development';
-    return res.status(500).json({ error: isDev ? error.message : "Failed to issue challenge" });
-  }
-});
-
-app.post("/auth/verify", authLimiter, async (req, res) => {
+const authVerifyImpl = async (req, res) => {
   try {
     const wallet = normalizeWallet(req.body?.wallet);
     const signature = req.body?.signature;
@@ -674,63 +633,7 @@ app.post("/auth/verify", authLimiter, async (req, res) => {
       return res.status(400).json({ error: "Wallet, signature, and nonce are required" });
     }
 
-    // Clean up expired nonces from database
     await cleanupExpiredNonces();
-
-    const nonceRecord = await getValidNonceRecord(wallet, nonce);
-
-    const message = makeChallengeMessage(wallet, nonceRecord.nonce, nonceRecord.issued_at);
-    const recovered = normalizeWallet(ethers.verifyMessage(message, signature));
-
-    if (recovered !== wallet) {
-      // Log failed verification attempt (security event)
-      console.warn(`🔓 Failed signature verification for ${wallet} from ${req.ip}`);
-      return res.status(401).json({ error: "Signature verification failed" });
-    }
-
-    const { error: updateError } = await supabase
-      .from("nonces")
-      .update({ used: true, used_at: new Date().toISOString() })
-      .eq("id", nonceRecord.id);
-
-    if (updateError) {
-      console.error("Failed to mark nonce as used:", updateError);
-      return res.status(500).json({ error: "Failed to finalize authenticated session" });
-    }
-
-    const role = await resolveRole(wallet);
-    const apiToken = issueAppToken({ wallet, role });
-    const supabaseToken = issueSupabaseToken({ wallet, role });
-
-    console.log(`✅ Auth verified for ${wallet} (role: ${role})`);
-    return res.json({
-      wallet,
-      role,
-      apiToken,
-      supabaseToken,
-      expiresInSeconds: 12 * 60 * 60,
-    });
-  } catch (error) {
-    console.error("Verification error:", error);
-    const isDev = NODE_ENV === 'development';
-    return res.status(500).json({ error: isDev ? error.message : "Verification failed" });
-  }
-});
-
-// DUPLICATE ROUTES FOR /api prefix - Vercel workaround
-app.post("/api/auth/verify", authLimiter, async (req, res) => {
-  try {
-    const wallet = normalizeWallet(req.body?.wallet);
-    const signature = req.body?.signature;
-    const nonce = req.body?.nonce;
-
-    if (!ethers.isAddress(wallet) || !signature || !nonce) {
-      return res.status(400).json({ error: "Wallet, signature, and nonce are required" });
-    }
-
-    // Clean up expired nonces from database
-    await cleanupExpiredNonces();
-
     const nonceRecord = await getValidNonceRecord(wallet, nonce);
 
     const message = makeChallengeMessage(wallet, nonceRecord.nonce, nonceRecord.issued_at);
@@ -768,62 +671,18 @@ app.post("/api/auth/verify", authLimiter, async (req, res) => {
     const isDev = NODE_ENV === 'development';
     return res.status(500).json({ error: isDev ? error.message : "Verification failed" });
   }
-});
+};
 
-// DUPLICATE ROUTES FOR /api prefix - Vercel workaround
-app.post("/api/auth/verify", authLimiter, async (req, res) => {
-  try {
-    const wallet = normalizeWallet(req.body?.wallet);
-    const signature = req.body?.signature;
-    const nonce = req.body?.nonce;
-
-    if (!ethers.isAddress(wallet) || !signature || !nonce) {
-      return res.status(400).json({ error: "Wallet, signature, and nonce are required" });
-    }
-
-    // Clean up expired nonces from database
-    await cleanupExpiredNonces();
-
-    const nonceRecord = await getValidNonceRecord(wallet, nonce);
-
-    const message = makeChallengeMessage(wallet, nonceRecord.nonce, nonceRecord.issued_at);
-    const recovered = normalizeWallet(ethers.verifyMessage(message, signature));
-
-    if (recovered !== wallet) {
-      console.warn(`🔓 Failed signature verification for ${wallet} from ${req.ip}`);
-      return res.status(401).json({ error: "Signature verification failed" });
-    }
-
-    const { error: updateError } = await supabase
-      .from("nonces")
-      .update({ used: true, used_at: new Date().toISOString() })
-      .eq("id", nonceRecord.id);
-
-    if (updateError) {
-      console.error("Failed to mark nonce as used:", updateError);
-      return res.status(500).json({ error: "Failed to finalize authenticated session" });
-    }
-
-    const role = await resolveRole(wallet);
-    const apiToken = issueAppToken({ wallet, role });
-    const supabaseToken = issueSupabaseToken({ wallet, role });
-
-    console.log(`✅ Auth verified for ${wallet} (role: ${role})`);
-    return res.json({
-      wallet,
-      role,
-      apiToken,
-      supabaseToken,
-      expiresInSeconds: 12 * 60 * 60,
-    });
-  } catch (error) {
-    console.error("Verification error:", error);
-    const isDev = NODE_ENV === 'development';
-    return res.status(500).json({ error: isDev ? error.message : "Verification failed" });
-  }
-});
+// Register at both /auth/verify and /api/auth/verify
+app.post("/auth/verify", authLimiter, authVerifyImpl);
+app.post("/api/auth/verify", authLimiter, authVerifyImpl);
 
 app.get("/auth/session", authRequired, (req, res) => {
+  return res.json({ wallet: req.auth.wallet, role: req.auth.role });
+});
+
+// Also at /api/auth/session
+app.get("/api/auth/session", authRequired, (req, res) => {
   return res.json({ wallet: req.auth.wallet, role: req.auth.role });
 });
 
@@ -1097,7 +956,11 @@ app.delete("/whitelist/:id", authRequired, adminRequired, async (req, res) => {
   return res.status(204).send();
 });
 
-app.post("/pinata/file", authRequired, upload.single("file"), async (req, res) => {
+// ╔═══════════════════════════════════════════════════════════════════════════╗
+// ║ PINATA FILE UPLOAD ROUTES - Registered at both /path and /api/path        ║
+// ╚═══════════════════════════════════════════════════════════════════════════╝
+
+const pinataFileImpl = async (req, res) => {
   try {
     requireEnv(PINATA_JWT, "PINATA_JWT");
     if (!req.file) return res.status(400).json({ error: "file is required" });
@@ -1124,9 +987,9 @@ app.post("/pinata/file", authRequired, upload.single("file"), async (req, res) =
   } catch (error) {
     return res.status(500).json({ error: error.message || "Pinata upload failed" });
   }
-});
+};
 
-app.post("/pinata/json", authRequired, async (req, res) => {
+const pinataJsonImpl = async (req, res) => {
   try {
     requireEnv(PINATA_JWT, "PINATA_JWT");
     const metadata = req.body?.metadata;
@@ -1154,14 +1017,21 @@ app.post("/pinata/json", authRequired, async (req, res) => {
   } catch (error) {
     return res.status(500).json({ error: error.message || "Pinata metadata upload failed" });
   }
-});
+};
+
+// Register at both /pinata/* and /api/pinata/*
+app.post("/pinata/file", authRequired, upload.single("file"), pinataFileImpl);
+app.post("/api/pinata/file", authRequired, upload.single("file"), pinataFileImpl);
+app.post("/pinata/json", authRequired, pinataJsonImpl);
+app.post("/api/pinata/json", authRequired, pinataJsonImpl);
 
 /**
  * ═════════════════════════════════════════════════════════════
  * ADMIN - Approve artist and deploy contract
+ * Registered at both /admin/* and /api/admin/*
  * ═════════════════════════════════════════════════════════════
  */
-app.post("/admin/approve-artist", authRequired, adminRequired, async (req, res) => {
+const approveArtistImpl = async (req, res) => {
   try {
     const { wallet, approve = false, deployContract = true } = req.body || {};
     const normalized = normalizeWallet(wallet);
@@ -1319,14 +1189,19 @@ app.post("/admin/approve-artist", authRequired, adminRequired, async (req, res) 
     console.error("❌ Approval error:", error);
     return res.status(500).json({ error: error.message || "Approval processing failed" });
   }
-});
+};
+
+// Register at both /admin/approve-artist and /api/admin/approve-artist
+app.post("/admin/approve-artist", authRequired, adminRequired, approveArtistImpl);
+app.post("/api/admin/approve-artist", authRequired, adminRequired, approveArtistImpl);
 
 /**
  * ═════════════════════════════════════════════════════════════
  * ADMIN - Reject artist (dedicated endpoint)
+ * Registered at both /admin/* and /api/admin/*
  * ═════════════════════════════════════════════════════════════
  */
-app.post("/admin/reject-artist", authRequired, adminRequired, async (req, res) => {
+const rejectArtistImpl = async (req, res) => {
   try {
     const { wallet, reason = "" } = req.body || {};
     const normalized = normalizeWallet(wallet);
@@ -1407,14 +1282,19 @@ app.post("/admin/reject-artist", authRequired, adminRequired, async (req, res) =
     console.error("❌ Rejection error:", error);
     return res.status(500).json({ error: error.message || "Rejection processing failed" });
   }
-});
+};
+
+// Register at both /admin/reject-artist and /api/admin/reject-artist
+app.post("/admin/reject-artist", authRequired, adminRequired, rejectArtistImpl);
+app.post("/api/admin/reject-artist", authRequired, adminRequired, rejectArtistImpl);
 
 /**
  * ═════════════════════════════════════════════════════════════
  * ADMIN - Get pending and approved artists
+ * Registered at both /admin/* and /api/admin/*
  * ═════════════════════════════════════════════════════════════
  */
-app.get("/admin/artists", authRequired, adminRequired, async (req, res) => {
+const getAdminArtistsImpl = async (req, res) => {
   try {
     const { status } = req.query; // "pending", "approved", or undefined for all
     
@@ -1438,7 +1318,11 @@ app.get("/admin/artists", authRequired, adminRequired, async (req, res) => {
     console.error("❌ Admin artists fetch error:", error);
     return res.status(500).json({ error: error.message || "Failed to fetch artists" });
   }
-});
+};
+
+// Register at both /admin/artists and /api/admin/artists
+app.get("/admin/artists", authRequired, adminRequired, getAdminArtistsImpl);
+app.get("/api/admin/artists", authRequired, adminRequired, getAdminArtistsImpl);
 
 const port = Number(PORT) || 3000;
 
