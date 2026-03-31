@@ -614,12 +614,22 @@ app.get("/debug/dist-status", (req, res) => {
   const indexExists = fs.existsSync(indexPath);
   const dirContents = distExists ? fs.readdirSync(distPath).slice(0, 10) : [];
   
-  // Also check parent directory
-  const parentPath = path.join(__dirname, '..');
-  const parentContents = fs.readdirSync(parentPath).slice(0, 20);
+  // Check various potential locations
+  const taskPath = '/var/task';
+  const taskContents = fs.readdirSync(taskPath).sort();
   
-  // Check if dist exists in parent
-  const distInParent = fs.existsSync(path.join(parentPath, 'dist'));
+  const taskDist = path.join(taskPath, 'dist');
+  const taskDistServerDist = path.join(taskPath, 'server', 'dist');
+  const vcDist = path.join(taskPath, '___vc', 'dist');
+  const vcOutput = path.join(taskPath, '___vc', '.vc-config.json');
+  
+  // List server directory
+  const serverPath = path.join(taskPath, 'server');
+  const serverContents = fs.existsSync(serverPath) ? fs.readdirSync(serverPath).slice(0, 20) : [];
+  
+  // Check ___vc directory for output info
+  const vcPath = path.join(taskPath, '___vc');
+  const vcContents = fs.existsSync(vcPath) ? fs.readdirSync(vcPath).slice(0, 20) : [];
   
   res.json({
     "__dirname": __dirname,
@@ -627,10 +637,15 @@ app.get("/debug/dist-status", (req, res) => {
     "distPath": distPath,
     "distExists": distExists,
     "indexExists": indexExists,
-    "distContents": dirContents,
-    "parentPath": parentPath,
-    "distInParent": distInParent,
-    "parentContents": parentContents,
+    "distContents": dirContents.length,
+    "taskPath": taskPath,
+    "taskContents": taskContents,
+    "taskDist_exists": fs.existsSync(taskDist),
+    "taskDistServerDist_exists": fs.existsSync(taskDistServerDist),
+    "vcDist_exists": fs.existsSync(vcDist),
+    "vcOutput_exists": fs.existsSync(vcOutput),
+    "serverContents": serverContents,
+    "vcContents": vcContents,
     "NODE_ENV": NODE_ENV
   });
 });
