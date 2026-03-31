@@ -1,10 +1,7 @@
 {
   "buildCommand": "npm run build",
+  "outputDirectory": "dist",
   "builds": [
-    {
-      "src": "dist/**",
-      "use": "@vercel/static"
-    },
     {
       "src": "server/api/index.js",
       "use": "@vercel/node",
@@ -20,12 +17,23 @@
       "dest": "server/api/index.js"
     },
     {
-      "src": "/(.*\\.(js|css|svg|png|jpg|jpeg|gif|webp|woff|woff2|ttf|eot|ico|json))",
+      "src": "/(.*\\.(js|css|svg|png|jpg|jpeg|gif|webp|woff|woff2|ttf|eot|ico|json|webmanifest))",
       "dest": "/$1"
     },
     {
       "src": "/.*",
       "dest": "/index.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/dist/(.+)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
     }
   ]
 }
