@@ -1,8 +1,9 @@
 import { Shield, Wallet, AlertTriangle, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useWallet } from "@/hooks/useContracts";
-import { isAdminWallet } from "@/lib/admin";
+import { ADMIN_WALLETS, isAdminWallet } from "@/lib/admin";
 import { establishSecureSession } from "@/lib/secureAuth";
+import { getRuntimeSession, clearRuntimeSession } from "@/lib/runtimeSession";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -15,32 +16,51 @@ const AdminGuard = ({ children }: { children: React.ReactNode }) => {
   const { address, isConnected, isConnecting, connectWallet, disconnect } = useWallet();
   const [sessionEstablished, setSessionEstablished] = useState(false);
   const [sessionError, setSessionError] = useState<string | null>(null);
+  const [resolvedRole, setResolvedRole] = useState<string>("");
+  const normalizedAddress = address?.toLowerCase() || "";
+  const walletIsAuthorized = isAdminWallet(address);
+  const runtimeSession = getRuntimeSession();
+  const backendSaysAdmin =
+    runtimeSession.wallet === normalizedAddress && runtimeSession.role === "admin";
+  const shouldAttemptAdminAuth = Boolean(isConnected && address);
 
-  // Establish secure session when admin wallet is verified
+  // Establish secure session as soon as a wallet is connected, then trust backend role.
   useEffect(() => {
-    if (isConnected && isAdminWallet(address) && !sessionEstablished) {
+    if (shouldAttemptAdminAuth && (!sessionEstablished || runtimeSession.wallet !== normalizedAddress)) {
       establishSecureSession(address)
-        .then(() => {
+        .then((session) => {
           setSessionEstablished(true);
           setSessionError(null);
-          console.log("✅ Admin secure session established!");
+          setResolvedRole(session.role || "");
+          console.log("✅ Secure session established:", session.role);
         })
         .catch((error) => {
           const errorMsg = error instanceof Error ? error.message : String(error);
           console.error("❌ Failed to establish secure session:", errorMsg);
           setSessionError(errorMsg || "Failed to authenticate with backend");
+          setResolvedRole("");
           toast.error(`Authentication failed: ${errorMsg}`);
         });
     }
-  }, [address, isConnected, sessionEstablished]);
+  }, [address, normalizedAddress, runtimeSession.wallet, sessionEstablished, shouldAttemptAdminAuth]);
 
-  // Reset session when wallet disconnects
+  // Reset session when wallet disconnects or changes.
   useEffect(() => {
     if (!isConnected) {
       setSessionEstablished(false);
       setSessionError(null);
+      setResolvedRole("");
+      clearRuntimeSession();
+      return;
     }
-  }, [isConnected]);
+
+    if (runtimeSession.wallet && runtimeSession.wallet !== normalizedAddress) {
+      setSessionEstablished(false);
+      setSessionError(null);
+      setResolvedRole("");
+      clearRuntimeSession();
+    }
+  }, [isConnected, normalizedAddress, runtimeSession.wallet]);
 
   // ── Not connected ───────────────────────────────────────────────────────────
   if (!isConnected) {
@@ -66,7 +86,22 @@ const AdminGuard = ({ children }: { children: React.ReactNode }) => {
   }
 
   // ── Connected but wrong wallet ───────────────────────────────────────────────
-  if (!isAdminWallet(address)) {
+  if (!sessionEstablished && shouldAttemptAdminAuth && !sessionError) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center px-6 text-center">
+        <div className="h-20 w-20 rounded-3xl bg-secondary flex items-center justify-center mb-6">
+          <Shield className="h-10 w-10 text-primary animate-pulse" />
+        </div>
+        <h1 className="text-2xl font-bold text-foreground mb-2">Establishing Secure Session</h1>
+        <p className="text-sm text-muted-foreground mb-8 max-w-xs">
+          Authenticating with the backend server...
+        </p>
+        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
+      </div>
+    );
+  }
+
+  if (sessionEstablished && resolvedRole !== "admin") {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center px-6 text-center">
         <div className="h-20 w-20 rounded-3xl bg-destructive/10 flex items-center justify-center mb-6">
@@ -79,6 +114,23 @@ const AdminGuard = ({ children }: { children: React.ReactNode }) => {
         <p className="text-xs font-mono text-muted-foreground bg-secondary px-3 py-1.5 rounded-lg mb-8 max-w-xs truncate">
           {address}
         </p>
+        <div className="w-full max-w-lg rounded-2xl border border-border bg-secondary/40 p-4 text-left mb-6">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+            Admin Access Diagnostic
+          </p>
+          <p className="text-xs font-mono break-all text-foreground mb-2">
+            Connected: {address || "none"}
+          </p>
+          <p className="text-xs font-mono break-all text-foreground mb-2">
+            Normalized: {normalizedAddress || "none"}
+          </p>
+          <p className="text-xs font-mono break-all text-foreground mb-2">
+            Backend role: {resolvedRole || "none"}
+          </p>
+          <p className="text-xs font-mono break-all text-foreground">
+            Allowed: {ADMIN_WALLETS.length > 0 ? ADMIN_WALLETS.join(", ") : "none"}
+          </p>
+        </div>
         <Button
           variant="outline"
           onClick={() => disconnect()}
@@ -105,6 +157,9 @@ const AdminGuard = ({ children }: { children: React.ReactNode }) => {
         <p className="text-xs font-mono text-muted-foreground bg-secondary px-3 py-1.5 rounded-lg mb-8 max-w-xs">
           {sessionError}
         </p>
+        <p className="text-xs font-mono text-muted-foreground bg-secondary px-3 py-1.5 rounded-lg mb-8 max-w-xs break-all">
+          Local admin match: {walletIsAuthorized ? "yes" : "no"}
+        </p>
         <Button
           variant="outline"
           onClick={() => window.location.reload()}
@@ -113,21 +168,6 @@ const AdminGuard = ({ children }: { children: React.ReactNode }) => {
           <LogOut className="h-4 w-4" />
           Refresh Page
         </Button>
-      </div>
-    );
-  }
-
-  if (!sessionEstablished) {
-    return (
-      <div className="min-h-screen bg-background flex flex-col items-center justify-center px-6 text-center">
-        <div className="h-20 w-20 rounded-3xl bg-secondary flex items-center justify-center mb-6">
-          <Shield className="h-10 w-10 text-primary animate-pulse" />
-        </div>
-        <h1 className="text-2xl font-bold text-foreground mb-2">Establishing Secure Session</h1>
-        <p className="text-sm text-muted-foreground mb-8 max-w-xs">
-          Authenticating with the backend server...
-        </p>
-        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
       </div>
     );
   }
