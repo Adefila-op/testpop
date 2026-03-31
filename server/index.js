@@ -148,6 +148,19 @@ function isValidPrivateKey(value = "") {
   return /^0x[0-9a-fA-F]{64}$/.test(normalized);
 }
 
+function isMissingArtistContractColumnError(error) {
+  const message = error?.message || "";
+  return (
+    typeof message === "string" &&
+    message.includes("schema cache") &&
+    (
+      message.includes("'contract_address'") ||
+      message.includes("'contract_deployment_tx'") ||
+      message.includes("'contract_deployed_at'")
+    )
+  );
+}
+
 function getContractDeploymentReadiness() {
   const missing = [];
   const invalid = [];
@@ -1300,7 +1313,9 @@ const approveArtistImpl = async (req, res) => {
       updatePayload.contract_deployed_at = now;
     }
 
-    const { data: updatedArtist, error: updateError } = await supabase
+    let updateWarning = null;
+
+    let { data: updatedArtist, error: updateError } = await supabase
       .from("artists")
       .upsert(
         {
@@ -1324,6 +1339,38 @@ const approveArtistImpl = async (req, res) => {
       .select("*")
       .single();
 
+    if (updateError && contractAddress && isMissingArtistContractColumnError(updateError)) {
+      console.warn("Artist contract metadata columns missing on artists table. Retrying without contract deployment fields.");
+
+      const fallbackArtistPayload = {
+        wallet: normalized,
+        name: artistName,
+        bio: artistData.bio || latestApplication?.bio || null,
+        tag: artistData.tag || null,
+        twitter_url: artistData.twitter_url || latestApplication?.twitter_url || null,
+        instagram_url: artistData.instagram_url || latestApplication?.instagram_url || null,
+        website_url: artistData.website_url || latestApplication?.website_url || latestApplication?.portfolio_url || null,
+        portfolio:
+          Array.isArray(artistData.portfolio) && artistData.portfolio.length > 0
+            ? artistData.portfolio
+            : latestApplication?.portfolio_url
+              ? [latestApplication.portfolio_url]
+              : [],
+        updated_at: now,
+      };
+
+      const fallbackResult = await supabase
+        .from("artists")
+        .upsert(fallbackArtistPayload, { onConflict: "wallet" })
+        .select("*")
+        .single();
+
+      updatedArtist = fallbackResult.data;
+      updateError = fallbackResult.error;
+      updateWarning =
+        "Artist approved and contract deployed, but the Supabase artists table is missing contract metadata columns. Apply the artist contract migration to persist contract_address.";
+    }
+
     if (updateError) {
       return res.status(400).json({ error: `Failed to update artist: ${updateError.message}` });
     }
@@ -1338,6 +1385,7 @@ const approveArtistImpl = async (req, res) => {
         deploymentStatus: contractAddress ? "deployed" : deploymentError ? "failed" : "pending",
         contractAddress,
         deploymentTx,
+        updateWarning,
       },
     }).catch((err) => console.warn("Audit log warning:", err.message));
 
@@ -1351,7 +1399,7 @@ const approveArtistImpl = async (req, res) => {
         error: deploymentError,
       },
       onchain: onchainUpdate,
-      warning: null,
+      warning: updateWarning,
     });
   } catch (error) {
     console.error("❌ Approval error:", error);
