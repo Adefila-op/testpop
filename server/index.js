@@ -14,6 +14,16 @@ import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const frontendDistCandidates = [
+  path.resolve(__dirname, "dist"),
+  path.resolve(__dirname, "../dist"),
+  path.resolve(process.cwd(), "server", "dist"),
+  path.resolve(process.cwd(), "dist"),
+];
+const frontendDistPath =
+  frontendDistCandidates.find((candidate) => fs.existsSync(candidate)) ||
+  frontendDistCandidates[0];
+const frontendIndexPath = path.join(frontendDistPath, "index.html");
 
 [
   path.resolve(process.cwd(), ".env.local"),
@@ -30,6 +40,7 @@ const {
   PORT = "8787",
   FRONTEND_ORIGIN = "http://localhost:5173,https://testpop-one.vercel.app",
   APP_JWT_SECRET,
+  JWT_SECRET,
   SUPABASE_URL,
   SUPABASE_SERVICE_ROLE_KEY,
   SUPABASE_JWT_SECRET,
@@ -41,8 +52,10 @@ const {
   NODE_ENV = "development",
 } = process.env;
 
-if (!APP_JWT_SECRET) {
-  throw new Error("APP_JWT_SECRET is required");
+const appJwtSecret = APP_JWT_SECRET || JWT_SECRET;
+
+if (!appJwtSecret) {
+  throw new Error("APP_JWT_SECRET or JWT_SECRET is required");
 }
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
   throw new Error("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required");
@@ -167,7 +180,7 @@ function makeChallengeMessage(wallet, nonce, issuedAtIso) {
 }
 
 function issueAppToken(payload) {
-  return jwt.sign(payload, APP_JWT_SECRET, {
+  return jwt.sign(payload, appJwtSecret, {
     algorithm: "HS256",
     expiresIn: "12h",
     issuer: "popup-api",
@@ -217,7 +230,7 @@ function authRequired(req, res, next) {
     const [, token] = header.match(/^Bearer\s+(.+)$/i) || [];
     if (!token) return res.status(401).json({ error: "Missing bearer token" });
 
-    const decoded = jwt.verify(token, APP_JWT_SECRET, {
+    const decoded = jwt.verify(token, appJwtSecret, {
       algorithms: ["HS256"],
       issuer: "popup-api",
       audience: "popup-client",
@@ -544,7 +557,7 @@ app.use(cookieParser());
 // On Vercel, dist/ is copied to server/ by buildCommand
 // ═════════════════════════════════════════════════════════════════════════════
 
-app.use(express.static(path.join(__dirname, './dist'), {
+app.use(express.static(frontendDistPath, {
   maxAge: '1d',
   etag: false,
   setHeaders: (res, filePath) => {
@@ -608,8 +621,8 @@ app.get("/health", (_req, res) => {
 
 // DEBUG: Check if dist folder exists
 app.get("/debug/dist-status", (req, res) => {
-  const distPath = path.join(__dirname, './dist');
-  const indexPath = path.join(distPath, 'index.html');
+  const distPath = frontendDistPath;
+  const indexPath = frontendIndexPath;
   const distExists = fs.existsSync(distPath);
   const indexExists = fs.existsSync(indexPath);
   const dirContents = distExists ? fs.readdirSync(distPath).slice(0, 10) : [];
@@ -634,6 +647,7 @@ app.get("/debug/dist-status", (req, res) => {
   res.json({
     "__dirname": __dirname,
     "process.cwd()": process.cwd(),
+    "frontendDistCandidates": frontendDistCandidates,
     "distPath": distPath,
     "distExists": distExists,
     "indexExists": indexExists,
@@ -1392,12 +1406,10 @@ app.get('*', (req, res, next) => {
   
   // For all other routes, serve index.html from dist
   console.log(`📄 SPA fallback: serving index.html for path: ${req.path}`);
-  const indexPath = path.join(__dirname, './dist/index.html');
-  
-  if (fs.existsSync(indexPath)) {
+  if (fs.existsSync(frontendIndexPath)) {
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.setHeader('Content-Type', 'text/html');
-    return res.sendFile(indexPath);
+    return res.sendFile(frontendIndexPath);
   }
   
   // If index.html doesn't exist, continue to 404 handler
