@@ -4,8 +4,9 @@ import {
   getRuntimeApiToken,
   setRuntimeSession,
 } from "@/lib/runtimeSession";
+import { SECURE_API_BASE } from "@/lib/apiBase";
 
-const secureApiBaseUrl = (import.meta.env.VITE_SECURE_API_BASE_URL || "").replace(/\/$/, "");
+const secureApiBaseUrl = SECURE_API_BASE;
 
 export type SecureSession = {
   wallet: string;

@@ -6,8 +6,9 @@
 
 import { useState } from "react";
 import { getRuntimeApiToken } from "@/lib/runtimeSession";
+import { SECURE_API_BASE } from "@/lib/apiBase";
 
-const API_BASE = (import.meta.env.VITE_SECURE_API_BASE_URL || import.meta.env.VITE_API_BASE || "").replace(/\/$/, "");
+const API_BASE = SECURE_API_BASE;
 
 function getAuthHeaders() {
   const headers = new Headers();

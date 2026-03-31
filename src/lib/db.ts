@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { getRuntimeApiToken } from "@/lib/runtimeSession";
+import { SECURE_API_BASE } from "@/lib/apiBase";
 
 // ─── TypeScript Types for Database Models ──────────────────────────────
 export interface Artist {
@@ -129,7 +130,7 @@ export const supabase = createClient(supabaseConfig.url, supabaseConfig.key, {
   },
 });
 
-const secureApiBaseUrl = (import.meta.env.VITE_SECURE_API_BASE_URL || "").replace(/\/$/, "");
+const secureApiBaseUrl = SECURE_API_BASE;
 
 function getApiAuthToken(): string {
   return getRuntimeApiToken();
@@ -237,7 +238,7 @@ export async function checkSupabaseHealth() {
 }
 
 // Export health check to window for debugging
-if (typeof window !== "undefined") {
+if (typeof window !== "undefined" && import.meta.env.DEV) {
   (window as any).checkSupabase = checkSupabaseHealth;
   console.log("💡 Debug tip: Call window.checkSupabase() in console to test connection");
 }
@@ -253,19 +254,17 @@ export async function getArtistProfile(wallet: string) {
       return null;
     }
 
-    console.log(`📖 Fetching artist profile for wallet: ${wallet}`);
     const { data, error } = await supabase
       .from("artists")
       .select("*")
       .eq("wallet", wallet.toLowerCase())
-      .single();
+      .maybeSingle();
 
     if (error && error.code !== "PGRST116") {
       console.error("❌ Error fetching artist profile:", error.message);
       throw error;
     }
 
-    if (data) console.log("✅ Artist profile found:", data.name || wallet);
     return data || null;
   } catch (error: any) {
     console.error("❌ getArtistProfile failed:", error.message);
@@ -719,6 +718,23 @@ export async function submitArtistApplication(
       throw new Error("You've already submitted an application from this wallet.");
     }
     throw new Error(`Failed to submit application: ${error.message}`);
+  }
+
+  const { error: whitelistError } = await supabase
+    .from("whitelist")
+    .upsert(
+      {
+        wallet: normalized.wallet_address,
+        name: normalized.artist_name,
+        tag: normalized.art_types?.[0] || "artist",
+        status: "pending",
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "wallet" }
+    );
+
+  if (whitelistError) {
+    throw new Error(`Application saved but whitelist sync failed: ${whitelistError.message}`);
   }
 
   if (!result) throw new Error("Application submitted but no confirmation received.");
