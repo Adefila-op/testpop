@@ -4,6 +4,7 @@ import helmet from "helmet";
 import cookieParser from "cookie-parser";
 import multer from "multer";
 import jwt from "jsonwebtoken";
+import rateLimit from "express-rate-limit";
 import dotenv from "dotenv";
 import { createClient } from "@supabase/supabase-js";
 import { ethers } from "ethers";
@@ -62,7 +63,19 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
 });
 
 const app = express();
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
+
+// Multer config: 5MB max with MIME type validation
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB max
+  fileFilter: (req, file, cb) => {
+    const allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'video/mp4', 'video/webm', 'audio/mpeg', 'audio/wav', 'application/pdf'];
+    if (!allowed.includes(file.mimetype)) {
+      return cb(new Error(`Invalid file type: ${file.mimetype}`));
+    }
+    cb(null, true);
+  },
+});
 
 // Nonce storage moved to Supabase (see: auth/challenge and auth/verify endpoints)
 
@@ -233,6 +246,44 @@ function sameWalletOrAdmin(targetWallet, auth) {
   return auth?.role === "admin" || normalizeWallet(targetWallet) === auth?.wallet;
 }
 
+// CORS origin validation - ensure only valid HTTPS URLs in production
+function isValidOrigin(origin) {
+  try {
+    const url = new URL(origin);
+    // Only allow https in production
+    if (NODE_ENV === 'production' && url.protocol !== 'https:') {
+      console.warn(`⚠️ HTTP origin rejected in production: ${origin}`);
+      return false;
+    }
+    // Allow localhost, vercel.app, and popup domains
+    return ['localhost', '127.0.0.1', 'vercel.app'].some(host => url.hostname.includes(host));
+  } catch (err) {
+    console.warn(`⚠️ Invalid origin URL format: ${origin}`);
+    return false;
+  }
+}
+
+// Rate limiters for security
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // 5 requests per wallet/IP per window
+  keyGenerator: (req) => req.body?.wallet || req.ip || 'unknown',
+  message: 'Too many authentication attempts, please try again later',
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (req, res) => {
+    console.warn(`🚨 Rate limit exceeded for ${req.body?.wallet || req.ip}`);
+    res.status(429).json({ error: 'Too many authentication attempts, please try again later' });
+  },
+});
+
+const uploadLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 20, // 20 uploads per user per hour
+  keyGenerator: (req) => req.auth?.wallet || req.ip || 'unknown',
+  message: 'Too many upload attempts, please try again later',
+});
+
 const FACTORY_ABI = [
   {
     inputs: [{ internalType: "address", name: "_artistWallet", type: "address" }],
@@ -347,11 +398,111 @@ async function deployArtistContractForWallet(wallet) {
   };
 }
 
+async function getLatestArtistApplication(wallet) {
+  const normalized = normalizeWallet(wallet);
+
+  const { data, error } = await supabase
+    .from("artist_applications")
+    .select("*")
+    .eq("wallet_address", normalized)
+    .order("submitted_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Failed to fetch artist application: ${error.message}`);
+  }
+
+  return data;
+}
+
+async function ensureArtistProfile(wallet) {
+  const normalized = normalizeWallet(wallet);
+
+  const { data: existingArtist, error: existingArtistError } = await supabase
+    .from("artists")
+    .select("*")
+    .eq("wallet", normalized)
+    .maybeSingle();
+
+  if (existingArtistError) {
+    throw new Error(`Cannot fetch artist: ${existingArtistError.message}`);
+  }
+
+  if (existingArtist) {
+    return existingArtist;
+  }
+
+  const application = await getLatestArtistApplication(normalized);
+  const now = new Date().toISOString();
+  const portfolio = application?.portfolio_url ? [application.portfolio_url] : [];
+
+  const { data: createdArtist, error: createArtistError } = await supabase
+    .from("artists")
+    .upsert(
+      {
+        wallet: normalized,
+        name: application?.artist_name || normalized,
+        bio: application?.bio || null,
+        tag: Array.isArray(application?.art_types) && application.art_types.length > 0 ? application.art_types[0] : null,
+        twitter_url: application?.twitter_url || null,
+        instagram_url: application?.instagram_url || null,
+        website_url: application?.website_url || application?.portfolio_url || null,
+        portfolio,
+        updated_at: now,
+      },
+      { onConflict: "wallet" }
+    )
+    .select("*")
+    .single();
+
+  if (createArtistError) {
+    throw new Error(`Failed to create artist profile: ${createArtistError.message}`);
+  }
+
+  return createdArtist;
+}
+
+async function syncArtistApplicationStatus(wallet, status, reviewedBy, adminNotes = null) {
+  const application = await getLatestArtistApplication(wallet);
+
+  if (!application) {
+    return null;
+  }
+
+  const { data, error } = await supabase
+    .from("artist_applications")
+    .update({
+      status,
+      admin_notes: adminNotes,
+      reviewed_at: new Date().toISOString(),
+      reviewed_by: reviewedBy,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", application.id)
+    .select("*")
+    .single();
+
+  if (error) {
+    throw new Error(`Failed to update artist application: ${error.message}`);
+  }
+
+  return data;
+}
+
 app.use(helmet());
 
-// Log CORS configuration
-const corsOrigins = FRONTEND_ORIGIN.split(",").map((item) => item.trim()).filter(Boolean);
-console.log("🔐 CORS Origins configured:", corsOrigins);
+// Log and validate CORS configuration
+const corsOrigins = FRONTEND_ORIGIN.split(",")
+  .map((item) => item.trim())
+  .filter(Boolean)
+  .filter(origin => isValidOrigin(origin));
+
+if (corsOrigins.length === 0) {
+  throw new Error("\u274c No valid CORS origins configured. Check FRONTEND_ORIGIN environment variable.");
+}
+
+console.log("\ud83d\udd10 CORS Origins configured and validated:", corsOrigins);
 
 app.use(
   cors({
@@ -386,7 +537,7 @@ app.get("/health", (_req, res) => {
   res.json({ ok: true, service: "popup-api", env: NODE_ENV });
 });
 
-app.post("/auth/challenge", async (req, res) => {
+app.post("/auth/challenge", authLimiter, async (req, res) => {
   try {
     const wallet = normalizeWallet(req.body?.wallet);
     if (!ethers.isAddress(wallet)) {
@@ -403,11 +554,12 @@ app.post("/auth/challenge", async (req, res) => {
     return res.json({ wallet, nonce, issuedAt, message });
   } catch (error) {
     console.error("Challenge error:", error);
-    return res.status(500).json({ error: error.message || "Failed to issue challenge" });
+    const isDev = NODE_ENV === 'development';
+    return res.status(500).json({ error: isDev ? error.message : "Failed to issue challenge" });
   }
 });
 
-app.post("/auth/verify", async (req, res) => {
+app.post("/auth/verify", authLimiter, async (req, res) => {
   try {
     const wallet = normalizeWallet(req.body?.wallet);
     const signature = req.body?.signature;
@@ -426,6 +578,8 @@ app.post("/auth/verify", async (req, res) => {
     const recovered = normalizeWallet(ethers.verifyMessage(message, signature));
 
     if (recovered !== wallet) {
+      // Log failed verification attempt (security event)
+      console.warn(`🔓 Failed signature verification for ${wallet} from ${req.ip}`);
       return res.status(401).json({ error: "Signature verification failed" });
     }
 
@@ -443,6 +597,7 @@ app.post("/auth/verify", async (req, res) => {
     const apiToken = issueAppToken({ wallet, role });
     const supabaseToken = issueSupabaseToken({ wallet, role });
 
+    console.log(`✅ Auth verified for ${wallet} (role: ${role})`);
     return res.json({
       wallet,
       role,
@@ -452,7 +607,8 @@ app.post("/auth/verify", async (req, res) => {
     });
   } catch (error) {
     console.error("Verification error:", error);
-    return res.status(500).json({ error: error.message || "Verification failed" });
+    const isDev = NODE_ENV === 'development';
+    return res.status(500).json({ error: isDev ? error.message : "Verification failed" });
   }
 });
 
@@ -804,33 +960,38 @@ app.post("/admin/approve-artist", authRequired, adminRequired, async (req, res) 
     }
 
     // Get artist profile
-    const { data: artistData, error: artistError } = await supabase
-      .from("artists")
-      .select("*")
-      .eq("wallet", normalized)
-      .maybeSingle();
-
-    if (artistError) {
-      return res.status(400).json({ error: `Cannot fetch artist: ${artistError.message}` });
-    }
-
-    if (!artistData) {
-      return res.status(404).json({ error: "Artist profile not found" });
-    }
+    const now = new Date().toISOString();
+    const artistData = await ensureArtistProfile(normalized);
+    const latestApplication = await getLatestArtistApplication(normalized);
 
     // Update whitelist status
     const { error: whitelistError } = await supabase
       .from("whitelist")
-      .update({
-        status: approve ? "approved" : "rejected",
-        status_updated_at: new Date().toISOString(),
-      })
-      .eq("wallet", normalized);
+      .upsert(
+        {
+          wallet: normalized,
+          name: artistData.name || latestApplication?.artist_name || normalized,
+          tag: artistData.tag || null,
+          status: approve ? "approved" : "rejected",
+          approved_at: approve ? now : null,
+          rejection_reason: approve ? null : "Rejected by admin",
+          updated_at: now,
+          notes: null,
+        },
+        { onConflict: "wallet" }
+      );
 
     if (whitelistError) {
       console.error("❌ Whitelist update error:", whitelistError);
       return res.status(400).json({ error: `Failed to update whitelist: ${whitelistError.message}` });
     }
+
+    await syncArtistApplicationStatus(
+      normalized,
+      approve ? "approved" : "rejected",
+      req.auth.wallet,
+      null
+    );
 
     // Update onchain whitelist (ArtDropFactory contract)
     let onchainUpdate = null;
@@ -859,25 +1020,59 @@ app.post("/admin/approve-artist", authRequired, adminRequired, async (req, res) 
       } catch (err) {
         console.error("❌ Contract deployment error:", err);
         deploymentError = err instanceof Error ? err.message : "Unknown deployment error";
+        
+        // ROLLBACK: If deployment failed after onchain approval, revert the approval
+        if (onchainUpdate) {
+          try {
+            console.log("🔄 Rolling back onchain approval due to deployment failure...");
+            await setArtistApprovalOnchain(normalized, false);
+            console.log("✅ Onchain approval reverted");
+          } catch (rollbackErr) {
+            console.error("❌ CRITICAL: Failed to rollback onchain approval:", rollbackErr);
+            // Continue anyway - we'll return the error
+          }
+        }
+        
+        // Return error to client
+        return res.status(500).json({ 
+          error: `Deployment failed: ${deploymentError}. Approval has been reverted.`,
+          deploymentError,
+        });
       }
     }
 
     // Update artist record with deployment status
     const updatePayload = {
-      whitelisted_at: approve ? new Date().toISOString() : null,
-      updated_at: new Date().toISOString(),
+      updated_at: now,
     };
 
     if (contractAddress) {
       updatePayload.contract_address = contractAddress;
       updatePayload.contract_deployment_tx = deploymentTx;
-      updatePayload.contract_deployed_at = new Date().toISOString();
+      updatePayload.contract_deployed_at = now;
     }
 
     const { data: updatedArtist, error: updateError } = await supabase
       .from("artists")
-      .update(updatePayload)
-      .eq("wallet", normalized)
+      .upsert(
+        {
+          wallet: normalized,
+          name: artistData.name || latestApplication?.artist_name || normalized,
+          bio: artistData.bio || latestApplication?.bio || null,
+          tag: artistData.tag || null,
+          twitter_url: artistData.twitter_url || latestApplication?.twitter_url || null,
+          instagram_url: artistData.instagram_url || latestApplication?.instagram_url || null,
+          website_url: artistData.website_url || latestApplication?.website_url || latestApplication?.portfolio_url || null,
+          portfolio:
+            Array.isArray(artistData.portfolio) && artistData.portfolio.length > 0
+              ? artistData.portfolio
+              : latestApplication?.portfolio_url
+                ? [latestApplication.portfolio_url]
+                : [],
+          ...updatePayload,
+        },
+        { onConflict: "wallet" }
+      )
       .select("*")
       .single();
 
@@ -929,35 +1124,29 @@ app.post("/admin/reject-artist", authRequired, adminRequired, async (req, res) =
       return res.status(400).json({ error: "Valid wallet address required" });
     }
 
-    // Get artist profile
-    const { data: artistData, error: artistError } = await supabase
-      .from("artists")
-      .select("*")
-      .eq("wallet", normalized)
-      .maybeSingle();
+    const now = new Date().toISOString();
+    const latestApplication = await getLatestArtistApplication(normalized);
 
-    if (artistError) {
-      return res.status(400).json({ error: `Cannot fetch artist: ${artistError.message}` });
-    }
-
-    if (!artistData) {
-      return res.status(404).json({ error: "Artist profile not found" });
-    }
-
-    // Update whitelist status to rejected
     const { error: whitelistError } = await supabase
       .from("whitelist")
-      .update({
-        status: "rejected",
-        status_updated_at: new Date().toISOString(),
-        rejection_reason: reason,
-      })
-      .eq("wallet", normalized);
+      .upsert(
+        {
+          wallet: normalized,
+          name: latestApplication?.artist_name || normalized,
+          status: "rejected",
+          approved_at: null,
+          rejection_reason: reason,
+          updated_at: now,
+        },
+        { onConflict: "wallet" }
+      );
 
     if (whitelistError) {
       console.error("❌ Whitelist rejection error:", whitelistError);
       return res.status(400).json({ error: `Failed to reject artist: ${whitelistError.message}` });
     }
+
+    await syncArtistApplicationStatus(normalized, "rejected", req.auth.wallet, reason || null);
 
     // Update onchain whitelist (remove approval)
     let onchainUpdate = null;
@@ -973,11 +1162,11 @@ app.post("/admin/reject-artist", authRequired, adminRequired, async (req, res) =
     const { data: updatedArtist, error: updateError } = await supabase
       .from("artists")
       .update({
-        updated_at: new Date().toISOString(),
+        updated_at: now,
       })
       .eq("wallet", normalized)
       .select("*")
-      .single();
+      .maybeSingle();
 
     if (updateError) {
       return res.status(400).json({ error: `Failed to update artist: ${updateError.message}` });
@@ -1018,7 +1207,7 @@ app.get("/admin/artists", authRequired, adminRequired, async (req, res) => {
   try {
     const { status } = req.query; // "pending", "approved", or undefined for all
     
-    let query = supabase.from("whitelist").select("*, artists!inner(*)");
+    let query = supabase.from("whitelist").select("*, artists(*)");
     
     if (status && ["pending", "approved", "rejected"].includes(status)) {
       query = query.eq("status", status);

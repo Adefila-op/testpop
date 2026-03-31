@@ -15,6 +15,10 @@ CREATE TABLE IF NOT EXISTS artists (
   website_url TEXT,
   poap_allocation JSONB DEFAULT '{"subscribers": 40, "bidders": 35, "creators": 25}',
   portfolio JSONB DEFAULT '[]',
+  -- Artist contract deployment fields
+  contract_address VARCHAR(255),
+  contract_deployment_tx VARCHAR(255),
+  contract_deployed_at TIMESTAMP WITH TIME ZONE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -117,6 +121,25 @@ CREATE TABLE IF NOT EXISTS analytics (
 CREATE INDEX idx_analytics_artist ON analytics(artist_id);
 CREATE INDEX idx_analytics_page ON analytics(page);
 CREATE INDEX idx_analytics_timestamp ON analytics(timestamp DESC);
+
+-- ============================================
+-- Authentication Nonces Table (for wallet verification)
+-- ============================================
+CREATE TABLE IF NOT EXISTS nonces (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  wallet TEXT NOT NULL,
+  nonce TEXT NOT NULL,
+  issued_at TIMESTAMP WITH TIME ZONE NOT NULL,
+  expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+  used BOOLEAN DEFAULT false,
+  used_at TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Critical indexes for authentication performance
+CREATE INDEX IF NOT EXISTS idx_nonces_wallet_used ON nonces(wallet, used) WHERE used = false;
+CREATE INDEX IF NOT EXISTS idx_nonces_expires_at ON nonces(expires_at DESC);
+CREATE INDEX IF NOT EXISTS idx_nonces_created_at ON nonces(created_at DESC);
 
 ALTER TABLE artists ENABLE ROW LEVEL SECURITY;
 ALTER TABLE drops ENABLE ROW LEVEL SECURITY;
