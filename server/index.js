@@ -521,13 +521,20 @@ app.use(cookieParser());
 
 // Strip /api prefix when running on Vercel (requests come in as /api/auth/challenge but routes are /auth/challenge)
 app.use((req, res, next) => {
+  // Log the incoming request path for debugging
+ console.log(`[ROUTER] Incoming: path=${req.path} url=${req.url} method=${req.method}`);
+  
+  // Strip /api prefix from both req.url and req.path since Express uses req.path for routing
   if (req.path.startsWith('/api/')) {
-    req.url = req.url.replace('/api', '');
+    req.url = req.url.replace(/^\/api/, '');
+    // Also update internal Express routing
+    req.path = req.path.replace(/^\/api/, '');
+    console.log(`[ROUTER] Stripped /api -> path=${req.path} url=${req.url}`);
   }
   next();
 });
 
-// Log all requests
+// Log all requests after routing
 app.use((req, res, next) => {
   console.log(`📨 ${req.method} ${req.path}`);
   next();
@@ -535,6 +542,15 @@ app.use((req, res, next) => {
 
 app.get("/health", (_req, res) => {
   res.json({ ok: true, service: "popup-api", env: NODE_ENV });
+});
+
+app.get("/", (_req, res) => {
+  res.json({ 
+    status: "API is running", 
+    service: "popup-api",
+    env: NODE_ENV,
+    message: "Use /api/* routes for API access, or check /health for server status"
+  });
 });
 
 app.post("/auth/challenge", authLimiter, async (req, res) => {
@@ -1233,7 +1249,14 @@ const port = Number(PORT) || 3000;
 
 // 404 handler
 app.use((_req, res) => {
-  res.status(404).json({ error: "Endpoint not found" });
+  console.warn(`⚠️ 404 NOT FOUND: ${_req.method} ${_req.path} | Full URL: ${_req.originalUrl} | Protocol: ${_req.protocol}`);
+  res.status(404).json({ 
+    error: "Endpoint not found", 
+    path: _req.path, 
+    method: _req.method,
+    originalUrl: _req.originalUrl,
+    hint: "Check that your route is defined and /api prefix is correct for Vercel"
+  });
 });
 
 // Error handler
