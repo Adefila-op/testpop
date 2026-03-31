@@ -377,6 +377,13 @@ const uploadLimiter = rateLimit({
 
 const FACTORY_ABI = [
   {
+    inputs: [],
+    name: "owner",
+    outputs: [{ internalType: "address", name: "", type: "address" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
     inputs: [{ internalType: "address", name: "_artistWallet", type: "address" }],
     name: "deployArtDrop",
     outputs: [{ internalType: "address", name: "", type: "address" }],
@@ -439,6 +446,14 @@ async function setArtistApprovalOnchain(wallet, isApproved) {
   const provider = new ethers.JsonRpcProvider(BASE_SEPOLIA_RPC_URL);
   const signer = new ethers.Wallet(DEPLOYER_PRIVATE_KEY, provider);
   const factory = new ethers.Contract(ART_DROP_FACTORY_ADDRESS, FACTORY_ABI, signer);
+  const signerAddress = ethers.getAddress(await signer.getAddress());
+  const ownerAddress = ethers.getAddress(await factory.owner());
+
+  if (signerAddress !== ownerAddress) {
+    throw new Error(
+      `DEPLOYER_PRIVATE_KEY wallet ${signerAddress} is not the factory owner ${ownerAddress}`
+    );
+  }
 
   // Call setArtistApproval on the factory contract
   const tx = await factory.setArtistApproval(artistWallet, isApproved);
@@ -460,6 +475,14 @@ async function deployArtistContractForWallet(wallet) {
   const provider = new ethers.JsonRpcProvider(BASE_SEPOLIA_RPC_URL);
   const signer = new ethers.Wallet(DEPLOYER_PRIVATE_KEY, provider);
   const factory = new ethers.Contract(ART_DROP_FACTORY_ADDRESS, FACTORY_ABI, signer);
+  const signerAddress = ethers.getAddress(await signer.getAddress());
+  const ownerAddress = ethers.getAddress(await factory.owner());
+
+  if (signerAddress !== ownerAddress) {
+    throw new Error(
+      `DEPLOYER_PRIVATE_KEY wallet ${signerAddress} is not the factory owner ${ownerAddress}`
+    );
+  }
 
   const tx = await factory.deployArtDrop(artistWallet);
   const receipt = await tx.wait();
