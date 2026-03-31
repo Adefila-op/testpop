@@ -20,6 +20,9 @@ const frontendDistCandidates = [
   path.resolve(process.cwd(), "dist"),
 ];
 const frontendDistPath =
+  frontendDistCandidates.find((candidate) =>
+    fs.existsSync(path.join(candidate, "index.html"))
+  ) ||
   frontendDistCandidates.find((candidate) => fs.existsSync(candidate)) ||
   frontendDistCandidates[0];
 const frontendIndexPath = path.join(frontendDistPath, "index.html");
