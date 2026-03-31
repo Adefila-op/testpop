@@ -504,7 +504,33 @@ async function deployArtistContractForWallet(wallet) {
     );
   }
 
-  const tx = await factory.deployArtDrop(artistWallet);
+  const existingContractAddress = await factory.getArtistContract(artistWallet);
+  if (existingContractAddress && existingContractAddress !== ethers.ZeroAddress) {
+    return {
+      contractAddress: ethers.getAddress(existingContractAddress),
+      deploymentTx: null,
+      alreadyDeployed: true,
+    };
+  }
+
+  let tx;
+  try {
+    tx = await factory.deployArtDrop(artistWallet);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes("Artist already has contract")) {
+      const contractAddress = await factory.getArtistContract(artistWallet);
+      if (contractAddress && contractAddress !== ethers.ZeroAddress) {
+        return {
+          contractAddress: ethers.getAddress(contractAddress),
+          deploymentTx: null,
+          alreadyDeployed: true,
+        };
+      }
+    }
+    throw error;
+  }
+
   const receipt = await tx.wait();
 
   const deployedEvent = receipt.logs
@@ -529,6 +555,7 @@ async function deployArtistContractForWallet(wallet) {
   return {
     contractAddress: ethers.getAddress(contractAddress),
     deploymentTx: tx.hash,
+    alreadyDeployed: false,
   };
 }
 
