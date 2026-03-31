@@ -1,12 +1,7 @@
 {
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
-  "public": "dist",
   "builds": [
-    {
-      "src": "dist/**",
-      "use": "@vercel/static"
-    },
     {
       "src": "server/api/index.js",
       "use": "@vercel/node",
@@ -22,19 +17,15 @@
       "dest": "server/api/index.js"
     },
     {
-      "src": "/(.*\\.(js|css|svg|png|jpg|jpeg|gif|webp|woff|woff2|ttf|eot|ico|json|webmanifest|map))",
+      "src": "/health",
+      "dest": "server/api/index.js"
+    },
+    {
+      "src": "/(.*\\.(js|css|svg|png|jpg|jpeg|gif|webp|woff|woff2|ttf|eot|ico|json|webmanifest|map|br|gz))",
       "dest": "/$1"
     },
     {
-      "src": "/manifest.json",
-      "dest": "/manifest.json"
-    },
-    {
-      "src": "/index.html",
-      "dest": "/index.html"
-    },
-    {
-      "src": "/.*",
+      "src": "/(.*)",
       "dest": "/index.html"
     }
   ]
