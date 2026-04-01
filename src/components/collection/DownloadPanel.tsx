@@ -12,6 +12,8 @@ interface DownloadPanelProps {
   isSubscribed?: boolean;
   onDownload?: () => void;
   accessNote?: string;
+  actionLabel?: string;
+  showCopyLink?: boolean;
 }
 
 export const DownloadPanel: FC<DownloadPanelProps> = ({
@@ -24,6 +26,8 @@ export const DownloadPanel: FC<DownloadPanelProps> = ({
   isSubscribed = false,
   onDownload,
   accessNote,
+  actionLabel = "Download",
+  showCopyLink = true,
 }) => {
   const [copied, setCopied] = useState(false);
 
@@ -79,16 +83,18 @@ export const DownloadPanel: FC<DownloadPanelProps> = ({
               className="flex-1 gap-2 bg-gradient-primary hover:opacity-90"
             >
               <Download className="h-4 w-4" />
-              Download
+              {actionLabel}
             </Button>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={handleCopy}
-              title="Copy download link"
-            >
-              <Copy className="h-4 w-4" />
-            </Button>
+            {showCopyLink && (
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={handleCopy}
+                title="Copy download link"
+              >
+                <Copy className="h-4 w-4" />
+              </Button>
+            )}
           </>
         )}
         {!canAccess && (

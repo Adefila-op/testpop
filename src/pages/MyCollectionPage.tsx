@@ -303,11 +303,28 @@ const MyCollectionPage = () => {
                   fileType={selectedItem.assetType}
                   isGated={selectedItem.isGated || false}
                   isOwned={true}
-                  downloadUrl={ipfsToHttp(selectedItem.deliveryUri || selectedItem.previewUri || "")}
-                  accessNote={selectedItem.isGated ? "You own this item. Delivery files are available." : undefined}
+                  downloadUrl={
+                    selectedItem.assetType === "pdf" || selectedItem.assetType === "epub"
+                      ? undefined
+                      : ipfsToHttp(selectedItem.deliveryUri || selectedItem.previewUri || "")
+                  }
+                  accessNote={
+                    selectedItem.assetType === "pdf" || selectedItem.assetType === "epub"
+                      ? "This eBook is rendered above in the built-in reader. Use download only if you want an offline copy."
+                      : selectedItem.isGated
+                      ? "You own this item. Delivery files are available."
+                      : undefined
+                  }
+                  actionLabel="Download"
+                  showCopyLink={selectedItem.assetType !== "pdf" && selectedItem.assetType !== "epub"}
                   onDownload={() => {
-                    if (selectedItem.deliveryUri) {
-                      window.open(ipfsToHttp(selectedItem.deliveryUri), "_blank");
+                    if (selectedItem.deliveryUri && selectedItem.assetType !== "pdf" && selectedItem.assetType !== "epub") {
+                      const downloadLink = document.createElement("a");
+                      downloadLink.href = ipfsToHttp(selectedItem.deliveryUri);
+                      downloadLink.target = "_blank";
+                      downloadLink.rel = "noreferrer";
+                      downloadLink.download = selectedItem.title;
+                      downloadLink.click();
                     }
                   }}
                 />

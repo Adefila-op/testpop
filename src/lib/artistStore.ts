@@ -301,7 +301,6 @@ export function resolveArtistForWallet(wallet?: string) {
     whitelistEntry?.tag
   );
 
-  saveArtistRecord(created);
   return created;
 }
 
@@ -382,16 +381,19 @@ export function syncArtistDropCache(drop: ArtistDropRecord) {
   return drop;
 }
 
-export function deleteArtistDrop(dropId: string) {
+export async function deleteArtistDrop(dropId: string) {
   const drops = _dropsCache || EMPTY_DROPS;
   const next = drops.filter((drop) => drop.id !== dropId);
 
   _dropsCache = next;
 
-  // Async Supabase backup
-  dbDeleteDrop(dropId).catch((err) =>
-    console.error("Failed to delete drop from Supabase:", err)
-  );
+  try {
+    await dbDeleteDrop(dropId);
+  } catch (err) {
+    console.error("Failed to delete drop from Supabase:", err);
+    _dropsCache = drops;
+    throw err;
+  }
 }
 
 export function createArtistCampaign(campaign: ArtistCampaignRecord) {

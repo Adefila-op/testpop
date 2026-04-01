@@ -17,6 +17,7 @@ import {
   fetchAllDropsFromSupabase,
   fetchDropByIdFromSupabase,
 } from "@/lib/supabaseStore";
+import { getArtistProfile } from "@/lib/db";
 
 const STANDARD_QUERY_OPTIONS = {
   staleTime: 2 * 60 * 1000,
@@ -65,6 +66,26 @@ export function useSupabaseArtistById(artistId: string | undefined) {
     queryKey: ["artists", artistId],
     queryFn: () => (artistId ? fetchArtistByIdFromSupabase(artistId) : null),
     enabled: !!artistId,
+    ...STANDARD_QUERY_OPTIONS,
+  });
+
+  return {
+    data: data ?? null,
+    loading: isLoading,
+    error: error instanceof Error ? error : null,
+    refetch: async () => {
+      await refetch();
+    },
+  };
+}
+
+export function useSupabaseArtistByWallet(wallet: string | undefined) {
+  const normalizedWallet = wallet?.toLowerCase();
+
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: ["artists", "wallet", normalizedWallet],
+    queryFn: () => (normalizedWallet ? getArtistProfile(normalizedWallet) : null),
+    enabled: !!normalizedWallet,
     ...STANDARD_QUERY_OPTIONS,
   });
 

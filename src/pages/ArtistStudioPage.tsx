@@ -36,6 +36,7 @@ import {
   type ArtistPortfolioItem,
 } from "@/lib/artistStore";
 import { createDrop as dbCreateDrop, getArtistProfile as dbGetArtistProfile } from "@/lib/db";
+import { useSupabaseArtistByWallet, useSupabaseDropsByArtist } from "@/hooks/useSupabase";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type StudioArtistProfile = {
@@ -710,6 +711,9 @@ const ArtistStudioPage = () => {
   const [profileSaved, setProfileSaved] = useState(false);
   const [profileComplete, setProfileComplete] = useState(false);
   const [publicArtistId, setPublicArtistId] = useState("1");
+  const [dropDeletingId, setDropDeletingId] = useState<string | null>(null);
+  const { data: artistProfileRecord, refetch: refetchArtistProfile } = useSupabaseArtistByWallet(address);
+  const { data: artistDropRecords, refetch: refetchArtistDrops } = useSupabaseDropsByArtist(artistProfileRecord?.id);
 
   const deployedContractAddress = useGetArtistContract(address); // Fetch deployed contract address
   const deploymentPending = false;
@@ -723,8 +727,74 @@ const ArtistStudioPage = () => {
   const unreadCount = notifications.filter(n => !n.read).length;
 
   useEffect(() => {
-    const artist = resolveArtistForWallet(address);
-    const artistDrops = getArtistDrops(artist.id);
+    const fallbackArtist = resolveArtistForWallet(address);
+    const artist = artistProfileRecord
+      ? {
+          ...fallbackArtist,
+          id: artistProfileRecord.id,
+          wallet: artistProfileRecord.wallet,
+          name: artistProfileRecord.name || "",
+          handle: artistProfileRecord.handle || fallbackArtist.handle,
+          avatar: artistProfileRecord.avatar_url || "",
+          banner: artistProfileRecord.banner_url || "",
+          tag: artistProfileRecord.tag || fallbackArtist.tag,
+          bio: artistProfileRecord.bio || "",
+          subscriptionPrice: artistProfileRecord.subscription_price?.toString() || fallbackArtist.subscriptionPrice,
+          twitterUrl: artistProfileRecord.twitter_url || "",
+          instagramUrl: artistProfileRecord.instagram_url || "",
+          websiteUrl: artistProfileRecord.website_url || "",
+          portfolio: Array.isArray(artistProfileRecord.portfolio) ? artistProfileRecord.portfolio as ArtistPortfolioItem[] : [],
+          defaultPoapAllocation: (artistProfileRecord.poap_allocation as StudioArtistProfile["defaultPoapAllocation"]) || fallbackArtist.defaultPoapAllocation,
+          contractAddress: artistProfileRecord.contract_address || null,
+        }
+      : fallbackArtist;
+
+    const artistDrops = artistProfileRecord?.id
+      ? (artistDropRecords || []).map((drop) => ({
+          id: drop.id,
+          title: drop.title || "Untitled Drop",
+          price: String(drop.price_eth || 0),
+          supply: drop.supply ?? 1,
+          sold: drop.sold ?? 0,
+          status: drop.status === "ended" ? "ended" : drop.status === "draft" ? "draft" : "live",
+          type: fromStoredDropType(drop.type),
+          endsIn: drop.ends_at
+            ? `${Math.max(0, Math.floor((new Date(drop.ends_at).getTime() - Date.now()) / (1000 * 60 * 60)))}h`
+            : "--",
+          revenue: String(drop.price_eth || 0),
+          image: drop.image_url || "",
+          metadataUri: drop.metadata_ipfs_uri || "",
+          imageUri: drop.image_ipfs_uri || undefined,
+          assetType: (drop.asset_type as AssetType) || "image",
+          previewUri: drop.preview_uri || undefined,
+          deliveryUri: drop.delivery_uri || undefined,
+          isGated: drop.is_gated || false,
+          contractAddress: drop.contract_address || null,
+          contractDropId: drop.contract_drop_id ?? null,
+          contractKind: (drop.contract_kind as "artDrop" | "poapCampaign" | null) || null,
+        }))
+      : getArtistDrops(artist.id).map((drop) => ({
+          id: drop.id,
+          title: drop.title,
+          price: drop.priceEth,
+          supply: drop.maxBuy ?? 1,
+          sold: drop.bought ?? 0,
+          status: drop.status === "upcoming" ? "draft" : drop.status === "ended" ? "ended" : "live",
+          type: fromStoredDropType(drop.type),
+          endsIn: drop.endsIn,
+          revenue: drop.currentBidEth ?? drop.priceEth,
+          image: drop.image,
+          metadataUri: drop.metadataUri,
+          imageUri: drop.imageUri,
+          assetType: drop.assetType,
+          previewUri: drop.previewUri,
+          deliveryUri: drop.deliveryUri,
+          isGated: drop.isGated,
+          contractAddress: drop.contractAddress,
+          contractDropId: drop.contractDropId,
+          contractKind: drop.contractKind,
+        }));
+
     setPublicArtistId(artist.id);
     setProfile({
       name: artist.name,
@@ -740,29 +810,9 @@ const ArtistStudioPage = () => {
       defaultPoapAllocation: artist.defaultPoapAllocation,
       portfolio: artist.portfolio,
     });
-    setDrops(artistDrops.map((drop) => ({
-      id: drop.id,
-      title: drop.title,
-      price: drop.priceEth,
-      supply: drop.maxBuy ?? 1,
-      sold: drop.bought ?? 0,
-      status: drop.status === "upcoming" ? "draft" : drop.status === "ended" ? "ended" : "live",
-      type: fromStoredDropType(drop.type),
-      endsIn: drop.endsIn,
-      revenue: drop.currentBidEth ?? drop.priceEth,
-      image: drop.image,
-      metadataUri: drop.metadataUri,
-      imageUri: drop.imageUri,
-      assetType: drop.assetType,
-      previewUri: drop.previewUri,
-      deliveryUri: drop.deliveryUri,
-      isGated: drop.isGated,
-      contractAddress: drop.contractAddress,
-      contractDropId: drop.contractDropId,
-      contractKind: drop.contractKind,
-    })));
+    setDrops(artistDrops);
     setProfileComplete(Boolean(artist.name && artist.handle));
-  }, [address]);
+  }, [address, artistProfileRecord, artistDropRecords]);
 
   // ─── Handle Contract Deployment Success ─────────────────────────────────────
   useEffect(() => {
@@ -796,6 +846,7 @@ const ArtistStudioPage = () => {
         toast.success("🎉 Artist contract deployed successfully!");
         
         // Re-fetch profile to show contract address
+        await refetchArtistProfile();
         const updatedArtist = resolveArtistForWallet(address);
         console.log("🔄 Updated artist record:", updatedArtist);
         setProfile((prev) => ({ ...prev })); // Force refresh
@@ -806,7 +857,7 @@ const ArtistStudioPage = () => {
         setDeployingArtistWallet(null);
       }
     })();
-  }, [deploymentSuccess, deploymentReceipt, deployedContractAddress, address, deploymentPending]);
+  }, [deploymentSuccess, deploymentReceipt, deployedContractAddress, address, deploymentPending, refetchArtistProfile]);
 
   const handleImageFile = (field: "avatarPreview" | "bannerPreview") => (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
@@ -876,6 +927,7 @@ const ArtistStudioPage = () => {
       setProfileComplete(true);
       toast.success("Profile saved!");
       setTimeout(() => setProfileSaved(false), 2000);
+      await refetchArtistProfile();
 
       // ✨ NEW: Deploy artist contract if not already deployed (async, doesn't block profile save)
       const artist = resolveArtistForWallet(address);
@@ -1172,12 +1224,22 @@ const ArtistStudioPage = () => {
                         <ExternalLink className="h-3 w-3" /> Basescan
                       </a>
                     )}
-                    <button onClick={() => {
-                      deleteArtistDrop(d.id);
-                      setDrops(prev => prev.filter(x => x.id !== d.id));
+                    <button onClick={async () => {
+                      try {
+                        setDropDeletingId(d.id);
+                        await deleteArtistDrop(d.id);
+                        setDrops(prev => prev.filter(x => x.id !== d.id));
+                        await refetchArtistDrops();
+                        toast.success("Drop removed");
+                      } catch (error) {
+                        toast.error(error instanceof Error ? error.message : "Failed to remove drop");
+                      } finally {
+                        setDropDeletingId(null);
+                      }
                     }}
+                      disabled={dropDeletingId === d.id}
                       className="text-[10px] text-destructive flex items-center gap-0.5">
-                      <Trash2 className="h-3 w-3" /> Remove
+                      {dropDeletingId === d.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />} Remove
                     </button>
                   </div>
                 </div>
