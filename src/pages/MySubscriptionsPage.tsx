@@ -4,16 +4,19 @@ import { useNavigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useWallet } from "@/hooks/useContracts";
-import { getAllArtists, type ArtistPublicProfile } from "@/lib/artistStore";
+import type { ArtistPublicProfile } from "@/lib/artistStore";
 import { trackSubscriptionsView, trackCampaignInteraction } from "@/lib/analyticsStore";
 import { toggleArtistFavorite, isArtistFavorited, getFavorites } from "@/lib/favoritesStore";
 import { createPublicClient, http, getAddress } from "viem";
 import { ARTIST_DROP_ABI } from "@/lib/contracts/artDropArtist";
 import { ACTIVE_CHAIN } from "@/lib/wagmi";
+import { useSupabaseArtists } from "@/hooks/useSupabase";
+import { fetchResolvedArtistContractAddress } from "@/hooks/useContractIntegrations";
 
 const MySubscriptionsPage = () => {
   const navigate = useNavigate();
   const { address, isConnected } = useWallet();
+  const { data: artists } = useSupabaseArtists();
   const [sortBy, setSortBy] = useState("recent"); // recent, favorite
   const [favoriteArtists, setFavoriteArtists] = useState<Set<string>>(new Set());
 
@@ -48,19 +51,51 @@ const MySubscriptionsPage = () => {
       try {
         const publicClient = createPublicClient({ chain: ACTIVE_CHAIN, transport: http() });
         const userAddress = getAddress(address);
-        const artists = getAllArtists().filter((artist) => Boolean(artist.contractAddress));
         const results = await Promise.all(
           artists.map(async (artist) => {
             try {
-              const contractAddress = getAddress(artist.contractAddress!);
+              const contractAddress = await fetchResolvedArtistContractAddress(
+                publicClient,
+                artist.wallet,
+                artist.contract_address
+              );
+
+              if (!contractAddress) {
+                return null;
+              }
+
               const isSubscribed = await publicClient.readContract({
-                address: contractAddress,
+                address: getAddress(contractAddress),
                 abi: ARTIST_DROP_ABI,
                 functionName: "isSubscriptionActive",
                 args: [userAddress],
               });
 
-              return isSubscribed ? artist : null;
+              if (!isSubscribed) {
+                return null;
+              }
+
+              return {
+                id: artist.id,
+                wallet: artist.wallet,
+                name: artist.name || "Untitled Artist",
+                handle: artist.handle || "artist",
+                avatar: artist.avatar_url || artist.banner_url || "",
+                banner: artist.banner_url || artist.avatar_url || "",
+                tag: artist.tag || "artist",
+                subscribers: 0,
+                bio: artist.bio || "This artist has not published a public bio yet.",
+                subscriptionPrice: artist.subscription_price?.toString() || "0.01",
+                twitterUrl: artist.twitter_url || "",
+                instagramUrl: artist.instagram_url || "",
+                websiteUrl: artist.website_url || "",
+                investGoals: [],
+                investRaised: 0,
+                investTotal: 0,
+                portfolio: Array.isArray(artist.portfolio) ? artist.portfolio : [],
+                defaultPoapAllocation: { subscribers: 40, bidders: 35, creators: 25 },
+                contractAddress,
+              } satisfies ArtistPublicProfile;
             } catch (error) {
               console.warn(`Subscription check failed for artist ${artist.id}:`, error);
               return null;
@@ -81,7 +116,7 @@ const MySubscriptionsPage = () => {
     fetchSubscriptions();
 
     return () => { active = false; };
-  }, [isConnected, address]);
+  }, [address, artists, isConnected]);
 
   const handleFavoriteToggle = (artistWallet: string, e: React.MouseEvent) => {
     e.preventDefault();

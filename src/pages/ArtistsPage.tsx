@@ -3,22 +3,95 @@ import { Link } from "react-router-dom";
 import { ArrowRight, Loader2, User, Users, Sparkles, Star, CheckCircle2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { useWallet, useSubscribeToArtistContract } from "@/hooks/useContracts";
+import { useWallet, useSubscribeToArtistContract, useIsSubscribedToArtistContract } from "@/hooks/useContracts";
+import { useResolvedArtistContract } from "@/hooks/useContractIntegrations";
 import { recordPageVisit } from "@/lib/analyticsStore";
 import { useSupabaseArtists } from "@/hooks/useSupabase";
 import { toast } from "sonner";
 
+const ArtistSubscribeButton = ({ artist, isConnected, connectWallet, address }: any) => {
+  const effectiveContractAddress = useResolvedArtistContract(artist?.wallet, artist?.contractAddress);
+  const {
+    subscribe,
+    isPending: isSubscribePending,
+    isConfirming: isSubscribeConfirming,
+    isSuccess: isSubscribeSuccess,
+  } = useSubscribeToArtistContract(effectiveContractAddress);
+  const { isSubscribed, isLoading: isSubscribedLoading, refetch: refetchSubscriptionStatus } =
+    useIsSubscribedToArtistContract(effectiveContractAddress, address ?? null);
+  const [isSubscribing, setIsSubscribing] = useState(false);
+
+  useEffect(() => {
+    if (!isSubscribeSuccess) {
+      return;
+    }
+
+    toast.success("Subscribed successfully!");
+    const timer = window.setTimeout(() => {
+      refetchSubscriptionStatus();
+    }, 2000);
+
+    return () => window.clearTimeout(timer);
+  }, [isSubscribeSuccess, refetchSubscriptionStatus]);
+
+  const handleSubscribe = async () => {
+    if (!isConnected) {
+      await connectWallet();
+      return;
+    }
+
+    if (!effectiveContractAddress) {
+      toast.error("Artist contract not available yet. Please try again later.");
+      return;
+    }
+
+    setIsSubscribing(true);
+    try {
+      await subscribe(String(artist.subscriptionPrice ?? "0.01"));
+    } catch (error) {
+      console.error("Subscribe error:", error);
+      toast.error(error instanceof Error ? error.message : "Subscription failed");
+    } finally {
+      setIsSubscribing(false);
+    }
+  };
+
+  return (
+    <Button
+      onClick={handleSubscribe}
+      className={`h-11 rounded-full flex-1 font-semibold transition-all ${
+        isSubscribed ? "gradient-primary text-primary-foreground" : "gradient-secondary text-secondary-foreground"
+      }`}
+      disabled={
+        isSubscribed ||
+        isSubscribedLoading ||
+        isSubscribing ||
+        isSubscribePending ||
+        isSubscribeConfirming
+      }
+    >
+      {isSubscribed ? (
+        <><CheckCircle2 className="h-4 w-4 mr-2" /> Subscribed</>
+      ) : isSubscribedLoading ? (
+        <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Checking</>
+      ) : isSubscribing || isSubscribePending ? (
+        <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Subscribing</>
+      ) : isSubscribeConfirming ? (
+        <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Confirming</>
+      ) : (
+        <><Star className="h-4 w-4 mr-2" /> Subscribe</>
+      )}
+    </Button>
+  );
+};
+
 const ArtistsPage = () => {
-  const { isConnected, connectWallet } = useWallet();
+  const { isConnected, connectWallet, address } = useWallet();
   const { data: supabaseArtists, loading, error } = useSupabaseArtists();
-  const [ subscribingContractAddress, setSubscribingContractAddress ] = useState<string | null>(null);
-  const { subscribe, isPending: isSubscribePending, isSuccess: isSubscribeSuccess, error: subscribeError } = useSubscribeToArtistContract(subscribingContractAddress);
   const [artists, setArtists] = useState([]);
   const [currentCard, setCurrentCard] = useState(0);
   const [swipeOffset, setSwipeOffset] = useState(0);
   const [isSwiping, setIsSwiping] = useState(false);
-  const [subscribedIds, setSubscribedIds] = useState<string[]>([]);
-  const [subscribingId, setSubscribingId] = useState<string | null>(null);
   const touchStartX = useRef(0);
   const touchStartY = useRef(0);
   const isHorizontalSwipe = useRef<boolean | null>(null);
@@ -34,6 +107,7 @@ const ArtistsPage = () => {
         id: artist.id,
         wallet: artist.wallet,
         contractAddress: artist.contract_address || null,
+        subscriptionPrice: artist.subscription_price,
         name: artist.name || "Untitled Artist",
         avatar: artist.avatar_url || artist.banner_url || "",
         tag: artist.tag || "artist",
@@ -42,15 +116,6 @@ const ArtistsPage = () => {
       })));
     }
   }, [supabaseArtists]);
-
-  // Handle subscription success
-  useEffect(() => {
-    if (isSubscribeSuccess && subscribingId) {
-      toast.success("Subscribed successfully!");
-      setSubscribingId(null);
-      setSubscribedIds((prev) => [...prev, subscribingId]);
-    }
-  }, [isSubscribeSuccess, subscribingId]);
 
   // Reset current card if it's out of bounds
   useEffect(() => {
@@ -67,22 +132,6 @@ const ArtistsPage = () => {
     if (!artists.length) return;
     setCurrentCard((prev) => (prev - 1 + artists.length) % artists.length);
   }, [artists.length]);
-
-  const handleSubscribe = async (id: string, contractAddress?: string | null) => {
-    if (!isConnected) { await connectWallet(); return; }
-    if (subscribedIds.includes(id)) return;
-    if (!contractAddress) { toast.error("Artist contract not available yet. Please try again later."); return; }
-    
-    setSubscribingId(id);
-    setSubscribingContractAddress(contractAddress);
-    try {
-      // Use default subscription amount
-      const defaultAmount = "0.01"; // 0.01 ETH
-      await subscribe(defaultAmount);
-    } catch (error) {
-      console.error("Subscribe error:", error);
-    }
-  };
 
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartX.current = e.touches[0].clientX;
@@ -232,23 +281,12 @@ const ArtistsPage = () => {
 
                   {isTop && (
                     <div className="flex gap-2">
-                      <Button
-                        onClick={() => handleSubscribe(artist.id, artist.contractAddress)}
-                        className={`h-11 rounded-full flex-1 font-semibold transition-all ${
-                          subscribedIds.includes(artist.id)
-                            ? "gradient-primary text-primary-foreground"
-                            : "gradient-secondary text-secondary-foreground"
-                        }`}
-                        disabled={subscribedIds.includes(artist.id) || subscribingId === artist.id || isSubscribePending}
-                      >
-                        {subscribingId === artist.id || isSubscribePending ? (
-                          <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Subscribing</>
-                        ) : subscribedIds.includes(artist.id) ? (
-                          <><CheckCircle2 className="h-4 w-4 mr-2" /> Subscribed</>
-                        ) : (
-                          <><Star className="h-4 w-4 mr-2" /> Subscribe</>
-                        )}
-                      </Button>
+                      <ArtistSubscribeButton
+                        artist={artist}
+                        isConnected={isConnected}
+                        connectWallet={connectWallet}
+                        address={address}
+                      />
                       <Button variant="outline" className="rounded-full h-11 px-4" asChild>
                         <Link to={`/artists/${artist.id}`}>
                           <User className="h-4 w-4 mr-1.5" /> Profile

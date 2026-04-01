@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { ArrowLeft, Share2, Heart, Users, Flame, Grid3X3, Globe, Loader2 } from "lucide-react";
 import { useNavigate, useParams, Link } from "react-router-dom";
 import { useWallet, useSubscribeToArtistContract, useGetSubscriberCountFromArtistContract, useIsSubscribedToArtistContract } from "@/hooks/useContracts";
-import { useGetArtistContract } from "@/hooks/useContractIntegrations";
+import { useResolvedArtistContract } from "@/hooks/useContractIntegrations";
 import { toast } from "sonner";
 import { recordArtistView } from "@/lib/analyticsStore";
 import { useSupabaseArtistById, useSupabaseDropsByArtist } from "@/hooks/useSupabase";
@@ -87,11 +87,10 @@ const ArtistProfilePage = () => {
       return [];
     }
   }, [supabaseDrops]);
-  const onchainContractAddress = useGetArtistContract(transformedArtist?.wallet);
-  const effectiveContractAddress =
-    onchainContractAddress && onchainContractAddress !== "0x0000000000000000000000000000000000000000"
-      ? onchainContractAddress
-      : transformedArtist?.contractAddress ?? null;
+  const effectiveContractAddress = useResolvedArtistContract(
+    transformedArtist?.wallet,
+    transformedArtist?.contractAddress
+  );
   const [lightboxImage, setLightboxImage] = useState<{ image: string; title: string; medium: string; year: string } | null>(null);
   const [isSubscribing, setIsSubscribing] = useState(false);
   const [buySharesOpen, setBuySharesOpen] = useState(false);

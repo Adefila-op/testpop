@@ -6,21 +6,30 @@ import { Button } from "@/components/ui/button";
 import { useWallet, useSubscribeToArtistContract, useIsSubscribedToArtistContract } from "@/hooks/useContracts";
 import { useMintArtist } from "@/hooks/useContractsArtist";
 import { usePlaceBid } from "@/hooks/useContracts";
-import { useGetArtistContract } from "@/hooks/useContractIntegrations";
+import { useResolvedArtistContract } from "@/hooks/useContractIntegrations";
 import { recordPageVisit, recordDropView } from "@/lib/analyticsStore";
 import { useSupabaseArtists, useSupabaseLiveDrops } from "@/hooks/useSupabase";
 import { useToast } from "@/hooks/use-toast";
 import { parseEther } from "viem";
 
-const SubscribeButtonWrapper = ({ artist, isConnected, connectWallet, toast }: any) => {
-  const [subscribingContractAddress, setSubscribingContractAddress] = useState<string | null>(null);
-  const onchainContractAddress = useGetArtistContract(artist?.wallet);
-  const effectiveContractAddress =
-    onchainContractAddress && onchainContractAddress !== "0x0000000000000000000000000000000000000000"
-      ? onchainContractAddress
-      : artist?.contractAddress ?? null;
-  const { subscribe, isPending: isSubscribePending, isConfirming: isSubscribeConfirming, isSuccess: isSubscribeSuccess } = useSubscribeToArtistContract(subscribingContractAddress);
+const SubscribeButtonWrapper = ({ artist, isConnected, connectWallet, address, toast }: any) => {
+  const effectiveContractAddress = useResolvedArtistContract(artist?.wallet, artist?.contractAddress);
+  const { subscribe, isPending: isSubscribePending, isConfirming: isSubscribeConfirming, isSuccess: isSubscribeSuccess } = useSubscribeToArtistContract(effectiveContractAddress);
+  const { isSubscribed, isLoading: isSubscribedLoading, refetch: refetchSubscriptionStatus } =
+    useIsSubscribedToArtistContract(effectiveContractAddress, address ?? null);
   const [isSubscribing, setIsSubscribing] = useState(false);
+
+  useEffect(() => {
+    if (!isSubscribeSuccess) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      refetchSubscriptionStatus();
+    }, 2000);
+
+    return () => window.clearTimeout(timer);
+  }, [isSubscribeSuccess, refetchSubscriptionStatus]);
 
   const handleSubscribe = async () => {
     if (!isConnected) {
@@ -39,7 +48,6 @@ const SubscribeButtonWrapper = ({ artist, isConnected, connectWallet, toast }: a
 
     const subscriptionPrice = String(artist.subscriptionPrice ?? "0.01");
 
-    setSubscribingContractAddress(effectiveContractAddress);
     setIsSubscribing(true);
     try {
       console.log("🎨 Subscribing to artist contract:", effectiveContractAddress);
@@ -82,11 +90,13 @@ const SubscribeButtonWrapper = ({ artist, isConnected, connectWallet, toast }: a
     <Button
       size="default"
       onClick={handleSubscribe}
-      disabled={isSubscribing || isSubscribePending || isSubscribeConfirming || isSubscribeSuccess}
+      disabled={isSubscribing || isSubscribePending || isSubscribeConfirming || isSubscribed || isSubscribedLoading}
       className="flex-1 rounded-full gradient-primary text-primary-foreground font-bold text-sm h-11"
     >
-      {isSubscribeSuccess ? (
+      {isSubscribed ? (
         "Subscribed ✓"
+      ) : isSubscribedLoading ? (
+        <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Checking...</>
       ) : isSubscribing || isSubscribePending ? (
         <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Subscribing...</>
       ) : isSubscribeConfirming ? (
@@ -99,7 +109,7 @@ const SubscribeButtonWrapper = ({ artist, isConnected, connectWallet, toast }: a
 };
 
 const Index = () => {
-  const { isConnected, connectWallet } = useWallet();
+  const { isConnected, connectWallet, address } = useWallet();
   const { data: supabaseArtists, loading, error } = useSupabaseArtists();
   const { data: supabaseLiveDrops, loading: dropsLoading, error: dropsError, refetch: refetchDrops } = useSupabaseLiveDrops();
   const { placeBid, isPending: isBidding, error: bidError } = usePlaceBid();
@@ -654,7 +664,7 @@ const Index = () => {
                         {/* Action Buttons — only on top card */}
                         {isTop && (
                           <div className="flex gap-2">
-                            <SubscribeButtonWrapper artist={artist} isConnected={isConnected} connectWallet={connectWallet} toast={toast} />
+                            <SubscribeButtonWrapper artist={artist} isConnected={isConnected} connectWallet={connectWallet} address={address} toast={toast} />
                             <Button
                               variant="outline"
                               size="default"

@@ -4,10 +4,62 @@
  */
 
 import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadContract } from "wagmi";
-import { parseEther, getAddress } from "viem";
+import { parseEther, getAddress, type Address, type PublicClient } from "viem";
 import { ACTIVE_CHAIN } from "@/lib/wagmi";
 import { FACTORY_ADDRESS, FACTORY_ABI } from "@/lib/contracts/artDropFactory";
 import { ARTIST_SHARES_TOKEN_ADDRESS, ARTIST_SHARES_TOKEN_ABI } from "@/lib/contracts/artistSharesToken";
+
+export const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+
+export function normalizeArtistContractAddress(address?: string | null): Address | null {
+  if (!address?.trim()) {
+    return null;
+  }
+
+  try {
+    const normalized = getAddress(address.trim());
+    return normalized === ZERO_ADDRESS ? null : normalized;
+  } catch {
+    return null;
+  }
+}
+
+export function resolveArtistContractAddress(
+  storedContractAddress?: string | null,
+  onchainContractAddress?: string | null
+): Address | null {
+  return (
+    normalizeArtistContractAddress(onchainContractAddress) ??
+    normalizeArtistContractAddress(storedContractAddress)
+  );
+}
+
+export async function fetchResolvedArtistContractAddress(
+  publicClient: PublicClient,
+  artistWallet?: string,
+  storedContractAddress?: string | null
+): Promise<Address | null> {
+  if (!artistWallet?.trim()) {
+    return normalizeArtistContractAddress(storedContractAddress);
+  }
+
+  try {
+    const onchainContractAddress = await publicClient.readContract({
+      address: FACTORY_ADDRESS,
+      abi: FACTORY_ABI,
+      functionName: "getArtistContract",
+      args: [getAddress(artistWallet)],
+    });
+
+    return resolveArtistContractAddress(
+      storedContractAddress,
+      typeof onchainContractAddress === "string" ? onchainContractAddress : null
+    );
+  } catch (error) {
+    console.warn(`Failed to resolve artist contract for ${artistWallet}:`, error);
+    return normalizeArtistContractAddress(storedContractAddress);
+  }
+}
 
 // ── Factory: Deploy Artist Contract ─────────────────
 /**
@@ -71,6 +123,14 @@ export function useGetArtistContract(artistWallet: string | undefined) {
   });
 
   return data as string | undefined;
+}
+
+export function useResolvedArtistContract(
+  artistWallet?: string,
+  storedContractAddress?: string | null
+) {
+  const onchainContractAddress = useGetArtistContract(artistWallet);
+  return resolveArtistContractAddress(storedContractAddress, onchainContractAddress);
 }
 
 // ── Artist Shares: Launch Campaign ──────────────────
