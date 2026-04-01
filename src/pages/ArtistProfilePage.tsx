@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { ArrowLeft, Share2, Heart, Users, Flame, Grid3X3, Globe, Loader2 } from "lucide-react";
 import { useNavigate, useParams, Link } from "react-router-dom";
 import { useWallet, useSubscribeToArtistContract, useGetSubscriberCountFromArtistContract, useIsSubscribedToArtistContract } from "@/hooks/useContracts";
+import { useGetArtistContract } from "@/hooks/useContractIntegrations";
 import { toast } from "sonner";
 import { recordArtistView } from "@/lib/analyticsStore";
 import { useSupabaseArtistById, useSupabaseDropsByArtist } from "@/hooks/useSupabase";
@@ -15,22 +16,11 @@ const ArtistProfilePage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { isConnected, address } = useWallet();
+  const artistId = id ?? "";
+  const invalidArtistId = !id;
 
-  // Check if id is valid
-  if (!id) {
-    return (
-      <div className="px-4 py-10 text-center space-y-4">
-        <p className="text-lg font-semibold text-foreground">Invalid artist ID</p>
-        <p className="text-sm text-muted-foreground">No artist ID provided in the URL.</p>
-        <Button onClick={() => navigate("/artists")} className="rounded-full gradient-primary text-primary-foreground">
-          Back to Artists
-        </Button>
-      </div>
-    );
-  }
-
-  const { data: artist, loading: artistLoading, error: artistError } = useSupabaseArtistById(id);
-  const { data: supabaseDrops, loading: dropsLoading } = useSupabaseDropsByArtist(id);
+  const { data: artist, loading: artistLoading, error: artistError } = useSupabaseArtistById(artistId);
+  const { data: supabaseDrops, loading: dropsLoading } = useSupabaseDropsByArtist(artistId);
 
   // Debug logging
   useEffect(() => {
@@ -38,7 +28,7 @@ const ArtistProfilePage = () => {
     console.log(`📊 Artist loading: ${artistLoading}, Drops loading: ${dropsLoading}`);
     console.log(`📊 Artist error:`, artistError);
     console.log(`📊 Artist data:`, artist);
-  }, [id, artistLoading, dropsLoading, artist, artistError]);
+  }, [id, artistId, artistLoading, dropsLoading, artist, artistError]);
 
   // Transform artist data to component format
   const transformedArtist = useMemo(() => {
@@ -97,6 +87,11 @@ const ArtistProfilePage = () => {
       return [];
     }
   }, [supabaseDrops]);
+  const onchainContractAddress = useGetArtistContract(transformedArtist?.wallet);
+  const effectiveContractAddress =
+    onchainContractAddress && onchainContractAddress !== "0x0000000000000000000000000000000000000000"
+      ? onchainContractAddress
+      : transformedArtist?.contractAddress ?? null;
   const [lightboxImage, setLightboxImage] = useState<{ image: string; title: string; medium: string; year: string } | null>(null);
   const [isSubscribing, setIsSubscribing] = useState(false);
   const [buySharesOpen, setBuySharesOpen] = useState(false);
@@ -107,11 +102,11 @@ const ArtistProfilePage = () => {
     targetAmount: "",
   });
 
-  const { subscribe, isPending: isSubscribePending, isConfirming: isSubscribeConfirming, isSuccess: isSubscribeSuccess, error: subscribeError } = useSubscribeToArtistContract(transformedArtist?.contractAddress ?? null);
+  const { subscribe, isPending: isSubscribePending, isConfirming: isSubscribeConfirming, isSuccess: isSubscribeSuccess, error: subscribeError } = useSubscribeToArtistContract(effectiveContractAddress);
 
-  const { count: onchainSubscribers, isLoading: isSubscribersLoading } = useGetSubscriberCountFromArtistContract(transformedArtist?.contractAddress ?? null);
+  const { count: onchainSubscribers, isLoading: isSubscribersLoading } = useGetSubscriberCountFromArtistContract(effectiveContractAddress);
 
-  const { isSubscribed, isLoading: isSubscribedLoading, refetch: refetchSubscriptionStatus } = useIsSubscribedToArtistContract(transformedArtist?.contractAddress ?? null, address ?? null);
+  const { isSubscribed, isLoading: isSubscribedLoading, refetch: refetchSubscriptionStatus } = useIsSubscribedToArtistContract(effectiveContractAddress, address ?? null);
 
   useEffect(() => {
     if (transformedArtist?.id) {
@@ -131,6 +126,18 @@ const ArtistProfilePage = () => {
       }, 2000);
     }
   }, [isSubscribeSuccess, refetchSubscriptionStatus]);
+
+  if (invalidArtistId) {
+    return (
+      <div className="px-4 py-10 text-center space-y-4">
+        <p className="text-lg font-semibold text-foreground">Invalid artist ID</p>
+        <p className="text-sm text-muted-foreground">No artist ID provided in the URL.</p>
+        <Button onClick={() => navigate("/artists")} className="rounded-full gradient-primary text-primary-foreground">
+          Back to Artists
+        </Button>
+      </div>
+    );
+  }
 
   // Add loading check before error checks
   if (artistLoading) {
@@ -175,7 +182,7 @@ const ArtistProfilePage = () => {
       return;
     }
 
-    if (!transformedArtist?.contractAddress) {
+    if (!effectiveContractAddress) {
       toast.error("Artist contract not deployed yet. Please try again later.");
       return;
     }
@@ -187,9 +194,9 @@ const ArtistProfilePage = () => {
       await subscribe(subscriptionPrice);
       setIsSubscribing(false);
       toast.success("Subscription transaction submitted. Waiting for on-chain confirmation... Artist gets 70%, team gets 30%.");
-    } catch (err: any) {
+    } catch (err: unknown) {
       setIsSubscribing(false);
-      const message = err?.message || "Subscription failed";
+      const message = err instanceof Error ? err.message : "Subscription failed";
       toast.error(message);
     }
   };

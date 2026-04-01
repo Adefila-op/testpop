@@ -122,8 +122,7 @@ async function saveProductToDBs(product: MarketProduct, creatorWallet: string = 
   // Save to Supabase and wait for it
   try {
     console.log(`💾 Saving product to Supabase with creator wallet: ${creatorWallet}`);
-    await dbCreateProduct({
-      id: product.id,
+    const created = await dbCreateProduct({
       creator_wallet: creatorWallet || "0x0",
       name: product.name,
       description: product.description,
@@ -136,6 +135,7 @@ async function saveProductToDBs(product: MarketProduct, creatorWallet: string = 
       status: product.status === "active" ? "published" : product.status,
     });
     console.log(`✅ Product saved to Supabase: ${product.name}`);
+    return created;
   } catch (err) {
     console.error("❌ Product Supabase save failed:", err);
     throw err;
@@ -1185,7 +1185,34 @@ const AdminPage = () => {
             <AddProductDialog onAdd={async (p, wallet) => { 
               try {
                 setProducts(prev => [...prev, p]);
-                await saveProductToDBs(p, wallet || "0x0");
+                const created = await saveProductToDBs(p, wallet || "0x0");
+                const normalizedCreated = created
+                  ? normalizeStoredProduct({
+                      id: created.id,
+                      name: created.name,
+                      category: created.category,
+                      priceEth:
+                        created.price_eth !== undefined && created.price_eth !== null
+                          ? String(created.price_eth)
+                          : undefined,
+                      stock: created.stock,
+                      sold: created.sold,
+                      status:
+                        created.status === "published"
+                          ? "active"
+                          : created.status === "out_of_stock"
+                            ? "out_of_stock"
+                            : "draft",
+                      nftLink: created.nft_link,
+                      uploadedAt: created.created_at
+                        ? new Date(created.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short" })
+                        : p.uploadedAt,
+                      description: created.description,
+                      image: created.image_url,
+                      imageUri: created.image_ipfs_uri,
+                    })
+                  : p;
+                setProducts(prev => prev.map(prod => prod.id === p.id ? normalizedCreated : prod));
                 toast.success("✅ Product saved to database");
               } catch (err: unknown) {
                 console.error("Failed to save product to database:", err);
