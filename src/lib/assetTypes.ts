@@ -159,7 +159,7 @@ export function getAssetTypeLabel(assetType: AssetType): string {
     pdf: 'PDF Document',
     epub: 'E-Book',
     merchandise: 'Product',
-    digital: 'Digital File',
+    digital: 'Downloadable File',
   };
   return labels[assetType] || 'File';
 }
@@ -177,7 +177,7 @@ export function getIconForAssetType(assetType: AssetType): string {
     pdf: 'FileText',
     epub: 'Book',
     merchandise: 'Package',
-    digital: 'File',
+    digital: 'Download',
   };
   return icons[assetType] || 'File';
 }

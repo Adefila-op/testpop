@@ -10,8 +10,6 @@ import type { AssetType } from "@/lib/assetTypes";
 import { ipfsToHttp } from "@/lib/pinata";
 import { VideoViewer } from "@/components/collection/VideoViewer";
 import { AudioPlayer } from "@/components/collection/AudioPlayer";
-import { PdfReader } from "@/components/collection/PdfReader";
-import { EpubReader } from "@/components/collection/EpubReader";
 import { useCollectionStore } from "@/stores/collectionStore";
 
 const DropPrimaryActionCard = lazy(() => import("@/components/wallet/DropPrimaryActionCard"));
@@ -71,6 +69,7 @@ const DropDetailPage = () => {
   const hasContractAddress = Boolean(drop?.contractAddress && drop.contractAddress !== ZERO_ADDRESS);
   const mediaSrc = drop ? ipfsToHttp(drop.deliveryUri || drop.imageUri || drop.image || "") : "";
   const posterSrc = drop ? ipfsToHttp(drop.previewUri || drop.image || "") : "";
+  const coverSrc = drop ? ipfsToHttp(drop.previewUri || drop.imageUri || drop.image || "") : "";
 
   useEffect(() => {
     if (id) {
@@ -152,8 +151,22 @@ const DropDetailPage = () => {
               <AudioPlayer src={mediaSrc} title={drop.title} />
             </div>
           )}
-          {drop.assetType === "pdf" && <PdfReader src={mediaSrc} title={drop.title} />}
-          {drop.assetType === "epub" && <EpubReader src={mediaSrc} title={drop.title} />}
+          {(drop.assetType === "pdf" || drop.assetType === "epub" || drop.assetType === "digital") && (
+            coverSrc ? (
+              <div className="relative w-full h-full">
+                <img src={coverSrc} alt={drop.title} className="w-full h-full object-cover" />
+                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-4">
+                  <p className="text-white text-xs uppercase tracking-[0.2em]">
+                    {drop.assetType === "pdf" ? "ebook pdf" : drop.assetType === "epub" ? "ebook epub" : "downloadable file"}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-700 text-white text-sm font-semibold text-center px-6">
+                {drop.assetType === "digital" ? "Downloadable content" : "eBook preview"}
+              </div>
+            )
+          )}
         </div>
         <button onClick={() => navigate(-1)} className="absolute top-3 left-3 p-2 rounded-full bg-background/60 backdrop-blur-sm">
           <ArrowLeft className="h-4 w-4 text-foreground" />

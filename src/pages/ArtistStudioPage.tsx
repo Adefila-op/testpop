@@ -80,6 +80,7 @@ type Drop = {
 };
 
 type DropMode = Drop["type"];
+type DropContentKind = "artwork" | "ebook" | "downloadable";
 
 const toStoredDropType = (mode: DropMode): "drop" | "auction" | "campaign" =>
   mode === "buy" ? "drop" : mode;
@@ -148,8 +149,10 @@ const CreateDropSheet = ({
   };
 }) => {
   const [step, setStep] = useState(0);
-  const [file, setFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState<string | null>(null);
+  const [contentKind, setContentKind] = useState<DropContentKind>("artwork");
+  const [coverFile, setCoverFile] = useState<File | null>(null);
+  const [deliveryFile, setDeliveryFile] = useState<File | null>(null);
+  const [coverPreview, setCoverPreview] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadErr, setUploadErr] = useState<string | null>(null);
   const [pendingResult, setPendingResult] = useState<{
@@ -160,8 +163,14 @@ const CreateDropSheet = ({
     assetType: AssetType;
     isGated: boolean;
     mode: DropMode;
+    contentKind: DropContentKind;
   } | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
+  const coverFileRef = useRef<HTMLInputElement>(null);
+  const deliveryFileRef = useRef<HTMLInputElement>(null);
+  const setFile = setCoverFile;
+  const preview = coverPreview;
+  const setPreview = setCoverPreview;
+  const fileRef = coverFileRef;
   const { isConnected, connectWallet, address } = useWallet();
   const {
     createDrop,
@@ -181,22 +190,53 @@ const CreateDropSheet = ({
   } = useCreateCampaign();
   const [form, setForm] = useState({ title: "", description: "", price: "", duration: "24", supply: "1", type: "buy" as Drop["type"] });
 
-  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const requiresSeparateDelivery = contentKind !== "artwork";
+  const coverLabel =
+    contentKind === "ebook" ? "Upload cover image" : contentKind === "downloadable" ? "Upload cover or mockup" : "Upload artwork";
+  const coverHelpText =
+    contentKind === "ebook"
+      ? "JPG or PNG cover shown before purchase"
+      : contentKind === "downloadable"
+      ? "JPG or PNG preview for your downloadable tool"
+      : "Image, video, audio, PDF, or EPUB up to 10MB";
+  const deliveryLabel =
+    contentKind === "ebook" ? "Upload ebook file" : "Upload downloadable file";
+  const deliveryHelpText =
+    contentKind === "ebook"
+      ? "PDF or EPUB delivered to collectors after purchase"
+      : "ZIP, brush pack, PSD, PDF, or other digital file delivered after purchase";
+
+  const handleCoverFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (!f) return;
     if (f.size > 10 * 1024 * 1024) { toast.error("Max 10MB"); return; }
-    setFile(f);
+    setCoverFile(f);
     if (detectAssetTypeFromFile(f) === "image") {
       const r = new FileReader();
-      r.onload = ev => setPreview(ev.target?.result as string);
+      r.onload = ev => setCoverPreview(ev.target?.result as string);
       r.readAsDataURL(f);
       return;
     }
-    setPreview(null);
+    setCoverPreview(null);
+  };
+
+  const handleDeliveryFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    if (f.size > 25 * 1024 * 1024) { toast.error("Max 25MB"); return; }
+    setDeliveryFile(f);
   };
 
   const handlePublish = async () => {
-    if (!file) return;
+    if (!coverFile) {
+      toast.error("Add a cover or artwork file before publishing.");
+      return;
+    }
+
+    if (requiresSeparateDelivery && !deliveryFile) {
+      toast.error(contentKind === "ebook" ? "Add the ebook file before publishing." : "Add the downloadable file before publishing.");
+      return;
+    }
     
     // Validate form before uploading
     if (!form.title.trim()) {
@@ -241,31 +281,44 @@ const CreateDropSheet = ({
     }
     setIsUploading(true); setUploadErr(null);
     try {
-      toast.info("Uploading artwork to IPFS…");
-      const assetType = detectAssetTypeFromFile(file);
-      const imageCid = await uploadFileToPinata(file);
+      toast.info(requiresSeparateDelivery ? "Uploading cover artwork to IPFS..." : "Uploading artwork to IPFS...");
+      const assetFile = deliveryFile || coverFile;
+      const assetType = detectAssetTypeFromFile(assetFile);
+      const imageCid = await uploadFileToPinata(coverFile);
       const imageUri = `ipfs://${imageCid}`;
-      const previewUri = assetType === "image" ? imageUri : undefined;
+      let deliveryUri = imageUri;
+
+      if (requiresSeparateDelivery && deliveryFile) {
+        toast.info(contentKind === "ebook" ? "Uploading ebook file..." : "Uploading delivery file...");
+        const deliveryCid = await uploadFileToPinata(deliveryFile);
+        deliveryUri = `ipfs://${deliveryCid}`;
+      }
+
+      const previewUri = imageUri;
       toast.info("Pinning metadata…");
       const uri = await uploadMetadataToPinata({
         name: form.title,
         description: form.description,
         image: previewUri || imageUri,
-        animation_url: assetType !== "image" ? imageUri : undefined,
+        animation_url: !requiresSeparateDelivery && assetType !== "image" ? deliveryUri : undefined,
         properties: {
+          contentKind,
           assetType,
-          deliveryUri: imageUri,
+          coverImageUri: imageUri,
+          deliveryUri,
           previewUri: previewUri || null,
+          isDownloadable: requiresSeparateDelivery || assetType === "digital",
         },
       });
       setPendingResult({
         metadataUri: uri,
         imageUri,
-        deliveryUri: imageUri,
+        deliveryUri,
         previewUri,
         assetType,
-        isGated: false,
+        isGated: requiresSeparateDelivery,
         mode: form.type,
+        contentKind,
       });
       
       const now = Math.floor(Date.now() / 1000);
@@ -326,9 +379,9 @@ const CreateDropSheet = ({
         const contractKind = pendingResult.mode === "auction" ? "poapCampaign" : "artDrop";
         const contractAddress = pendingResult.mode === "auction" ? POAP_CAMPAIGN_ADDRESS : artistContractAddress;
 
-        const persistedImageUrl = isDataUrl(preview)
+        const persistedImageUrl = isDataUrl(coverPreview)
           ? (pendingResult.previewUri ? ipfsToHttp(pendingResult.previewUri) : ipfsToHttp(pendingResult.imageUri))
-          : (preview || undefined);
+          : (coverPreview || undefined);
 
         const savedDrop = await dbCreateDrop({
           artist_id: persistedArtist.id,
@@ -366,7 +419,7 @@ const CreateDropSheet = ({
             type: pendingResult.mode,
             endsIn: `${form.duration}h`,
             revenue: "0",
-            image: persistedImageUrl ?? preview,
+            image: persistedImageUrl ?? coverPreview,
             metadataUri: pendingResult.metadataUri,
             imageUri: pendingResult.imageUri,
             assetType: pendingResult.assetType,
@@ -382,8 +435,12 @@ const CreateDropSheet = ({
           // Clear pending mint state so this effect cannot replay on rerender.
           setPendingResult(null);
           setForm({ title: "", description: "", price: "", duration: "24", supply: "1", type: "buy" });
-          setPreview(null);
-          setFile(null);
+          setCoverPreview(null);
+          setCoverFile(null);
+          setDeliveryFile(null);
+          setContentKind("artwork");
+          if (coverFileRef.current) coverFileRef.current.value = "";
+          if (deliveryFileRef.current) deliveryFileRef.current.value = "";
           setStep(0);
           setUploadErr(null);
           setIsUploading(false);
@@ -407,7 +464,7 @@ const CreateDropSheet = ({
     onClose,
     onCreated,
     pendingResult,
-    preview,
+    coverPreview,
   ]);
 
   const activePublishError = form.type === "auction" ? createCampaignError : createDropError;
@@ -428,7 +485,7 @@ const CreateDropSheet = ({
     : form.type === "buy"
     ? <><Zap className="h-4 w-4 mr-2" />Mint & Publish</>
     : <><Gavel className="h-4 w-4 mr-2" />Create Auction</>;
-  const canNext0 = !!preview;
+  const canNext0 = !!coverFile && (!requiresSeparateDelivery || !!deliveryFile);
   const canNext1 = !!(form.title && form.price);
 
   return (
@@ -438,7 +495,7 @@ const CreateDropSheet = ({
           <DialogTitle>New Drop</DialogTitle>
           {/* Step dots */}
           <div className="flex gap-2 mt-2">
-            {["Artwork", "Details", "Publish"].map((s, i) => (
+            {["Content", "Details", "Publish"].map((s, i) => (
               <div key={s} className="flex items-center gap-1.5">
                 <div className={`h-5 w-5 rounded-full text-[10px] font-bold flex items-center justify-center transition-colors ${i <= step ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground"}`}>{i + 1}</div>
                 <span className={`text-[10px] ${i <= step ? "text-foreground font-medium" : "text-muted-foreground"}`}>{s}</span>
@@ -451,10 +508,54 @@ const CreateDropSheet = ({
         <div className="space-y-4 mt-1">
           {step === 0 && (
             <div>
-              <input ref={fileRef} type="file" accept="image/*,video/*,audio/*,.pdf,.epub" className="hidden" onChange={handleFile} />
-              {preview ? (
+              <div className="mb-4">
+                <Label className="text-xs">What are you publishing?</Label>
+                <div className="grid grid-cols-3 gap-2 mt-1">
+                  {([
+                    ["artwork", "Artwork"],
+                    ["ebook", "eBook"],
+                    ["downloadable", "Tool"],
+                  ] as const).map(([value, label]) => (
+                    <button
+                      key={value}
+                      onClick={() => {
+                        setContentKind(value);
+                        setCoverFile(null);
+                        setDeliveryFile(null);
+                        setCoverPreview(null);
+                        if (coverFileRef.current) coverFileRef.current.value = "";
+                        if (deliveryFileRef.current) deliveryFileRef.current.value = "";
+                      }}
+                      className={`py-2 rounded-xl text-xs font-semibold border transition-colors ${
+                        contentKind === value ? "border-primary bg-primary/10 text-primary" : "border-border bg-secondary/50 text-muted-foreground"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <input
+                ref={coverFileRef}
+                type="file"
+                accept={contentKind === "artwork" ? "image/*,video/*,audio/*,.pdf,.epub" : "image/*"}
+                className="hidden"
+                onChange={handleCoverFile}
+              />
+              <input
+                ref={deliveryFileRef}
+                type="file"
+                accept={contentKind === "ebook" ? ".pdf,.epub,application/pdf,application/epub+zip" : "*"}
+                className="hidden"
+                onChange={handleDeliveryFile}
+              />
+              <div className="mb-3 rounded-xl border border-border bg-secondary/20 p-3">
+                <p className="text-sm font-semibold text-foreground">{coverLabel}</p>
+                <p className="text-xs text-muted-foreground mt-1">{coverHelpText}</p>
+              </div>
+              {coverPreview ? (
                 <div className="relative aspect-square rounded-xl overflow-hidden">
-                  <img src={preview} className="w-full h-full object-cover" />
+                  <img src={coverPreview} className="w-full h-full object-cover" />
                   <button onClick={() => { setPreview(null); setFile(null); }} className="absolute top-2 right-2 p-1.5 rounded-full bg-background/80 text-xs">✕</button>
                 </div>
               ) : (
@@ -467,11 +568,35 @@ const CreateDropSheet = ({
                   </div>
                 </button>
               )}
+              {coverFile && !coverPreview && (
+                <div className="mt-3 rounded-xl border border-border bg-secondary/30 p-3">
+                  <p className="text-xs font-semibold text-foreground">{coverFile.name}</p>
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    {contentKind === "artwork" ? "This file will be used for preview and delivery." : "This file will be used as the public cover."}
+                  </p>
+                </div>
+              )}
+              {requiresSeparateDelivery && (
+                <button
+                  onClick={() => deliveryFileRef.current?.click()}
+                  className="mt-3 w-full rounded-xl border border-dashed border-border bg-secondary/20 p-4 text-left hover:bg-secondary/40 transition-colors"
+                >
+                  <p className="text-sm font-semibold text-foreground">{deliveryLabel}</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {deliveryFile ? `${deliveryFile.name} selected` : deliveryHelpText}
+                  </p>
+                </button>
+              )}
             </div>
           )}
 
           {step === 1 && (
             <div className="space-y-3">
+              {!preview && coverFile && (
+                <div className="h-16 rounded-xl border border-border bg-secondary/40 px-3 flex items-center text-xs text-muted-foreground">
+                  {coverFile.name}
+                </div>
+              )}
               {preview && <img src={preview} className="h-16 w-16 rounded-xl object-cover" />}
               <div>
                 <Label className="text-xs">Drop type</Label>
@@ -499,6 +624,13 @@ const CreateDropSheet = ({
                 <div><Label className="text-xs">Duration (h)</Label><Input placeholder="24" value={form.duration} onChange={e => setForm({ ...form, duration: e.target.value })} className="h-9 rounded-lg text-sm mt-1" /></div>
                 <div><Label className="text-xs">Supply</Label><Input placeholder="1" value={form.supply} onChange={e => setForm({ ...form, supply: e.target.value })} className="h-9 rounded-lg text-sm mt-1" /></div>
               </div>
+              <div className="rounded-xl border border-border bg-secondary/20 p-3 text-xs text-muted-foreground">
+                {contentKind === "artwork"
+                  ? "Artwork drops use the same media for preview and collector access."
+                  : contentKind === "ebook"
+                  ? "Collectors will see the cover first and unlock the ebook file after collecting."
+                  : "Collectors will see the cover first and unlock the downloadable tool file after collecting."}
+              </div>
             </div>
           )}
 
@@ -510,6 +642,7 @@ const CreateDropSheet = ({
                   <p className="font-bold text-sm text-foreground">{form.title}</p>
                   <p className="text-xs text-muted-foreground line-clamp-2">{form.description}</p>
                   <div className="flex gap-1.5 mt-2">
+                    <Badge variant="secondary" className="text-[10px] capitalize">{contentKind}</Badge>
                     <Badge variant="secondary" className="text-[10px]">{form.price} ETH</Badge>
                     <Badge variant="secondary" className="text-[10px]">{form.duration}h</Badge>
                     <Badge variant="secondary" className="text-[10px]">×{form.supply}</Badge>

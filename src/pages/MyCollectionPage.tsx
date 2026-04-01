@@ -32,6 +32,26 @@ function getCollectionItemKey(item: CollectedDropItem) {
   return `${normalizedWallet}:${item.id}`;
 }
 
+const CollectionPlaceholder = ({
+  title,
+  subtitle,
+  onClose,
+}: {
+  title: string;
+  subtitle: string;
+  onClose: () => void;
+}) => (
+  <div className="w-full min-h-[320px] flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-700 text-white p-8 relative">
+    <button onClick={onClose} className="absolute top-4 right-4 rounded-full bg-white/10 px-2 py-1 text-xs">
+      Close
+    </button>
+    <div className="text-center space-y-3">
+      <p className="text-lg font-semibold">{title}</p>
+      <p className="text-sm text-white/75">{subtitle}</p>
+    </div>
+  </div>
+);
+
 const MyCollectionPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -239,6 +259,14 @@ const MyCollectionPage = () => {
         return <PdfReader src={src} title={selectedItem.title} onClose={() => setSelectedItem(null)} />;
       case "epub":
         return <EpubReader src={src} title={selectedItem.title} onClose={() => setSelectedItem(null)} />;
+      case "digital":
+        return (
+          <CollectionPlaceholder
+            title={selectedItem.title}
+            subtitle="This collectible includes downloadable files. Use the download panel below to access them."
+            onClose={() => setSelectedItem(null)}
+          />
+        );
       case "image":
       default:
         return <ImageViewer src={src} alt={selectedItem.title} onClose={() => setSelectedItem(null)} />;
@@ -364,6 +392,10 @@ const MyCollectionPage = () => {
                     ) : drop.assetType === "epub" ? (
                       <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-amber-600 to-amber-900 text-white text-xs font-semibold">
                         eBook Collect
+                      </div>
+                    ) : drop.assetType === "digital" ? (
+                      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-sky-700 to-slate-900 text-white text-xs font-semibold px-3 text-center">
+                        Downloadable Tool
                       </div>
                     ) : (
                       <img
