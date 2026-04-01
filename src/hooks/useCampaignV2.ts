@@ -7,7 +7,7 @@ import {
 } from "viem";
 import {
   useAccount,
-  useReadContract,
+  useReadContracts,
   useWriteContract,
   useWaitForTransactionReceipt,
 } from "wagmi";
@@ -32,6 +32,10 @@ function normalizeAddress(value?: string | null) {
   } catch {
     return null;
   }
+}
+
+function resolveCampaignContractAddress(contractAddress?: string | null) {
+  return normalizeAddress(contractAddress) ?? POAP_CAMPAIGN_V2_ADDRESS;
 }
 
 export function useCreateCampaignV2() {
@@ -112,7 +116,12 @@ export function useBuyCampaignEntriesV2() {
   const { writeContract, data: hash, isPending, error } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
 
-  const buyEntries = (campaignId: number, quantity: number, ticketPriceEth: string) => {
+  const buyEntries = (
+    contractAddress: string | null | undefined,
+    campaignId: number,
+    quantity: number,
+    ticketPriceEth: string
+  ) => {
     if (!address) throw new Error("Connect wallet to buy entries");
     if (!Number.isInteger(quantity) || quantity <= 0) {
       throw new Error("Quantity must be at least 1");
@@ -121,7 +130,7 @@ export function useBuyCampaignEntriesV2() {
     const totalValue = parseEther(ticketPriceEth || "0") * BigInt(quantity);
 
     return writeContract({
-      address: POAP_CAMPAIGN_V2_ADDRESS,
+      address: resolveCampaignContractAddress(contractAddress),
       abi: POAP_CAMPAIGN_V2_ABI,
       functionName: "buyEntries",
       args: [BigInt(campaignId), BigInt(quantity)],
@@ -139,14 +148,14 @@ export function useRedeemCampaignV2() {
   const { writeContract, data: hash, isPending, error } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
 
-  const redeem = (campaignId: number, quantity: number) => {
+  const redeem = (contractAddress: string | null | undefined, campaignId: number, quantity: number) => {
     if (!address) throw new Error("Connect wallet to redeem");
     if (!Number.isInteger(quantity) || quantity <= 0) {
       throw new Error("Quantity must be at least 1");
     }
 
     return writeContract({
-      address: POAP_CAMPAIGN_V2_ADDRESS,
+      address: resolveCampaignContractAddress(contractAddress),
       abi: POAP_CAMPAIGN_V2_ABI,
       functionName: "redeem",
       args: [BigInt(campaignId), BigInt(quantity)],
@@ -160,53 +169,54 @@ export function useRedeemCampaignV2() {
 
 export function useCampaignV2State(
   campaignId?: number | null,
-  wallet?: string | null
+  wallet?: string | null,
+  contractAddress?: string | null
 ) {
   const normalizedWallet = normalizeAddress(wallet);
   const enabled = campaignId !== null && campaignId !== undefined;
+  const resolvedAddress = resolveCampaignContractAddress(contractAddress);
 
-  const campaignQuery = useReadContract({
-    address: POAP_CAMPAIGN_V2_ADDRESS,
-    abi: POAP_CAMPAIGN_V2_ABI,
-    functionName: "campaigns",
-    args: enabled ? [BigInt(campaignId)] : undefined,
+  const contracts = [
+    {
+      address: resolvedAddress,
+      abi: POAP_CAMPAIGN_V2_ABI,
+      functionName: "campaigns",
+      args: [BigInt(campaignId ?? 0)],
+    },
+    {
+      address: resolvedAddress,
+      abi: POAP_CAMPAIGN_V2_ABI,
+      functionName: "ethCredits",
+      args: [BigInt(campaignId ?? 0), normalizedWallet ?? zeroAddress],
+    },
+    {
+      address: resolvedAddress,
+      abi: POAP_CAMPAIGN_V2_ABI,
+      functionName: "contentCredits",
+      args: [BigInt(campaignId ?? 0), normalizedWallet ?? zeroAddress],
+    },
+    {
+      address: resolvedAddress,
+      abi: POAP_CAMPAIGN_V2_ABI,
+      functionName: "redeemedCredits",
+      args: [BigInt(campaignId ?? 0), normalizedWallet ?? zeroAddress],
+    },
+    {
+      address: resolvedAddress,
+      abi: POAP_CAMPAIGN_V2_ABI,
+      functionName: "getRedeemableCount",
+      args: [BigInt(campaignId ?? 0), normalizedWallet ?? zeroAddress],
+    },
+  ] as const;
+
+  const campaignStateQuery = useReadContracts({
+    contracts,
     query: { enabled },
-  });
-
-  const ethCreditsQuery = useReadContract({
-    address: POAP_CAMPAIGN_V2_ADDRESS,
-    abi: POAP_CAMPAIGN_V2_ABI,
-    functionName: "ethCredits",
-    args: enabled && normalizedWallet ? [BigInt(campaignId), normalizedWallet] : undefined,
-    query: { enabled: enabled && Boolean(normalizedWallet) },
-  });
-
-  const contentCreditsQuery = useReadContract({
-    address: POAP_CAMPAIGN_V2_ADDRESS,
-    abi: POAP_CAMPAIGN_V2_ABI,
-    functionName: "contentCredits",
-    args: enabled && normalizedWallet ? [BigInt(campaignId), normalizedWallet] : undefined,
-    query: { enabled: enabled && Boolean(normalizedWallet) },
-  });
-
-  const redeemedCreditsQuery = useReadContract({
-    address: POAP_CAMPAIGN_V2_ADDRESS,
-    abi: POAP_CAMPAIGN_V2_ABI,
-    functionName: "redeemedCredits",
-    args: enabled && normalizedWallet ? [BigInt(campaignId), normalizedWallet] : undefined,
-    query: { enabled: enabled && Boolean(normalizedWallet) },
-  });
-
-  const redeemableQuery = useReadContract({
-    address: POAP_CAMPAIGN_V2_ADDRESS,
-    abi: POAP_CAMPAIGN_V2_ABI,
-    functionName: "getRedeemableCount",
-    args: enabled && normalizedWallet ? [BigInt(campaignId), normalizedWallet] : undefined,
-    query: { enabled: enabled && Boolean(normalizedWallet) },
+    allowFailure: false,
   });
 
   const campaign = useMemo(() => {
-    const value = campaignQuery.data;
+    const value = campaignStateQuery.data?.[0]?.result;
     if (!value) return null;
     return {
       artist: value[0] || zeroAddress,
@@ -220,34 +230,19 @@ export function useCampaignV2State(
       endTime: Number(value[8] ?? 0n),
       redeemStartTime: Number(value[9] ?? 0n),
     };
-  }, [campaignQuery.data]);
+  }, [campaignStateQuery.data]);
 
   return {
+    contractAddress: resolvedAddress,
     campaign,
-    ethCredits: Number(ethCreditsQuery.data ?? 0n),
-    contentCredits: Number(contentCreditsQuery.data ?? 0n),
-    redeemedCredits: Number(redeemedCreditsQuery.data ?? 0n),
-    redeemableCredits: Number(redeemableQuery.data ?? 0n),
-    isLoading:
-      campaignQuery.isLoading ||
-      ethCreditsQuery.isLoading ||
-      contentCreditsQuery.isLoading ||
-      redeemedCreditsQuery.isLoading ||
-      redeemableQuery.isLoading,
-    error:
-      campaignQuery.error ||
-      ethCreditsQuery.error ||
-      contentCreditsQuery.error ||
-      redeemedCreditsQuery.error ||
-      redeemableQuery.error,
+    ethCredits: Number(campaignStateQuery.data?.[1]?.result ?? 0n),
+    contentCredits: Number(campaignStateQuery.data?.[2]?.result ?? 0n),
+    redeemedCredits: Number(campaignStateQuery.data?.[3]?.result ?? 0n),
+    redeemableCredits: Number(campaignStateQuery.data?.[4]?.result ?? 0n),
+    isLoading: campaignStateQuery.isLoading,
+    error: campaignStateQuery.error,
     refetchAll: async () => {
-      await Promise.all([
-        campaignQuery.refetch(),
-        ethCreditsQuery.refetch(),
-        contentCreditsQuery.refetch(),
-        redeemedCreditsQuery.refetch(),
-        redeemableQuery.refetch(),
-      ]);
+      await campaignStateQuery.refetch();
     },
   };
 }

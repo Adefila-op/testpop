@@ -32,7 +32,7 @@ function CampaignCreditCard({
     redeemedCredits,
     redeemableCredits,
     isLoading,
-  } = useCampaignV2State(drop.contract_drop_id, wallet);
+  } = useCampaignV2State(drop.contract_drop_id, wallet, drop.contract_address);
   const { redeem, isPending, isConfirming } = useRedeemCampaignV2();
 
   if (!drop.contract_drop_id) {
@@ -81,7 +81,7 @@ function CampaignCreditCard({
               {status === "redeemable" ? (
                 redeemableCredits > 0 ? (
                   <Button
-                    onClick={() => redeem(drop.contract_drop_id, redeemableCredits)}
+                    onClick={() => redeem(drop.contract_address, drop.contract_drop_id, redeemableCredits)}
                     disabled={isPending || isConfirming}
                     className="w-full mt-2 rounded-lg text-xs h-8 gradient-primary"
                   >

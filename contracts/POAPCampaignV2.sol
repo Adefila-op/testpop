@@ -44,6 +44,7 @@ contract POAPCampaignV2 is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
     mapping(uint256 => mapping(address => uint256)) public ethCredits;
     mapping(uint256 => mapping(address => uint256)) public contentCredits;
     mapping(uint256 => mapping(address => uint256)) public redeemedCredits;
+    mapping(uint256 => uint256) public issuedCredits;
     mapping(uint256 => uint256) public tokenCampaign;
     mapping(address => uint256) public artistBalance;
 
@@ -122,8 +123,10 @@ contract POAPCampaignV2 is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
 
         uint256 totalCost = campaign.ticketPriceWei * quantity;
         require(msg.value == totalCost, "Incorrect ETH");
+        require(issuedCredits[campaignId] + quantity <= campaign.maxSupply, "Supply reserved");
 
         ethCredits[campaignId][msg.sender] += quantity;
+        issuedCredits[campaignId] += quantity;
         artistBalance[campaign.artist] += msg.value;
 
         emit EthEntriesPurchased(campaignId, msg.sender, quantity, msg.value);
@@ -137,8 +140,11 @@ contract POAPCampaignV2 is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
         require(msg.sender == campaign.artist || msg.sender == owner(), "Not authorized");
         require(wallet != address(0), "Zero wallet");
         require(quantity > 0, "Zero quantity");
+        require(block.timestamp < campaign.redeemStartTime, "Credits locked");
+        require(issuedCredits[campaignId] + quantity <= campaign.maxSupply, "Supply reserved");
 
         contentCredits[campaignId][wallet] += quantity;
+        issuedCredits[campaignId] += quantity;
 
         emit ContentCreditsGranted(campaignId, wallet, quantity);
     }
@@ -146,13 +152,17 @@ contract POAPCampaignV2 is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
     function revokeContentCredits(uint256 campaignId, address wallet, uint256 quantity) external {
         Campaign storage campaign = campaigns[campaignId];
         require(campaign.artist != address(0), "Campaign not found");
+        require(campaign.status == CampaignStatus.Active, "Campaign inactive");
+        require(_supportsContent(campaign.entryMode), "Content disabled");
         require(msg.sender == campaign.artist || msg.sender == owner(), "Not authorized");
         require(quantity > 0, "Zero quantity");
+        require(block.timestamp < campaign.redeemStartTime, "Credits locked");
 
         uint256 available = contentCredits[campaignId][wallet];
         require(available >= quantity, "Insufficient credits");
 
         contentCredits[campaignId][wallet] = available - quantity;
+        issuedCredits[campaignId] -= quantity;
 
         emit ContentCreditsRevoked(campaignId, wallet, quantity);
     }

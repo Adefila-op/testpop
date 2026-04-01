@@ -22,6 +22,7 @@ export function CampaignManagementPanel({ artistWallet }: CampaignManagementPane
   const [submissionsByDropId, setSubmissionsByDropId] = useState<Record<string, CampaignSubmission[]>>({});
   const [loading, setLoading] = useState(false);
   const [reviewingId, setReviewingId] = useState<string | null>(null);
+  const [unlocking, setUnlocking] = useState(false);
 
   const artistCampaigns = useMemo(
     () =>
@@ -99,6 +100,28 @@ export function CampaignManagementPanel({ artistWallet }: CampaignManagementPane
     return null;
   }
 
+  const hasApiSession = Boolean(getRuntimeApiToken());
+
+  const handleUnlock = async () => {
+    if (!normalizedArtistWallet) return;
+    setUnlocking(true);
+    try {
+      await establishSecureSession(normalizedArtistWallet);
+      const pairs = await Promise.all(
+        artistCampaigns.map(async (campaign) => [
+          campaign.id,
+          await getCampaignSubmissions(campaign.id, "artist"),
+        ] as const)
+      );
+      setSubmissionsByDropId(Object.fromEntries(pairs));
+      toast.success("Campaign review unlocked.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to unlock campaign review.");
+    } finally {
+      setUnlocking(false);
+    }
+  };
+
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
@@ -106,7 +129,22 @@ export function CampaignManagementPanel({ artistWallet }: CampaignManagementPane
         <span className="text-xs text-muted-foreground">{artistCampaigns.length} campaigns</span>
       </div>
 
-      {artistCampaigns.map((campaign) => {
+      {!hasApiSession && (
+        <div className="rounded-xl border border-border bg-secondary/30 p-3 text-sm text-muted-foreground">
+          <p>Sign once to load the artist review queue and approve content submissions.</p>
+          <Button
+            onClick={handleUnlock}
+            disabled={unlocking}
+            size="sm"
+            className="mt-3 rounded-xl"
+          >
+            {unlocking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            Unlock Review Queue
+          </Button>
+        </div>
+      )}
+
+      {hasApiSession && artistCampaigns.map((campaign) => {
         const campaignSubmissions = submissionsByDropId[campaign.id] || [];
         const pendingSubmissions = campaignSubmissions.filter((submission) => submission.status === "pending");
         const approvedCount = campaignSubmissions.filter((submission) => submission.status === "approved").length;

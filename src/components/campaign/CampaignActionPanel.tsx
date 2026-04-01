@@ -21,6 +21,7 @@ type CampaignActionPanelProps = {
   dropId: string;
   fallbackTitle: string;
   contractCampaignId?: number | null;
+  contractAddress?: string | null;
 };
 
 function formatTimeDistance(targetMs: number): string {
@@ -48,12 +49,14 @@ export function CampaignActionPanel({
   dropId,
   fallbackTitle,
   contractCampaignId,
+  contractAddress,
 }: CampaignActionPanelProps) {
   const { address, isConnected, connectWallet } = useWallet();
   const [entryQuantity, setEntryQuantity] = useState("1");
   const [contentUrl, setContentUrl] = useState("");
   const [contentCaption, setContentCaption] = useState("");
   const [submissionLoading, setSubmissionLoading] = useState(false);
+  const [unlocking, setUnlocking] = useState(false);
   const [userSubmissions, setUserSubmissions] = useState<
     Awaited<ReturnType<typeof getCampaignSubmissions>>
   >([]);
@@ -65,7 +68,7 @@ export function CampaignActionPanel({
     redeemableCredits,
     isLoading,
     refetchAll,
-  } = useCampaignV2State(contractCampaignId, address);
+  } = useCampaignV2State(contractCampaignId, address, contractAddress);
   const {
     buyEntries,
     isPending: isBuyPending,
@@ -87,6 +90,7 @@ export function CampaignActionPanel({
   const ticketPriceEth = campaign ? formatEther(campaign.ticketPriceWei) : "0";
   const pendingSubmissions = userSubmissions.filter((submission) => submission.status === "pending").length;
   const approvedSubmissions = userSubmissions.filter((submission) => submission.status === "approved").length;
+  const hasApiSession = Boolean(getRuntimeApiToken());
 
   useEffect(() => {
     if (!address || !dropId) {
@@ -170,7 +174,7 @@ export function CampaignActionPanel({
       return;
     }
 
-    buyEntries(contractCampaignId, quantity, ticketPriceEth);
+    buyEntries(contractAddress, contractCampaignId, quantity, ticketPriceEth);
   };
 
   const handleSubmitContent = async () => {
@@ -207,6 +211,21 @@ export function CampaignActionPanel({
     }
   };
 
+  const handleUnlockSubmissionTools = async () => {
+    if (!address) return;
+    setUnlocking(true);
+    try {
+      await establishSecureSession(address);
+      const nextSubmissions = await getCampaignSubmissions(dropId, "mine");
+      setUserSubmissions(nextSubmissions);
+      toast.success("Campaign submission tools unlocked.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to unlock campaign tools.");
+    } finally {
+      setUnlocking(false);
+    }
+  };
+
   const handleRedeem = async () => {
     if (!isConnected) {
       await connectWallet();
@@ -217,7 +236,7 @@ export function CampaignActionPanel({
       return;
     }
 
-    redeem(contractCampaignId, summary.redeemableCredits);
+    redeem(contractAddress, contractCampaignId, summary.redeemableCredits);
   };
 
   return (
@@ -290,21 +309,38 @@ export function CampaignActionPanel({
           <p className="text-xs text-muted-foreground">
             One approved submission creates one POAP credit. After approval, come back and redeem after the 24-hour lock.
           </p>
+          {!hasApiSession && (
+            <div className="rounded-xl border border-border bg-secondary/30 p-3 text-xs text-muted-foreground">
+              Sign once to submit content and view your submission approval status.
+              <Button
+                onClick={handleUnlockSubmissionTools}
+                disabled={unlocking}
+                size="sm"
+                variant="outline"
+                className="mt-3 w-full rounded-xl"
+              >
+                {unlocking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                Unlock Submission Tools
+              </Button>
+            </div>
+          )}
           <Input
             value={contentUrl}
             onChange={(event) => setContentUrl(event.target.value)}
             placeholder="Link to your content submission"
             className="h-10 rounded-xl"
+            disabled={!hasApiSession}
           />
           <textarea
             value={contentCaption}
             onChange={(event) => setContentCaption(event.target.value)}
             placeholder="Short note for the artist"
             className="min-h-[80px] w-full rounded-xl border border-border bg-background px-3 py-2 text-sm"
+            disabled={!hasApiSession}
           />
           <Button
             onClick={handleSubmitContent}
-            disabled={submissionLoading}
+            disabled={submissionLoading || !hasApiSession}
             variant="outline"
             className="w-full rounded-xl"
           >

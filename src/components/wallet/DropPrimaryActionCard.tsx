@@ -196,6 +196,7 @@ function DropPrimaryActionCardInner({ drop, onCollectSuccess }: DropPrimaryActio
           dropId={drop.id}
           fallbackTitle={drop.title}
           contractCampaignId={drop.contractDropId}
+          contractAddress={drop.contractAddress}
         />
       ) : (
         <div className="rounded-xl border border-warning/60 bg-warning/10 p-3 text-warning text-xs flex items-center gap-2">

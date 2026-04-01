@@ -1,7 +1,7 @@
 // ABI generated from contracts/POAPCampaignV2.sol
 // Deployed on Base Sepolia on 2026-04-01.
 
-export const POAP_CAMPAIGN_V2_ADDRESS = "0x63d62d1479345265EaA432846834449DE39568de" as const;
+export const POAP_CAMPAIGN_V2_ADDRESS = "0x532dd9e3232B59eDc62B82e4822482696e49A627" as const;
 
 export const POAP_CAMPAIGN_V2_ABI = [
   {
@@ -126,6 +126,13 @@ export const POAP_CAMPAIGN_V2_ABI = [
       { name: "", type: "uint256" },
       { name: "", type: "address" },
     ],
+    outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "issuedCredits",
+    inputs: [{ name: "", type: "uint256" }],
     outputs: [{ name: "", type: "uint256" }],
     stateMutability: "view",
   },

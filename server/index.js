@@ -111,7 +111,7 @@ const {
   ADMIN_WALLETS = "",
   BASE_SEPOLIA_RPC_URL: rawBaseSepoliaRpcUrl = "https://sepolia-preconf.base.org",
   ART_DROP_FACTORY_ADDRESS: rawArtDropFactoryAddress = "0x2d044a0AFAbE0C07Ee12b8f4c18691b82fb6cF01",
-  POAP_CAMPAIGN_V2_ADDRESS: rawPoapCampaignV2Address = "0x63d62d1479345265EaA432846834449DE39568de",
+  POAP_CAMPAIGN_V2_ADDRESS: rawPoapCampaignV2Address = "0x532dd9e3232B59eDc62B82e4822482696e49A627",
   DEPLOYER_PRIVATE_KEY: rawDeployerPrivateKey,
   NODE_ENV = "development",
 } = process.env;
@@ -248,10 +248,12 @@ function isMissingCampaignSubmissionTableError(error) {
 let artistContractColumnsReady = null;
 let campaignSubmissionsTableReady = null;
 let campaignSigner = null;
+let campaignProvider = null;
 
 const POAP_CAMPAIGN_V2_ABI = [
   "function grantContentCredits(uint256 campaignId, address wallet, uint256 quantity)",
   "function revokeContentCredits(uint256 campaignId, address wallet, uint256 quantity)",
+  "function campaigns(uint256 campaignId) view returns (address artist, string metadataURI, uint8 entryMode, uint8 status, uint256 maxSupply, uint256 minted, uint256 ticketPriceWei, uint64 startTime, uint64 endTime, uint64 redeemStartTime)",
 ];
 
 async function ensureArtistContractColumnsReady() {
@@ -328,10 +330,16 @@ function getCampaignSigner() {
   return campaignSigner;
 }
 
+function getCampaignProvider() {
+  if (campaignProvider) return campaignProvider;
+  campaignProvider = new ethers.JsonRpcProvider(BASE_SEPOLIA_RPC_URL);
+  return campaignProvider;
+}
+
 async function findCampaignDropById(dropId) {
   const { data, error } = await supabase
     .from("drops")
-    .select("id, artist_id, title, type, status, contract_address, contract_drop_id, artists!inner(wallet)")
+    .select("id, artist_id, title, type, status, ends_at, contract_address, contract_drop_id, contract_kind, artists!inner(wallet)")
     .eq("id", dropId)
     .single();
 
@@ -340,6 +348,29 @@ async function findCampaignDropById(dropId) {
   }
 
   return data;
+}
+
+async function getCampaignWindow(drop) {
+  if (drop?.contract_address && drop?.contract_drop_id !== null && drop?.contract_drop_id !== undefined) {
+    try {
+      const contract = new ethers.Contract(drop.contract_address, POAP_CAMPAIGN_V2_ABI, getCampaignProvider());
+      const campaign = await contract.campaigns(BigInt(drop.contract_drop_id));
+      return {
+        startTime: Number(campaign.startTime ?? 0n),
+        endTime: Number(campaign.endTime ?? 0n),
+        redeemStartTime: Number(campaign.redeemStartTime ?? 0n),
+      };
+    } catch (error) {
+      console.warn("Unable to read onchain campaign window:", error?.message || error);
+    }
+  }
+
+  const endsAt = drop?.ends_at ? Math.floor(new Date(drop.ends_at).getTime() / 1000) : null;
+  return {
+    startTime: 0,
+    endTime: endsAt,
+    redeemStartTime: endsAt ? endsAt + 24 * 60 * 60 : null,
+  };
 }
 
 function getContractDeploymentReadiness() {
@@ -1253,6 +1284,16 @@ const createCampaignSubmissionImpl = async (req, res) => {
       return res.status(400).json({ error: "Submissions are only supported for campaign drops" });
     }
 
+    const campaignWindow = await getCampaignWindow(drop);
+    const now = Math.floor(Date.now() / 1000);
+    if (
+      campaignWindow.startTime &&
+      campaignWindow.endTime &&
+      (now < campaignWindow.startTime || now > campaignWindow.endTime)
+    ) {
+      return res.status(400).json({ error: "Campaign submissions are only accepted during the live campaign window." });
+    }
+
     const { data, error } = await supabase
       .from("campaign_submissions")
       .insert({
@@ -1354,12 +1395,13 @@ const reviewCampaignSubmissionImpl = async (req, res) => {
 
     let onchainTxHash = existingSubmission.onchain_tx_hash || null;
     const previousStatus = existingSubmission.status;
+    let compensatingAction = null;
 
     if (
       drop.contract_address &&
       drop.contract_drop_id !== null &&
       drop.contract_drop_id !== undefined &&
-      String(drop.contract_address).toLowerCase() === POAP_CAMPAIGN_V2_ADDRESS.toLowerCase()
+      String(drop.contract_kind || "").toLowerCase() === "poapcampaignv2"
     ) {
       const signer = getCampaignSigner();
       const contract = new ethers.Contract(drop.contract_address, POAP_CAMPAIGN_V2_ABI, signer);
@@ -1372,6 +1414,14 @@ const reviewCampaignSubmissionImpl = async (req, res) => {
         );
         const receipt = await tx.wait();
         onchainTxHash = receipt?.hash || tx.hash || null;
+        compensatingAction = async () => {
+          const rollbackTx = await contract.revokeContentCredits(
+            BigInt(drop.contract_drop_id),
+            existingSubmission.submitter_wallet,
+            1n
+          );
+          await rollbackTx.wait();
+        };
       } else if (previousStatus === "approved" && status === "rejected") {
         const tx = await contract.revokeContentCredits(
           BigInt(drop.contract_drop_id),
@@ -1380,6 +1430,14 @@ const reviewCampaignSubmissionImpl = async (req, res) => {
         );
         const receipt = await tx.wait();
         onchainTxHash = receipt?.hash || tx.hash || null;
+        compensatingAction = async () => {
+          const rollbackTx = await contract.grantContentCredits(
+            BigInt(drop.contract_drop_id),
+            existingSubmission.submitter_wallet,
+            1n
+          );
+          await rollbackTx.wait();
+        };
       }
     }
 
@@ -1394,10 +1452,22 @@ const reviewCampaignSubmissionImpl = async (req, res) => {
       })
       .eq("id", submissionId)
       .eq("drop_id", dropId)
+      .eq("status", previousStatus)
       .select("*")
       .single();
 
     if (error) {
+      if (compensatingAction) {
+        try {
+          await compensatingAction();
+        } catch (rollbackError) {
+          console.error("Failed to compensate campaign credit update:", rollbackError);
+          return res.status(500).json({
+            error: "Campaign review partially failed and needs manual reconciliation.",
+            details: error.message,
+          });
+        }
+      }
       return res.status(400).json({ error: error.message });
     }
 
