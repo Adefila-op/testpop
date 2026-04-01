@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { CampaignActionPanel } from "@/components/campaign/CampaignActionPanel";
 import { useWallet, usePlaceBid } from "@/hooks/useContracts";
 import { useMintArtist } from "@/hooks/useContractsArtist";
 import type { Web3Error } from "@/lib/types";
@@ -191,9 +192,7 @@ function DropPrimaryActionCardInner({ drop, onCollectSuccess }: DropPrimaryActio
           </Button>
         </div>
       ) : isCampaignDrop ? (
-        <div className="rounded-xl border border-border bg-secondary/40 p-4 text-sm text-muted-foreground">
-          Campaign drops are being redesigned before launch. Subscriber claims and content-entry flows are temporarily disabled until the real allocation workflow is implemented.
-        </div>
+        <CampaignActionPanel campaignId={drop.id} fallbackTitle={drop.title} />
       ) : (
         <div className="rounded-xl border border-warning/60 bg-warning/10 p-3 text-warning text-xs flex items-center gap-2">
           <AlertTriangle className="h-4 w-4" />

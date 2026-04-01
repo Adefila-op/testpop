@@ -14,7 +14,7 @@ import {
   TrendingUp, Users, Award, Package, Clock, BarChart3, Image,
   Edit3, ExternalLink, Trash2, Eye, EyeOff, Copy, Check,
   Bell, Settings, ChevronRight, Zap, Star, ArrowUpRight,
-  Upload, AlertTriangle, Wallet, DollarSign, Activity, ArrowLeft,
+  Upload, AlertTriangle, Wallet, DollarSign, Activity, ArrowLeft, Gavel,
 } from "lucide-react";
 import { useWallet, useCreateCampaign, useGetSubscriberCountFromArtistContract } from "@/hooks/useContracts";
 import { useCreateDropArtist } from "@/hooks/useContractsArtist";
@@ -22,8 +22,10 @@ import { useGetArtistContract } from "@/hooks/useContractIntegrations";
 import { ipfsToHttp, uploadFileToPinata, uploadMetadataToPinata } from "@/lib/pinata";
 import { formatEther } from "viem";
 import { toast } from "sonner";
+import { CampaignManagementPanel } from "@/components/campaign/CampaignManagementPanel";
 import { detectAssetTypeFromFile, type AssetType } from "@/lib/assetTypes";
 import { POAP_CAMPAIGN_ADDRESS } from "@/lib/contracts/poapCampaign";
+import { useCampaignStore } from "@/stores/campaignStore";
 import {
   deleteArtistDrop,
   getArtistDrops,
@@ -165,6 +167,12 @@ const CreateDropSheet = ({
     isGated: boolean;
     mode: DropMode;
     contentKind: DropContentKind;
+    campaignConfig?: {
+      entryMode: "eth" | "content" | "both";
+      startAt: string;
+      endAt: string;
+      redeemAt: string;
+    } | null;
   } | null>(null);
   const coverFileRef = useRef<HTMLInputElement>(null);
   const deliveryFileRef = useRef<HTMLInputElement>(null);
@@ -189,7 +197,17 @@ const CreateDropSheet = ({
     isSuccess: isCreateCampaignSuccess,
     error: createCampaignError,
   } = useCreateCampaign();
-  const [form, setForm] = useState({ title: "", description: "", price: "", duration: "24", supply: "1", type: "buy" as Drop["type"] });
+  const [form, setForm] = useState({
+    title: "",
+    description: "",
+    price: "",
+    duration: "24",
+    supply: "1",
+    type: "buy" as Drop["type"],
+    entryMode: "both" as "eth" | "content" | "both",
+    startAt: "",
+    endAt: "",
+  });
 
   const requiresSeparateDelivery = contentKind !== "artwork";
   const coverLabel =
@@ -245,15 +263,22 @@ const CreateDropSheet = ({
       return;
     }
     
-    if (!form.price || form.price.trim() === "") {
-      toast.error("Price is required");
-      return;
-    }
-    
-    // Validate price is a valid decimal number
-    if (!/^\d+(\.\d+)?$/.test(form.price.trim())) {
-      toast.error(`Invalid price format: "${form.price}". Use a decimal number (e.g., "0.05")`);
-      return;
+    const requiresPrice =
+      form.type !== "campaign" ||
+      form.entryMode === "eth" ||
+      form.entryMode === "both";
+
+    if (requiresPrice) {
+      if (!form.price || form.price.trim() === "") {
+        toast.error("Price is required");
+        return;
+      }
+      
+      // Validate price is a valid decimal number
+      if (!/^\d+(\.\d+)?$/.test(form.price.trim())) {
+        toast.error(`Invalid price format: "${form.price}". Use a decimal number (e.g., "0.05")`);
+        return;
+      }
     }
     
     if (!form.supply || Number(form.supply) <= 0) {
@@ -261,14 +286,27 @@ const CreateDropSheet = ({
       return;
     }
     
-    if (!form.duration || Number(form.duration) <= 0) {
+    if (form.type !== "campaign" && (!form.duration || Number(form.duration) <= 0)) {
       toast.error("Duration must be greater than 0");
       return;
     }
 
     if (form.type === "campaign") {
-      toast.error("Campaign drops need a dedicated allocation workflow and are not publishable yet.");
-      return;
+      if (!form.startAt || !form.endAt) {
+        toast.error("Campaign start and end times are required.");
+        return;
+      }
+
+      const campaignStart = new Date(form.startAt).getTime();
+      const campaignEnd = new Date(form.endAt).getTime();
+      if (!Number.isFinite(campaignStart) || !Number.isFinite(campaignEnd)) {
+        toast.error("Campaign dates are invalid.");
+        return;
+      }
+      if (campaignEnd <= campaignStart) {
+        toast.error("Campaign end must be after the start time.");
+        return;
+      }
     }
 
     if (form.type === "buy" && (!artistContractAddress || artistContractAddress === ZERO_ADDRESS)) {
@@ -320,6 +358,15 @@ const CreateDropSheet = ({
         isGated: requiresSeparateDelivery,
         mode: form.type,
         contentKind,
+        campaignConfig:
+          form.type === "campaign"
+            ? {
+                entryMode: form.entryMode,
+                startAt: new Date(form.startAt).toISOString(),
+                endAt: new Date(form.endAt).toISOString(),
+                redeemAt: new Date(new Date(form.endAt).getTime() + 24 * 60 * 60 * 1000).toISOString(),
+              }
+            : null,
       });
       
       const now = Math.floor(Date.now() / 1000);
@@ -357,13 +404,21 @@ const CreateDropSheet = ({
     const publishedId =
       pendingResult?.mode === "auction"
         ? createdCampaignId
-        : createdDropId;
+        : pendingResult?.mode === "buy"
+          ? createdDropId
+          : null;
     const publishSucceeded =
       pendingResult?.mode === "auction"
         ? isCreateCampaignSuccess
-        : isCreateDropSuccess;
+        : pendingResult?.mode === "buy"
+          ? isCreateDropSuccess
+          : Boolean(pendingResult?.metadataUri);
 
-    if (!publishSucceeded || publishedId === null || publishedId === undefined || !pendingResult?.metadataUri) return;
+    if (
+      !publishSucceeded ||
+      !pendingResult?.metadataUri ||
+      (pendingResult.mode !== "campaign" && (publishedId === null || publishedId === undefined))
+    ) return;
     
     (async () => {
       try {
@@ -377,8 +432,26 @@ const CreateDropSheet = ({
         }
 
         const storedType = toStoredDropType(pendingResult.mode);
-        const contractKind = pendingResult.mode === "auction" ? "poapCampaign" : "artDrop";
-        const contractAddress = pendingResult.mode === "auction" ? POAP_CAMPAIGN_ADDRESS : artistContractAddress;
+        const contractKind =
+          pendingResult.mode === "auction"
+            ? "poapCampaign"
+            : pendingResult.mode === "buy"
+              ? "artDrop"
+              : null;
+        const contractAddress =
+          pendingResult.mode === "auction"
+            ? POAP_CAMPAIGN_ADDRESS
+            : pendingResult.mode === "buy"
+              ? artistContractAddress
+              : null;
+        const startsAt = pendingResult.campaignConfig?.startAt || new Date().toISOString();
+        const endsAt =
+          pendingResult.campaignConfig?.endAt ||
+          new Date(Date.now() + Number(form.duration) * 3600 * 1000).toISOString();
+        const initialStatus =
+          pendingResult.mode === "campaign" && new Date(startsAt).getTime() > Date.now()
+            ? "draft"
+            : "live";
 
         const persistedImageUrl = isDataUrl(coverPreview)
           ? (pendingResult.previewUri ? ipfsToHttp(pendingResult.previewUri) : ipfsToHttp(pendingResult.imageUri))
@@ -388,9 +461,9 @@ const CreateDropSheet = ({
           artist_id: persistedArtist.id,
           title: form.title,
           description: form.description,
-          price_eth: parseFloat(form.price),
+          price_eth: parseFloat(form.price || "0"),
           supply: Number(form.supply),
-          status: "live",
+          status: initialStatus,
           type: storedType,
           image_url: persistedImageUrl,
           metadata_ipfs_uri: pendingResult.metadataUri,
@@ -402,23 +475,42 @@ const CreateDropSheet = ({
           contract_address: contractAddress,
           contract_drop_id: publishedId,
           contract_kind: contractKind,
-          ends_at: new Date(Date.now() + Number(form.duration) * 3600 * 1000).toISOString(),
+          ends_at: endsAt,
         });
 
         if (savedDrop) {
-          if (contractKind === "artDrop") {
+          if (contractKind === "artDrop" && publishedId !== null) {
             await updateArtistDropContractId(savedDrop.id, publishedId);
+          }
+
+          if (pendingResult.mode === "campaign" && pendingResult.campaignConfig) {
+            useCampaignStore.getState().createCampaign({
+              id: savedDrop.id,
+              dropId: savedDrop.id,
+              title: form.title,
+              description: form.description,
+              imageUrl: persistedImageUrl ?? coverPreview ?? undefined,
+              metadataUri: pendingResult.metadataUri,
+              artistWallet: address,
+              artistName: persistedArtist.name || "Studio Artist",
+              startAt: pendingResult.campaignConfig.startAt,
+              endAt: pendingResult.campaignConfig.endAt,
+              redeemAt: pendingResult.campaignConfig.redeemAt,
+              entryMode: pendingResult.campaignConfig.entryMode,
+              priceEth: form.price || "0",
+              maxSupply: Number(form.supply),
+            });
           }
 
           onCreated({
             id: savedDrop.id,
             title: form.title,
-            price: form.price,
+            price: form.price || "0",
             supply: Number(form.supply),
             sold: 0,
-            status: "live",
+            status: initialStatus === "draft" ? "draft" : "live",
             type: pendingResult.mode,
-            endsIn: `${form.duration}h`,
+            endsIn: `${Math.max(0, Math.ceil((new Date(endsAt).getTime() - Date.now()) / (1000 * 60 * 60)))}h`,
             revenue: "0",
             image: persistedImageUrl ?? coverPreview,
             metadataUri: pendingResult.metadataUri,
@@ -429,13 +521,27 @@ const CreateDropSheet = ({
             isGated: pendingResult.isGated,
             contractAddress: contractAddress ?? null,
             contractDropId: publishedId,
-            contractKind,
+            contractKind: contractKind ?? undefined,
           });
-          toast.success("Drop minted and saved to database! 🎉");
+          toast.success(
+            pendingResult.mode === "campaign"
+              ? "Campaign saved and published."
+              : "Drop minted and saved to database."
+          );
           
           // Clear pending mint state so this effect cannot replay on rerender.
           setPendingResult(null);
-          setForm({ title: "", description: "", price: "", duration: "24", supply: "1", type: "buy" });
+          setForm({
+            title: "",
+            description: "",
+            price: "",
+            duration: "24",
+            supply: "1",
+            type: "buy",
+            entryMode: "both",
+            startAt: "",
+            endAt: "",
+          });
           setCoverPreview(null);
           setCoverFile(null);
           setDeliveryFile(null);
@@ -485,9 +591,13 @@ const CreateDropSheet = ({
     ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Publishing...</>
     : form.type === "buy"
     ? <><Zap className="h-4 w-4 mr-2" />Mint & Publish</>
+    : form.type === "campaign"
+    ? <><Award className="h-4 w-4 mr-2" />Publish Campaign</>
     : <><Gavel className="h-4 w-4 mr-2" />Create Auction</>;
   const canNext0 = !!coverFile && (!requiresSeparateDelivery || !!deliveryFile);
-  const canNext1 = !!(form.title && form.price);
+  const canNext1 = form.type === "campaign"
+    ? Boolean(form.title && form.supply && form.startAt && form.endAt)
+    : Boolean(form.title && form.price);
 
   return (
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
@@ -620,13 +730,48 @@ const CreateDropSheet = ({
                   placeholder="Tell collectors about this piece…"
                   className="w-full mt-1 px-3 py-2 rounded-lg border border-border bg-background text-sm resize-none min-h-[72px]" />
               </div>
-              <div className="grid grid-cols-3 gap-2">
-                <div><Label className="text-xs">Price (ETH)</Label><Input placeholder="0.1" value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} className="h-9 rounded-lg text-sm mt-1" /></div>
-                <div><Label className="text-xs">Duration (h)</Label><Input placeholder="24" value={form.duration} onChange={e => setForm({ ...form, duration: e.target.value })} className="h-9 rounded-lg text-sm mt-1" /></div>
-                <div><Label className="text-xs">Supply</Label><Input placeholder="1" value={form.supply} onChange={e => setForm({ ...form, supply: e.target.value })} className="h-9 rounded-lg text-sm mt-1" /></div>
-              </div>
+              {form.type === "campaign" ? (
+                <>
+                  <div>
+                    <Label className="text-xs">Entry mode</Label>
+                    <div className="grid grid-cols-3 gap-2 mt-1">
+                      {(["eth", "content", "both"] as const).map(mode => (
+                        <button
+                          key={mode}
+                          onClick={() => setForm({ ...form, entryMode: mode })}
+                          className={`py-2 rounded-xl text-xs font-semibold capitalize border transition-colors ${form.entryMode === mode ? "border-primary bg-primary/10 text-primary" : "border-border bg-secondary/50 text-muted-foreground"}`}
+                        >
+                          {mode}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <Label className="text-xs">Campaign starts</Label>
+                      <Input type="datetime-local" value={form.startAt} onChange={e => setForm({ ...form, startAt: e.target.value })} className="h-9 rounded-lg text-sm mt-1" />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Campaign ends</Label>
+                      <Input type="datetime-local" value={form.endAt} onChange={e => setForm({ ...form, endAt: e.target.value })} className="h-9 rounded-lg text-sm mt-1" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div><Label className="text-xs">ETH entry price</Label><Input placeholder={form.entryMode === "content" ? "0" : "0.1"} value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} className="h-9 rounded-lg text-sm mt-1" /></div>
+                    <div><Label className="text-xs">POAP supply</Label><Input placeholder="50" value={form.supply} onChange={e => setForm({ ...form, supply: e.target.value })} className="h-9 rounded-lg text-sm mt-1" /></div>
+                  </div>
+                </>
+              ) : (
+                <div className="grid grid-cols-3 gap-2">
+                  <div><Label className="text-xs">Price (ETH)</Label><Input placeholder="0.1" value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} className="h-9 rounded-lg text-sm mt-1" /></div>
+                  <div><Label className="text-xs">Duration (h)</Label><Input placeholder="24" value={form.duration} onChange={e => setForm({ ...form, duration: e.target.value })} className="h-9 rounded-lg text-sm mt-1" /></div>
+                  <div><Label className="text-xs">Supply</Label><Input placeholder="1" value={form.supply} onChange={e => setForm({ ...form, supply: e.target.value })} className="h-9 rounded-lg text-sm mt-1" /></div>
+                </div>
+              )}
               <div className="rounded-xl border border-border bg-secondary/20 p-3 text-xs text-muted-foreground">
-                {contentKind === "artwork"
+                {form.type === "campaign"
+                  ? "Campaign rewards are credit-based: each approved content entry and each ETH purchase becomes one redeemable POAP after the campaign closes plus a 24-hour cooldown."
+                  : contentKind === "artwork"
                   ? "Artwork drops use the same media for preview and collector access."
                   : contentKind === "ebook"
                   ? "Collectors will see the cover first and unlock the ebook file after collecting."
@@ -644,21 +789,32 @@ const CreateDropSheet = ({
                   <p className="text-xs text-muted-foreground line-clamp-2">{form.description}</p>
                   <div className="flex gap-1.5 mt-2">
                     <Badge variant="secondary" className="text-[10px] capitalize">{contentKind}</Badge>
-                    <Badge variant="secondary" className="text-[10px]">{form.price} ETH</Badge>
-                    <Badge variant="secondary" className="text-[10px]">{form.duration}h</Badge>
+                    <Badge variant="secondary" className="text-[10px]">
+                      {form.type === "campaign" ? `${form.entryMode} entry` : `${form.price} ETH`}
+                    </Badge>
+                    <Badge variant="secondary" className="text-[10px]">
+                      {form.type === "campaign"
+                        ? `${form.startAt ? new Date(form.startAt).toLocaleDateString() : "--"} to ${form.endAt ? new Date(form.endAt).toLocaleDateString() : "--"}`
+                        : `${form.duration}h`}
+                    </Badge>
                     <Badge variant="secondary" className="text-[10px]">×{form.supply}</Badge>
                   </div>
                 </div>
               </div>
               <div className="rounded-xl bg-card border border-border p-3 text-xs space-y-2">
-                {[["Network", "Base Sepolia"], ["Storage", "IPFS via Pinata"], ["Platform fee", "2.5%"], ["Est. gas", "~$0.02"]].map(([k, v]) => (
+                {[
+                  ["Network", form.type === "campaign" ? "App campaign flow" : "Base Sepolia"],
+                  ["Storage", "IPFS via Pinata"],
+                  ["Platform fee", "2.5%"],
+                  ["Redemption", form.type === "campaign" ? "End + 24 hours" : "Immediate after collect"],
+                ].map(([k, v]) => (
                   <div key={k} className="flex justify-between text-muted-foreground"><span>{k}</span><span className="font-semibold text-foreground">{v}</span></div>
                 ))}
               </div>
               {uploadErr && <div className="flex gap-2 p-3 rounded-xl bg-destructive/10 text-destructive text-xs"><AlertTriangle className="h-4 w-4 shrink-0" />{uploadErr}</div>}
-              {form.type === "campaign" && <div className="flex gap-2 p-3 rounded-xl bg-secondary text-muted-foreground text-xs"><AlertTriangle className="h-4 w-4 shrink-0" />Campaign mode is being redesigned before launch. Buy and auction are supported right now.</div>}
+              {form.type === "campaign" && <div className="flex gap-2 p-3 rounded-xl bg-primary/5 text-foreground text-xs"><AlertTriangle className="h-4 w-4 shrink-0 text-primary" />Campaign entries are saved in-app right now: ETH purchases add credits immediately, content submissions add credits after artist approval, and collectors redeem POAPs 24 hours after the campaign closes.</div>}
               {activePublishError && <p className="text-xs text-destructive">{(activePublishError as Web3Error).shortMessage ?? (activePublishError as Web3Error).message}</p>}
-              <Button onClick={handlePublish} disabled={busy || form.type === "campaign"} className="w-full rounded-xl gradient-primary text-primary-foreground font-bold h-11">
+              <Button onClick={handlePublish} disabled={busy} className="w-full rounded-xl gradient-primary text-primary-foreground font-bold h-11">
                 {isUploading ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Uploading to IPFS…</>
                   : isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Confirm in wallet…</>
                   : isConfirming ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Minting…</>
@@ -1160,6 +1316,8 @@ const ArtistStudioPage = () => {
                 ))}
               </div>
             )}
+
+            <CampaignManagementPanel artistWallet={address} />
           </div>
         )}
 
@@ -1172,6 +1330,8 @@ const ArtistStudioPage = () => {
                 <Plus className="h-3.5 w-3.5 mr-1" /> New Drop
               </Button>
             </div>
+
+            <CampaignManagementPanel artistWallet={address} />
 
             {/* Filter tabs */}
             <div className="flex gap-2 overflow-x-auto no-scrollbar">
@@ -1486,10 +1646,10 @@ const ArtistStudioPage = () => {
               )}
             </div>
 
-            {/* POAP allocation defaults */}
+            {/* Legacy auction defaults */}
             <div className="space-y-3">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Default POAP Allocation</p>
-              <p className="text-xs text-muted-foreground">These are your default percentages when creating campaign-type drops. You can override them later if needed.</p>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Legacy Auction Allocation</p>
+              <p className="text-xs text-muted-foreground">These percentages only apply to the older auction campaign flow. The new campaign flow uses direct ETH credits and content approvals instead.</p>
               {([
                 ["subscribers", "Subscribers"],
                 ["bidders", "Bidders"],
@@ -1610,7 +1770,7 @@ const ArtistStudioPage = () => {
             edition: `1 of ${d.supply}`,
             bids: 0,
             poap: d.type !== "buy",
-            poapNote: d.type === "campaign" ? "Studio campaign with subscriber, bidder, and creator participation." : undefined,
+            poapNote: d.type === "campaign" ? "Campaign credits come from ETH entries and approved content submissions, then redeem 24 hours after close." : undefined,
             contractAddress: d.contractAddress ?? null,
             contractDropId: d.contractDropId ?? null,
             contractKind: d.contractKind ?? null,

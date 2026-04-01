@@ -1,150 +1,76 @@
-import { useMemo, useEffect, useState } from "react";
-import { ArrowLeft, Gift, CheckCircle2, Zap } from "lucide-react";
+import { useEffect, useMemo } from "react";
+import { ArrowLeft, CheckCircle2, Clock3, Gift, Zap } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { useWallet, useUserOwnedPOAPs, useClaimPOAP } from "@/hooks/useContracts";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { trackPOAPsView, trackCampaignInteraction, trackPOAPClaimed } from "@/lib/analyticsStore";
-import { createPublicClient, http, getAddress } from "viem";
-import { POAP_CAMPAIGN_ADDRESS, POAP_CAMPAIGN_ABI } from "@/lib/contracts/poapCampaign";
-import { ACTIVE_CHAIN } from "@/lib/wagmi";
+import { useWallet } from "@/hooks/useContracts";
+import { trackCampaignInteraction, trackPOAPClaimed, trackPOAPsView } from "@/lib/analyticsStore";
+import { getCampaignParticipantSummary, getCampaignStatus, useCampaignStore } from "@/stores/campaignStore";
 
-interface POAP {
-  id: string;
-  campaignId: number;
-  campaignName: string;
-  campaignType: "Auction" | "Content" | "Subscriber";
-  earnedDate: string;
-  redeemed: boolean;
-  reward?: string;
-  tokenId?: number;
+function formatRedeemCountdown(targetIso: string): string {
+  const diffMs = new Date(targetIso).getTime() - Date.now();
+  if (diffMs <= 0) return "Open now";
+
+  const totalHours = Math.ceil(diffMs / (1000 * 60 * 60));
+  if (totalHours < 24) return `${totalHours}h`;
+  return `${Math.ceil(totalHours / 24)}d`;
 }
 
 const MyPOAPsPage = () => {
   const navigate = useNavigate();
   const { address, isConnected } = useWallet();
-  const { balance: poapsBalance } = useUserOwnedPOAPs(address);
-  const { claim: claimPOAP, isPending: isClaimPending } = useClaimPOAP();
-  const [poaps, setPoaps] = useState<POAP[]>([]);
-  const [claimingId, setClaimingId] = useState<string | null>(null);
+  const campaigns = useCampaignStore((state) => state.campaigns);
+  const participants = useCampaignStore((state) => state.participants);
+  const rewards = useCampaignStore((state) => state.rewards);
+  const redeemEntries = useCampaignStore((state) => state.redeemEntries);
 
-  // Track view
   useEffect(() => {
     if (isConnected && address) {
       trackPOAPsView(address);
     }
   }, [isConnected, address]);
 
-  // Fetch user's earned POAPs from contract logs
-  useEffect(() => {
-    if (!isConnected || !address) {
-      setPoaps([]);
-      return;
-    }
+  const redeemableCampaigns = useMemo(() => {
+    if (!address) return [];
 
-    let active = true;
+    return campaigns
+      .map((campaign) => {
+        const summary = getCampaignParticipantSummary(campaigns, participants, campaign.id, address);
+        return {
+          campaign,
+          redeemableCount: summary.redeemableCount,
+          status: getCampaignStatus(campaign),
+          participant: summary.participant,
+        };
+      })
+      .filter((entry) => (entry.participant?.ethEntries || 0) + (entry.participant?.approvedContentEntries || 0) > 0)
+      .sort((a, b) => new Date(b.campaign.endAt).getTime() - new Date(a.campaign.endAt).getTime());
+  }, [address, campaigns, participants]);
 
-    const fetchPOAPs = async () => {
-      try {
-        const publicClient = createPublicClient({ chain: ACTIVE_CHAIN, transport: http() });
+  const myRewards = useMemo(() => {
+    if (!address) return [];
+    const normalizedWallet = address.toLowerCase();
+    return rewards
+      .filter((reward) => reward.wallet === normalizedWallet)
+      .sort((a, b) => new Date(b.redeemedAt).getTime() - new Date(a.redeemedAt).getTime());
+  }, [address, rewards]);
 
-        const logs = await publicClient.getLogs({
-          address: POAP_CAMPAIGN_ADDRESS,
-          event: {
-            type: "event",
-            name: "POAPClaimed",
-            inputs: [
-              { name: "campaignId", type: "uint256", indexed: true },
-              { name: "tokenId", type: "uint256", indexed: true },
-              { name: "to", type: "address", indexed: true },
-            ],
-          },
-          args: {
-            to: getAddress(address),
-          },
-          fromBlock: "earliest",
-          toBlock: "latest",
-        });
-
-        if (!active) return;
-
-        const parsed = await Promise.all(
-          logs.map(async (log) => {
-            const campaignId = Number((log.args as any).campaignId);
-            const tokenId = Number((log.args as any).tokenId);
-
-            // Load campaign metadata if possible
-            let campaignName = `Campaign ${campaignId}`;
-            let campaignType: POAP["campaignType"] = "Subscriber";
-            try {
-              const campaign = await publicClient.readContract({
-                address: POAP_CAMPAIGN_ADDRESS,
-                abi: POAP_CAMPAIGN_ABI,
-                functionName: "campaigns",
-                args: [BigInt(campaignId)],
-              });
-
-              if (campaign) {
-                const type = Number((campaign as any).campaignType);
-                campaignType = type === 0 ? "Auction" : type === 1 ? "Content" : "Subscriber";
-                campaignName = `Campaign #${campaignId}`;
-              }
-            } catch {
-              // keep defaults
-            }
-
-            return {
-              id: `${campaignId}-${tokenId}`,
-              campaignId,
-              campaignName,
-              campaignType,
-              earnedDate: new Date().toISOString(),
-              redeemed: true,
-              tokenId,
-            } as POAP;
-          })
-        );
-
-        if (!active) return;
-
-        setPoaps(parsed);
-      } catch (error) {
-        console.error("Error fetching POAPs:", error);
-        if (active) setPoaps([]);
-      }
-    };
-
-    fetchPOAPs();
-
-    return () => {
-      active = false;
-    };
-  }, [isConnected, address, poapsBalance]);
-
-  const handleClaim = async (poap: POAP) => {
+  const handleRedeem = (campaignId: string, quantity: number) => {
     if (!address) {
-      toast.error("Connect wallet to claim POAP");
+      toast.error("Connect wallet to redeem.");
       return;
     }
 
-    setClaimingId(poap.id);
-    try {
-      await claimPOAP(poap.campaignId);
-      trackPOAPClaimed(address);
-      toast.success("POAP claimed successfully!");
-      // Update local state
-      setPoaps((prev) =>
-        prev.map((p) =>
-          p.id === poap.id ? { ...p, redeemed: true } : p
-        )
-      );
-    } catch (err: any) {
-      const message = err?.message || "Failed to claim POAP";
-      toast.error(message);
-    } finally {
-      setClaimingId(null);
+    const result = redeemEntries(campaignId, address, quantity);
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
     }
+
+    trackCampaignInteraction(address, campaignId);
+    trackPOAPClaimed(address);
+    toast.success(`${quantity} ${quantity === 1 ? "POAP" : "POAPs"} redeemed.`);
   };
 
   if (!isConnected) {
@@ -159,87 +85,93 @@ const MyPOAPsPage = () => {
     );
   }
 
-  const unredeemed = poaps.filter((p) => !p.redeemed);
-  const redeemed = poaps.filter((p) => p.redeemed);
-
   return (
     <div className="space-y-4 pb-20">
-      {/* Header */}
       <div className="sticky top-0 z-10 bg-background px-4 pt-3 pb-2 flex items-center gap-3 border-b">
         <button onClick={() => navigate(-1)} className="p-2 rounded-full bg-secondary/50">
           <ArrowLeft className="h-4 w-4" />
         </button>
         <div className="flex-1">
           <h1 className="text-lg font-bold">My POAP Rewards</h1>
-          <p className="text-xs text-muted-foreground">{poaps.length} total</p>
+          <p className="text-xs text-muted-foreground">
+            {redeemableCampaigns.length} active credits · {myRewards.length} redeemed
+          </p>
         </div>
       </div>
 
-      {poaps.length === 0 ? (
+      {redeemableCampaigns.length === 0 && myRewards.length === 0 ? (
         <div className="px-4 py-12 text-center">
           <Gift className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-          <p className="text-sm text-muted-foreground font-body">
-            No POAP rewards yet.
-          </p>
+          <p className="text-sm text-muted-foreground font-body">No campaign rewards yet.</p>
           <p className="text-xs text-muted-foreground font-body mt-1">
-            Participate in campaigns to earn POAPs!
+            Join a campaign through ETH entry or an approved content submission.
           </p>
         </div>
       ) : (
         <>
-          {/* Unredeemed section */}
-          {unredeemed.length > 0 && (
+          {redeemableCampaigns.length > 0 && (
             <div className="px-4 space-y-2">
-              <p className="text-xs font-semibold text-foreground">Available to Redeem ({unredeemed.length})</p>
-              {unredeemed.map((poap) => (
-                <div
-                  key={poap.id}
-                  className="p-3 rounded-xl bg-card shadow-card border border-primary/20"
-                >
-                  <div className="flex items-start gap-3">
-                    <Gift className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-foreground">{poap.campaignName}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {poap.campaignType} • {new Date(poap.earnedDate).toLocaleDateString()}
-                      </p>
-                      {poap.reward && (
-                        <p className="text-xs font-bold text-primary mt-1 flex items-center gap-1">
-                          <Zap className="h-3 w-3" /> {poap.reward}
+              <p className="text-xs font-semibold text-foreground">Campaign Credits</p>
+              {redeemableCampaigns.map(({ campaign, participant, redeemableCount, status }) => {
+                const totalCredits = (participant?.ethEntries || 0) + (participant?.approvedContentEntries || 0);
+                const approvedContent = participant?.approvedContentEntries || 0;
+                const ethEntries = participant?.ethEntries || 0;
+
+                return (
+                  <div key={campaign.id} className="p-3 rounded-xl bg-card shadow-card border border-border">
+                    <div className="flex items-start gap-3">
+                      <Gift className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-sm font-semibold text-foreground">{campaign.title}</p>
+                          <Badge variant="secondary" className="text-[10px] capitalize">{campaign.entryMode}</Badge>
+                          <Badge variant="outline" className="text-[10px] capitalize">{status}</Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {totalCredits} total credits · {ethEntries} ETH · {approvedContent} content
                         </p>
-                      )}
-                      <Button
-                        onClick={() => handleClaim(poap)}
-                        className="w-full mt-2 rounded-lg text-xs h-7 gradient-primary"
-                        size="sm"
-                        disabled={isClaimPending || claimingId === poap.id}
-                      >
-                        {claimingId === poap.id ? "Claiming..." : "Redeem Now"}
-                      </Button>
+
+                        {status === "redeemable" ? (
+                          redeemableCount > 0 ? (
+                            <Button
+                              onClick={() => handleRedeem(campaign.id, redeemableCount)}
+                              className="w-full mt-2 rounded-lg text-xs h-8 gradient-primary"
+                            >
+                              <Zap className="h-3.5 w-3.5 mr-1.5" />
+                              Redeem {redeemableCount} {redeemableCount === 1 ? "POAP" : "POAPs"}
+                            </Button>
+                          ) : (
+                            <p className="text-xs text-muted-foreground mt-2">No unredeemed credits left for this campaign.</p>
+                          )
+                        ) : status === "cooldown" ? (
+                          <p className="text-xs text-primary mt-2 flex items-center gap-1">
+                            <Clock3 className="h-3.5 w-3.5" />
+                            Redeem opens in {formatRedeemCountdown(campaign.redeemAt)}
+                          </p>
+                        ) : status === "live" ? (
+                          <p className="text-xs text-muted-foreground mt-2">Campaign is still live. Redemption starts 24 hours after close.</p>
+                        ) : (
+                          <p className="text-xs text-muted-foreground mt-2">Campaign has not started yet.</p>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
 
-          {/* Redeemed section */}
-          {redeemed.length > 0 && (
+          {myRewards.length > 0 && (
             <div className="px-4 space-y-2">
-              <p className="text-xs font-semibold text-foreground text-muted-foreground">
-                Redeemed ({redeemed.length})
-              </p>
-              {redeemed.map((poap) => (
-                <div
-                  key={poap.id}
-                  className="p-3 rounded-xl bg-secondary/50"
-                >
+              <p className="text-xs font-semibold text-foreground text-muted-foreground">Redeemed POAPs</p>
+              {myRewards.map((reward) => (
+                <div key={reward.id} className="p-3 rounded-xl bg-secondary/50">
                   <div className="flex items-start gap-3">
                     <Gift className="h-5 w-5 text-muted-foreground flex-shrink-0 mt-0.5" />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-foreground/60">{poap.campaignName}</p>
+                      <p className="text-sm font-semibold text-foreground/70">{reward.title}</p>
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        {poap.campaignType} • {new Date(poap.earnedDate).toLocaleDateString()}
+                        Token #{reward.tokenId} · {new Date(reward.redeemedAt).toLocaleString()}
                       </p>
                     </div>
                     <Badge className="bg-green-600 text-white text-[10px]">
@@ -252,12 +184,6 @@ const MyPOAPsPage = () => {
             </div>
           )}
         </>
-      )}
-
-      {poaps.length > 0 && (
-        <div className="text-center pb-4 text-xs text-muted-foreground font-body px-4">
-          <p>{unredeemed.length} available • {redeemed.length} redeemed</p>
-        </div>
       )}
     </div>
   );
