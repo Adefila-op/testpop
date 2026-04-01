@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { recordDropView } from "@/lib/analyticsStore";
 import { useSupabaseDropById } from "@/hooks/useSupabase";
 import type { AssetType } from "@/lib/assetTypes";
-import { ipfsToHttp } from "@/lib/pinata";
+import { ipfsToHttp, resolveMediaUrl } from "@/lib/pinata";
 import { VideoViewer } from "@/components/collection/VideoViewer";
 import { AudioPlayer } from "@/components/collection/AudioPlayer";
 import { useCollectionStore } from "@/stores/collectionStore";
@@ -36,7 +36,14 @@ const DropDetailPage = () => {
     const endsInHours = Math.max(0, Math.ceil((endsAt - now) / (60 * 60 * 1000)));
     const normalizedType = (dropRecord.type || "drop") as "drop" | "auction" | "campaign";
     const normalizedContractKind =
-      dropRecord.contract_kind || (normalizedType === "auction" ? "poapCampaign" : normalizedType === "campaign" ? null : "artDrop");
+      dropRecord.contract_kind ||
+      (normalizedType === "auction"
+        ? "poapCampaign"
+        : normalizedType === "campaign" && dropRecord.contract_drop_id !== null && dropRecord.contract_drop_id !== undefined
+          ? "poapCampaignV2"
+          : normalizedType === "campaign"
+            ? null
+            : "artDrop");
 
     return {
       id: dropRecord.id,
@@ -53,7 +60,7 @@ const DropDetailPage = () => {
       status: dropRecord.status || "draft",
       type: normalizedType,
       endsIn: `${endsInHours}h left`,
-      image: dropRecord.image_url || "",
+      image: resolveMediaUrl(dropRecord.preview_uri, dropRecord.image_url, dropRecord.image_ipfs_uri),
       imageUri: dropRecord.image_ipfs_uri || "",
       metadataUri: dropRecord.metadata_ipfs_uri || "",
       deliveryUri: dropRecord.delivery_uri || dropRecord.image_ipfs_uri || "",

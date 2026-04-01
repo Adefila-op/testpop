@@ -18,15 +18,16 @@ import {
 } from "lucide-react";
 import { useWallet, useCreateCampaign, useGetSubscriberCountFromArtistContract } from "@/hooks/useContracts";
 import { useCreateDropArtist } from "@/hooks/useContractsArtist";
+import { useCreateCampaignV2 } from "@/hooks/useCampaignV2";
 import { useGetArtistContract } from "@/hooks/useContractIntegrations";
-import { ipfsToHttp, uploadFileToPinata, uploadMetadataToPinata } from "@/lib/pinata";
+import { ipfsToHttp, resolveMediaUrl, uploadFileToPinata, uploadMetadataToPinata } from "@/lib/pinata";
 import { formatEther } from "viem";
 import { toast } from "sonner";
 import { CampaignManagementPanel } from "@/components/campaign/CampaignManagementPanel";
 import { CampaignArchitectureCard } from "@/components/campaign/CampaignArchitectureCard";
 import { detectAssetTypeFromFile, type AssetType } from "@/lib/assetTypes";
 import { POAP_CAMPAIGN_ADDRESS } from "@/lib/contracts/poapCampaign";
-import { useCampaignStore } from "@/stores/campaignStore";
+import { POAP_CAMPAIGN_V2_ADDRESS } from "@/lib/contracts/poapCampaignV2";
 import {
   deleteArtistDrop,
   getArtistDrops,
@@ -80,7 +81,7 @@ type Drop = {
   isGated?: boolean;
   contractAddress?: string | null;
   contractDropId?: number | null;
-  contractKind?: "artDrop" | "poapCampaign" | null;
+  contractKind?: "artDrop" | "poapCampaign" | "poapCampaignV2" | null;
 };
 
 type DropMode = Drop["type"];
@@ -198,6 +199,14 @@ const CreateDropSheet = ({
     isSuccess: isCreateCampaignSuccess,
     error: createCampaignError,
   } = useCreateCampaign();
+  const {
+    createCampaign: createCampaignV2,
+    createdCampaignId: createdCampaignV2Id,
+    isPending: isCreateCampaignV2Pending,
+    isConfirming: isCreateCampaignV2Confirming,
+    isSuccess: isCreateCampaignV2Success,
+    error: createCampaignV2Error,
+  } = useCreateCampaignV2();
   const [form, setForm] = useState({
     title: "",
     description: "",
@@ -374,6 +383,20 @@ const CreateDropSheet = ({
       try {
         if (form.type === "buy") {
           createDrop(uri, form.price, Number(form.supply), now, now + Number(form.duration) * 3600);
+        } else if (form.type === "campaign" && pendingResult === null) {
+          const startTime = Math.floor(new Date(form.startAt).getTime() / 1000);
+          const endTime = Math.floor(new Date(form.endAt).getTime() / 1000);
+          const redeemStartTime = endTime + 24 * 60 * 60;
+          createCampaignV2({
+            metadataUri: uri,
+            entryMode: form.entryMode,
+            maxSupply: Number(form.supply),
+            ticketPriceEth:
+              form.entryMode === "content" ? "0" : form.price || "0",
+            startTime,
+            endTime,
+            redeemStartTime,
+          });
         } else if (form.type === "auction") {
           createCampaign(
             uri,
@@ -403,13 +426,17 @@ const CreateDropSheet = ({
 
   useEffect(() => {
     const publishedId =
-      pendingResult?.mode === "auction"
+      pendingResult?.mode === "campaign"
+        ? createdCampaignV2Id
+        : pendingResult?.mode === "auction"
         ? createdCampaignId
         : pendingResult?.mode === "buy"
           ? createdDropId
           : null;
     const publishSucceeded =
-      pendingResult?.mode === "auction"
+      pendingResult?.mode === "campaign"
+        ? isCreateCampaignV2Success
+        : pendingResult?.mode === "auction"
         ? isCreateCampaignSuccess
         : pendingResult?.mode === "buy"
           ? isCreateDropSuccess
@@ -434,13 +461,17 @@ const CreateDropSheet = ({
 
         const storedType = toStoredDropType(pendingResult.mode);
         const contractKind =
-          pendingResult.mode === "auction"
+          pendingResult.mode === "campaign"
+            ? "poapCampaignV2"
+            : pendingResult.mode === "auction"
             ? "poapCampaign"
             : pendingResult.mode === "buy"
               ? "artDrop"
               : null;
         const contractAddress =
-          pendingResult.mode === "auction"
+          pendingResult.mode === "campaign"
+            ? POAP_CAMPAIGN_V2_ADDRESS
+            : pendingResult.mode === "auction"
             ? POAP_CAMPAIGN_ADDRESS
             : pendingResult.mode === "buy"
               ? artistContractAddress
@@ -482,25 +513,6 @@ const CreateDropSheet = ({
         if (savedDrop) {
           if (contractKind === "artDrop" && publishedId !== null) {
             await updateArtistDropContractId(savedDrop.id, publishedId);
-          }
-
-          if (pendingResult.mode === "campaign" && pendingResult.campaignConfig) {
-            useCampaignStore.getState().createCampaign({
-              id: savedDrop.id,
-              dropId: savedDrop.id,
-              title: form.title,
-              description: form.description,
-              imageUrl: persistedImageUrl ?? coverPreview ?? undefined,
-              metadataUri: pendingResult.metadataUri,
-              artistWallet: address,
-              artistName: persistedArtist.name || "Studio Artist",
-              startAt: pendingResult.campaignConfig.startAt,
-              endAt: pendingResult.campaignConfig.endAt,
-              redeemAt: pendingResult.campaignConfig.redeemAt,
-              entryMode: pendingResult.campaignConfig.entryMode,
-              priceEth: form.price || "0",
-              maxSupply: Number(form.supply),
-            });
           }
 
           onCreated({
@@ -565,9 +577,11 @@ const CreateDropSheet = ({
     address,
     artistContractAddress,
     createdCampaignId,
+    createdCampaignV2Id,
     createdDropId,
     form,
     isCreateCampaignSuccess,
+    isCreateCampaignV2Success,
     isCreateDropSuccess,
     onClose,
     onCreated,
@@ -575,20 +589,27 @@ const CreateDropSheet = ({
     coverPreview,
   ]);
 
-  const activePublishError = form.type === "auction" ? createCampaignError : createDropError;
-  const isPending = isCreateDropPending || isCreateCampaignPending;
-  const isConfirming = isCreateDropConfirming || isCreateCampaignConfirming;
+  const activePublishError =
+    form.type === "campaign"
+      ? createCampaignV2Error
+      : form.type === "auction"
+        ? createCampaignError
+        : createDropError;
+  const isPending = isCreateDropPending || isCreateCampaignPending || isCreateCampaignV2Pending;
+  const isConfirming = isCreateDropConfirming || isCreateCampaignConfirming || isCreateCampaignV2Confirming;
   const busy =
     isUploading ||
     isCreateDropPending ||
     isCreateDropConfirming ||
     isCreateCampaignPending ||
-    isCreateCampaignConfirming;
+    isCreateCampaignConfirming ||
+    isCreateCampaignV2Pending ||
+    isCreateCampaignV2Confirming;
   const publishButtonContent = isUploading
     ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Uploading to IPFS...</>
-    : isCreateDropPending || isCreateCampaignPending
+    : isCreateDropPending || isCreateCampaignPending || isCreateCampaignV2Pending
     ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Confirm in wallet...</>
-    : isCreateDropConfirming || isCreateCampaignConfirming
+    : isCreateDropConfirming || isCreateCampaignConfirming || isCreateCampaignV2Confirming
     ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Publishing...</>
     : form.type === "buy"
     ? <><Zap className="h-4 w-4 mr-2" />Mint & Publish</>
@@ -919,7 +940,7 @@ const ArtistStudioPage = () => {
             ? `${Math.max(0, Math.floor((new Date(drop.ends_at).getTime() - Date.now()) / (1000 * 60 * 60)))}h`
             : "--",
           revenue: String(drop.price_eth || 0),
-          image: drop.image_url || "",
+          image: resolveMediaUrl(drop.preview_uri, drop.image_url, drop.image_ipfs_uri),
           metadataUri: drop.metadata_ipfs_uri || "",
           imageUri: drop.image_ipfs_uri || undefined,
           assetType: (drop.asset_type as AssetType) || "image",
@@ -928,7 +949,7 @@ const ArtistStudioPage = () => {
           isGated: drop.is_gated || false,
           contractAddress: drop.contract_address || null,
           contractDropId: drop.contract_drop_id ?? null,
-          contractKind: (drop.contract_kind as "artDrop" | "poapCampaign" | null) || null,
+          contractKind: (drop.contract_kind as "artDrop" | "poapCampaign" | "poapCampaignV2" | null) || null,
         }))
       : getArtistDrops(artist.id).map((drop) => ({
           id: drop.id,

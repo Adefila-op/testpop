@@ -23,7 +23,7 @@ type DropActionData = {
   endsIn: string;
   contractAddress: string | null;
   contractDropId?: number | null;
-  contractKind?: "artDrop" | "poapCampaign" | null;
+  contractKind?: "artDrop" | "poapCampaign" | "poapCampaignV2" | null;
   assetType: string;
   previewUri?: string;
   deliveryUri?: string;
@@ -192,7 +192,11 @@ function DropPrimaryActionCardInner({ drop, onCollectSuccess }: DropPrimaryActio
           </Button>
         </div>
       ) : isCampaignDrop ? (
-        <CampaignActionPanel campaignId={drop.id} fallbackTitle={drop.title} />
+        <CampaignActionPanel
+          dropId={drop.id}
+          fallbackTitle={drop.title}
+          contractCampaignId={drop.contractDropId}
+        />
       ) : (
         <div className="rounded-xl border border-warning/60 bg-warning/10 p-3 text-warning text-xs flex items-center gap-2">
           <AlertTriangle className="h-4 w-4" />

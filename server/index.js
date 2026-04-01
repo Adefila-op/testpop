@@ -109,14 +109,16 @@ const {
   SUPABASE_JWT_SECRET,
   PINATA_JWT,
   ADMIN_WALLETS = "",
-  BASE_SEPOLIA_RPC_URL: rawBaseSepoliaRpcUrl = "https://sepolia.base.org",
+  BASE_SEPOLIA_RPC_URL: rawBaseSepoliaRpcUrl = "https://sepolia-preconf.base.org",
   ART_DROP_FACTORY_ADDRESS: rawArtDropFactoryAddress = "0x2d044a0AFAbE0C07Ee12b8f4c18691b82fb6cF01",
+  POAP_CAMPAIGN_V2_ADDRESS: rawPoapCampaignV2Address = "0x63d62d1479345265EaA432846834449DE39568de",
   DEPLOYER_PRIVATE_KEY: rawDeployerPrivateKey,
   NODE_ENV = "development",
 } = process.env;
 
 const BASE_SEPOLIA_RPC_URL = rawBaseSepoliaRpcUrl.trim();
 const ART_DROP_FACTORY_ADDRESS = rawArtDropFactoryAddress.trim();
+const POAP_CAMPAIGN_V2_ADDRESS = rawPoapCampaignV2Address.trim();
 const DEPLOYER_PRIVATE_KEY = rawDeployerPrivateKey?.trim();
 
 const appJwtSecret = APP_JWT_SECRET || JWT_SECRET;
@@ -231,7 +233,26 @@ function isMissingProductColumnError(error, columnName) {
   );
 }
 
+function isMissingCampaignSubmissionTableError(error) {
+  const message = error?.message || "";
+  return (
+    typeof message === "string" &&
+    (
+      message.includes("campaign_submissions") ||
+      message.includes("schema cache") ||
+      message.includes("does not exist")
+    )
+  );
+}
+
 let artistContractColumnsReady = null;
+let campaignSubmissionsTableReady = null;
+let campaignSigner = null;
+
+const POAP_CAMPAIGN_V2_ABI = [
+  "function grantContentCredits(uint256 campaignId, address wallet, uint256 quantity)",
+  "function revokeContentCredits(uint256 campaignId, address wallet, uint256 quantity)",
+];
 
 async function ensureArtistContractColumnsReady() {
   if (artistContractColumnsReady !== null) {
@@ -271,6 +292,54 @@ async function findArtistIdByWallet(wallet) {
   }
 
   return data?.id || null;
+}
+
+async function ensureCampaignSubmissionsTableReady() {
+  if (campaignSubmissionsTableReady !== null) {
+    return campaignSubmissionsTableReady;
+  }
+
+  const { error } = await supabase
+    .from("campaign_submissions")
+    .select("id")
+    .limit(1);
+
+  if (error && isMissingCampaignSubmissionTableError(error)) {
+    campaignSubmissionsTableReady = false;
+    return false;
+  }
+
+  if (error) {
+    throw new Error(`Unable to verify campaign submissions table: ${error.message}`);
+  }
+
+  campaignSubmissionsTableReady = true;
+  return true;
+}
+
+function getCampaignSigner() {
+  if (campaignSigner) return campaignSigner;
+  if (!DEPLOYER_PRIVATE_KEY || !isValidPrivateKey(DEPLOYER_PRIVATE_KEY)) {
+    throw new Error("DEPLOYER_PRIVATE_KEY is missing or invalid");
+  }
+
+  const provider = new ethers.JsonRpcProvider(BASE_SEPOLIA_RPC_URL);
+  campaignSigner = new ethers.Wallet(DEPLOYER_PRIVATE_KEY, provider);
+  return campaignSigner;
+}
+
+async function findCampaignDropById(dropId) {
+  const { data, error } = await supabase
+    .from("drops")
+    .select("id, artist_id, title, type, status, contract_address, contract_drop_id, artists!inner(wallet)")
+    .eq("id", dropId)
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data;
 }
 
 function getContractDeploymentReadiness() {
@@ -1157,6 +1226,188 @@ app.delete("/drops/:id", authRequired, async (req, res) => {
   if (error) return res.status(400).json({ error: error.message });
   return res.status(204).send();
 });
+
+const createCampaignSubmissionImpl = async (req, res) => {
+  try {
+    const tableReady = await ensureCampaignSubmissionsTableReady();
+    if (!tableReady) {
+      return res.status(503).json({
+        error: "campaign_submissions table is missing. Run the latest Supabase campaign migration first.",
+      });
+    }
+
+    const dropId = req.body?.dropId;
+    const contentUrl = req.body?.contentUrl?.trim() || null;
+    const caption = req.body?.caption?.trim() || null;
+
+    if (!dropId) {
+      return res.status(400).json({ error: "dropId is required" });
+    }
+
+    if (!contentUrl && !caption) {
+      return res.status(400).json({ error: "contentUrl or caption is required" });
+    }
+
+    const drop = await findCampaignDropById(dropId);
+    if (drop.type !== "campaign") {
+      return res.status(400).json({ error: "Submissions are only supported for campaign drops" });
+    }
+
+    const { data, error } = await supabase
+      .from("campaign_submissions")
+      .insert({
+        drop_id: dropId,
+        submitter_wallet: req.auth.wallet,
+        content_url: contentUrl,
+        caption,
+        status: "pending",
+      })
+      .select("*")
+      .single();
+
+    if (error) {
+      return res.status(400).json({ error: error.message });
+    }
+
+    return res.json(data);
+  } catch (error) {
+    return res.status(500).json({ error: error.message || "Failed to submit campaign content" });
+  }
+};
+
+registerRoute("post", "/campaigns/submissions", authRequired, createCampaignSubmissionImpl);
+
+const listCampaignSubmissionsImpl = async (req, res) => {
+  try {
+    const tableReady = await ensureCampaignSubmissionsTableReady();
+    if (!tableReady) {
+      return res.status(503).json({
+        error: "campaign_submissions table is missing. Run the latest Supabase campaign migration first.",
+      });
+    }
+
+    const dropId = req.params.dropId;
+    const scope = String(req.query.scope || "").toLowerCase();
+    const drop = await findCampaignDropById(dropId);
+
+    let query = supabase
+      .from("campaign_submissions")
+      .select("*")
+      .eq("drop_id", dropId)
+      .order("created_at", { ascending: false });
+
+    if (scope === "mine") {
+      query = query.eq("submitter_wallet", req.auth.wallet);
+    } else {
+      const ownerWallet = drop.artists?.wallet;
+      if (!sameWalletOrAdmin(ownerWallet, req.auth)) {
+        return res.status(403).json({ error: "Artist or admin access required" });
+      }
+    }
+
+    const { data, error } = await query;
+    if (error) {
+      return res.status(400).json({ error: error.message });
+    }
+
+    return res.json(data || []);
+  } catch (error) {
+    return res.status(500).json({ error: error.message || "Failed to fetch campaign submissions" });
+  }
+};
+
+registerRoute("get", "/campaigns/:dropId/submissions", authRequired, listCampaignSubmissionsImpl);
+
+const reviewCampaignSubmissionImpl = async (req, res) => {
+  try {
+    const tableReady = await ensureCampaignSubmissionsTableReady();
+    if (!tableReady) {
+      return res.status(503).json({
+        error: "campaign_submissions table is missing. Run the latest Supabase campaign migration first.",
+      });
+    }
+
+    const dropId = req.params.dropId;
+    const submissionId = req.params.submissionId;
+    const status = String(req.body?.status || "").toLowerCase();
+
+    if (!["approved", "rejected"].includes(status)) {
+      return res.status(400).json({ error: "status must be approved or rejected" });
+    }
+
+    const drop = await findCampaignDropById(dropId);
+    const ownerWallet = drop.artists?.wallet;
+    if (!sameWalletOrAdmin(ownerWallet, req.auth)) {
+      return res.status(403).json({ error: "Artist or admin access required" });
+    }
+
+    const { data: existingSubmission, error: existingError } = await supabase
+      .from("campaign_submissions")
+      .select("*")
+      .eq("id", submissionId)
+      .eq("drop_id", dropId)
+      .single();
+
+    if (existingError) {
+      return res.status(404).json({ error: existingError.message });
+    }
+
+    let onchainTxHash = existingSubmission.onchain_tx_hash || null;
+    const previousStatus = existingSubmission.status;
+
+    if (
+      drop.contract_address &&
+      drop.contract_drop_id !== null &&
+      drop.contract_drop_id !== undefined &&
+      String(drop.contract_address).toLowerCase() === POAP_CAMPAIGN_V2_ADDRESS.toLowerCase()
+    ) {
+      const signer = getCampaignSigner();
+      const contract = new ethers.Contract(drop.contract_address, POAP_CAMPAIGN_V2_ABI, signer);
+
+      if (previousStatus !== "approved" && status === "approved") {
+        const tx = await contract.grantContentCredits(
+          BigInt(drop.contract_drop_id),
+          existingSubmission.submitter_wallet,
+          1n
+        );
+        const receipt = await tx.wait();
+        onchainTxHash = receipt?.hash || tx.hash || null;
+      } else if (previousStatus === "approved" && status === "rejected") {
+        const tx = await contract.revokeContentCredits(
+          BigInt(drop.contract_drop_id),
+          existingSubmission.submitter_wallet,
+          1n
+        );
+        const receipt = await tx.wait();
+        onchainTxHash = receipt?.hash || tx.hash || null;
+      }
+    }
+
+    const { data, error } = await supabase
+      .from("campaign_submissions")
+      .update({
+        status,
+        reviewed_by: req.auth.wallet,
+        reviewed_at: new Date().toISOString(),
+        onchain_tx_hash: onchainTxHash,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", submissionId)
+      .eq("drop_id", dropId)
+      .select("*")
+      .single();
+
+    if (error) {
+      return res.status(400).json({ error: error.message });
+    }
+
+    return res.json(data);
+  } catch (error) {
+    return res.status(500).json({ error: error.message || "Failed to review campaign submission" });
+  }
+};
+
+registerRoute("post", "/campaigns/:dropId/submissions/:submissionId/review", authRequired, reviewCampaignSubmissionImpl);
 
 app.post("/products", authRequired, async (req, res) => {
   const product = req.body || {};

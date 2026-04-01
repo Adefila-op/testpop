@@ -1,10 +1,15 @@
-import { useMemo } from "react";
-import { CheckCircle2, Clock, XCircle } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { CheckCircle2, Clock, Loader2, XCircle } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { useSupabaseArtistByWallet, useSupabaseDropsByArtist } from "@/hooks/useSupabase";
 import {
-  getCampaignStatus,
-  useCampaignStore,
-} from "@/stores/campaignStore";
+  getCampaignSubmissions,
+  reviewCampaignSubmission,
+  type CampaignSubmission,
+} from "@/lib/db";
+import { getRuntimeApiToken } from "@/lib/runtimeSession";
+import { establishSecureSession } from "@/lib/secureAuth";
 
 type CampaignManagementPanelProps = {
   artistWallet?: string | null;
@@ -12,18 +17,83 @@ type CampaignManagementPanelProps = {
 
 export function CampaignManagementPanel({ artistWallet }: CampaignManagementPanelProps) {
   const normalizedArtistWallet = artistWallet?.trim().toLowerCase();
-  const campaigns = useCampaignStore((state) => state.campaigns);
-  const submissions = useCampaignStore((state) => state.submissions);
-  const participants = useCampaignStore((state) => state.participants);
-  const reviewSubmission = useCampaignStore((state) => state.reviewSubmission);
+  const { data: artist } = useSupabaseArtistByWallet(normalizedArtistWallet);
+  const { data: artistDrops } = useSupabaseDropsByArtist(artist?.id);
+  const [submissionsByDropId, setSubmissionsByDropId] = useState<Record<string, CampaignSubmission[]>>({});
+  const [loading, setLoading] = useState(false);
+  const [reviewingId, setReviewingId] = useState<string | null>(null);
 
   const artistCampaigns = useMemo(
     () =>
-      campaigns.filter((campaign) =>
-        normalizedArtistWallet ? campaign.artistWallet === normalizedArtistWallet : false
-      ),
-    [campaigns, normalizedArtistWallet]
+      (artistDrops || []).filter((drop) => (drop.type || "").toLowerCase() === "campaign"),
+    [artistDrops]
   );
+
+  useEffect(() => {
+    if (!normalizedArtistWallet || !artistCampaigns.length) {
+      setSubmissionsByDropId({});
+      return;
+    }
+
+    let cancelled = false;
+    if (!getRuntimeApiToken()) {
+      setSubmissionsByDropId({});
+      return;
+    }
+
+    setLoading(true);
+    (async () => {
+        const pairs = await Promise.all(
+          artistCampaigns.map(async (campaign) => [
+            campaign.id,
+            await getCampaignSubmissions(campaign.id, "artist"),
+          ] as const)
+        );
+
+        if (!cancelled) {
+          setSubmissionsByDropId(Object.fromEntries(pairs));
+        }
+      })()
+      .catch((error) => {
+        if (!cancelled) {
+          console.warn("Failed to load campaign submissions:", error);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [artistCampaigns, normalizedArtistWallet]);
+
+  const handleReview = async (
+    dropId: string,
+    submissionId: string,
+    status: "approved" | "rejected"
+  ) => {
+    if (!normalizedArtistWallet) return;
+
+    setReviewingId(submissionId);
+    try {
+      await establishSecureSession(normalizedArtistWallet);
+      const updated = await reviewCampaignSubmission(dropId, submissionId, status);
+      setSubmissionsByDropId((current) => ({
+        ...current,
+        [dropId]: (current[dropId] || []).map((submission) =>
+          submission.id === submissionId && updated ? updated : submission
+        ),
+      }));
+      toast.success(status === "approved" ? "Submission approved." : "Submission rejected.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to review submission.");
+    } finally {
+      setReviewingId(null);
+    }
+  };
 
   if (!normalizedArtistWallet || artistCampaigns.length === 0) {
     return null;
@@ -37,12 +107,9 @@ export function CampaignManagementPanel({ artistWallet }: CampaignManagementPane
       </div>
 
       {artistCampaigns.map((campaign) => {
-        const campaignSubmissions = submissions.filter((submission) => submission.campaignId === campaign.id);
+        const campaignSubmissions = submissionsByDropId[campaign.id] || [];
         const pendingSubmissions = campaignSubmissions.filter((submission) => submission.status === "pending");
-        const participantCount = participants.filter((participant) => participant.campaignId === campaign.id).length;
-        const redeemedCount = participants
-          .filter((participant) => participant.campaignId === campaign.id)
-          .reduce((total, participant) => total + participant.redeemedEntries, 0);
+        const approvedCount = campaignSubmissions.filter((submission) => submission.status === "approved").length;
 
         return (
           <div key={campaign.id} className="rounded-2xl border border-border bg-card p-4 space-y-3">
@@ -50,16 +117,21 @@ export function CampaignManagementPanel({ artistWallet }: CampaignManagementPane
               <div>
                 <p className="text-sm font-semibold text-foreground">{campaign.title}</p>
                 <p className="text-xs text-muted-foreground mt-1 capitalize">
-                  {campaign.entryMode} entry · {getCampaignStatus(campaign)}
+                  {(campaign.status || "draft").toLowerCase()} · {campaign.price_eth || 0} ETH
                 </p>
               </div>
               <div className="text-right text-xs text-muted-foreground">
-                <p>{participantCount} wallets</p>
-                <p>{redeemedCount}/{campaign.maxSupply} redeemed</p>
+                <p>{campaignSubmissions.length} submissions</p>
+                <p>{approvedCount} approved</p>
               </div>
             </div>
 
-            {pendingSubmissions.length === 0 ? (
+            {loading ? (
+              <div className="rounded-xl bg-secondary/30 p-3 text-xs text-muted-foreground flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Loading submissions...
+              </div>
+            ) : pendingSubmissions.length === 0 ? (
               <div className="rounded-xl bg-secondary/30 p-3 text-xs text-muted-foreground flex items-center gap-2">
                 <Clock className="h-4 w-4" />
                 No pending submissions right now.
@@ -68,15 +140,15 @@ export function CampaignManagementPanel({ artistWallet }: CampaignManagementPane
               <div className="space-y-2">
                 {pendingSubmissions.map((submission) => (
                   <div key={submission.id} className="rounded-xl border border-border bg-secondary/20 p-3">
-                    <p className="text-xs font-medium text-foreground">{submission.wallet}</p>
-                    {submission.contentUrl && (
+                    <p className="text-xs font-medium text-foreground">{submission.submitter_wallet}</p>
+                    {submission.content_url && (
                       <a
-                        href={submission.contentUrl}
+                        href={submission.content_url}
                         target="_blank"
                         rel="noreferrer"
                         className="mt-1 block text-xs text-primary hover:underline"
                       >
-                        {submission.contentUrl}
+                        {submission.content_url}
                       </a>
                     )}
                     {submission.caption && (
@@ -86,9 +158,8 @@ export function CampaignManagementPanel({ artistWallet }: CampaignManagementPane
                       <Button
                         size="sm"
                         className="rounded-xl"
-                        onClick={() =>
-                          reviewSubmission(campaign.id, submission.id, normalizedArtistWallet, "approved")
-                        }
+                        disabled={reviewingId === submission.id}
+                        onClick={() => handleReview(campaign.id, submission.id, "approved")}
                       >
                         <CheckCircle2 className="mr-2 h-4 w-4" />
                         Approve
@@ -97,9 +168,8 @@ export function CampaignManagementPanel({ artistWallet }: CampaignManagementPane
                         size="sm"
                         variant="outline"
                         className="rounded-xl"
-                        onClick={() =>
-                          reviewSubmission(campaign.id, submission.id, normalizedArtistWallet, "rejected")
-                        }
+                        disabled={reviewingId === submission.id}
+                        onClick={() => handleReview(campaign.id, submission.id, "rejected")}
                       >
                         <XCircle className="mr-2 h-4 w-4" />
                         Reject

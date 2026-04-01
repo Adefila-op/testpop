@@ -201,6 +201,20 @@ export interface AnalyticsRecord {
   timestamp?: string;
 }
 
+export interface CampaignSubmission {
+  id: string;
+  drop_id: string;
+  submitter_wallet: string;
+  content_url?: string | null;
+  caption?: string | null;
+  status: "pending" | "approved" | "rejected";
+  reviewed_by?: string | null;
+  reviewed_at?: string | null;
+  onchain_tx_hash?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
 // ─────────────────────────────────────────────────────────────────────────
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL?.trim();
@@ -436,6 +450,40 @@ export async function updateDrop(dropId: string, updates: Partial<Drop>): Promis
     method: "PATCH",
     body: JSON.stringify(updates),
   });
+}
+
+export async function submitCampaignContent(payload: {
+  dropId: string;
+  contentUrl: string;
+  caption?: string;
+}): Promise<CampaignSubmission | null> {
+  return secureApiRequest<CampaignSubmission | null>("/campaigns/submissions", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getCampaignSubmissions(
+  dropId: string,
+  scope: "mine" | "artist" = "artist"
+): Promise<CampaignSubmission[]> {
+  const search = new URLSearchParams();
+  search.set("scope", scope);
+  return secureApiRequest<CampaignSubmission[]>(`/campaigns/${dropId}/submissions?${search.toString()}`);
+}
+
+export async function reviewCampaignSubmission(
+  dropId: string,
+  submissionId: string,
+  status: "approved" | "rejected"
+): Promise<CampaignSubmission | null> {
+  return secureApiRequest<CampaignSubmission | null>(
+    `/campaigns/${dropId}/submissions/${submissionId}/review`,
+    {
+      method: "POST",
+      body: JSON.stringify({ status }),
+    }
+  );
 }
 
 export async function deleteDrop(dropId: string) {

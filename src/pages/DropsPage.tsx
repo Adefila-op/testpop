@@ -5,6 +5,7 @@ import { Link } from "react-router-dom";
 import { recordPageVisit } from "@/lib/analyticsStore";
 import { useSupabaseLiveDrops } from "@/hooks/useSupabase";
 import { type AssetType } from "@/lib/assetTypes";
+import { resolveMediaUrl } from "@/lib/pinata";
 
 const filters = [
   { label: "All", value: "all" },
@@ -26,8 +27,8 @@ const DropsPage = () => {
           title: drop.title,
           artist: artist?.name || "Unknown Artist",
           priceEth: drop.price_eth ? parseFloat(drop.price_eth).toFixed(4) : "0",
-          image: drop.image_url || "",
-          previewUri: drop.preview_uri,
+          image: resolveMediaUrl(drop.preview_uri, drop.image_url, drop.image_ipfs_uri),
+          previewUri: resolveMediaUrl(drop.preview_uri, drop.image_url, drop.image_ipfs_uri),
           deliveryUri: drop.delivery_uri || "",
           type: (drop.type || "drop").toLowerCase() as "drop" | "auction" | "campaign",
           status: drop.status as "live" | "draft" | "ended",

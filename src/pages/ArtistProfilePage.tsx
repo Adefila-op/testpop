@@ -11,6 +11,7 @@ import { useResolvedArtistContract } from "@/hooks/useContractIntegrations";
 import { toast } from "sonner";
 import { recordArtistView } from "@/lib/analyticsStore";
 import { useSupabaseArtistById, useSupabaseDropsByArtist } from "@/hooks/useSupabase";
+import { resolveMediaUrl } from "@/lib/pinata";
 
 const ArtistProfilePage = () => {
   const { id } = useParams();
@@ -74,7 +75,7 @@ const ArtistProfilePage = () => {
         bought: drop.sold || 0,
         status: drop.status || "draft",
         type: drop.type || "drop",
-        image: drop.image_url || "",
+        image: resolveMediaUrl(drop.preview_uri, drop.image_url, drop.image_ipfs_uri),
         imageUri: drop.image_ipfs_uri || "",
         metadataUri: drop.metadata_ipfs_uri || "",
         contractAddress: drop.contract_address,

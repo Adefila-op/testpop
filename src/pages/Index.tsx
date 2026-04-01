@@ -12,6 +12,7 @@ import { useSupabaseArtists, useSupabaseLiveDrops } from "@/hooks/useSupabase";
 import { useToast } from "@/hooks/use-toast";
 import { parseEther } from "viem";
 import { useCollectionStore } from "@/stores/collectionStore";
+import { resolveMediaUrl } from "@/lib/pinata";
 
 const SubscribeButtonWrapper = ({ artist, isConnected, connectWallet, address, toast }: any) => {
   const effectiveContractAddress = useResolvedArtistContract(artist?.wallet, artist?.contractAddress);
@@ -187,8 +188,8 @@ const Index = () => {
           title: drop.title,
           artist: artist?.name || "Unknown Artist",
           priceEth: drop.price_eth ? parseFloat(drop.price_eth).toFixed(3) : "0",
-          image: drop.image_url || "",
-          previewUri: drop.preview_uri || "",
+          image: resolveMediaUrl(drop.preview_uri, drop.image_url, drop.image_ipfs_uri),
+          previewUri: resolveMediaUrl(drop.preview_uri, drop.image_url, drop.image_ipfs_uri),
           deliveryUri: drop.delivery_uri || "",
           assetType: drop.asset_type || "image",
           type: normalizedType,
