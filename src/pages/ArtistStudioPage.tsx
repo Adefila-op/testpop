@@ -35,7 +35,7 @@ import {
   updateArtistDropContractId,
   type ArtistPortfolioItem,
 } from "@/lib/artistStore";
-import { createDrop as dbCreateDrop } from "@/lib/db";
+import { createDrop as dbCreateDrop, getArtistProfile as dbGetArtistProfile } from "@/lib/db";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type StudioArtistProfile = {
@@ -312,12 +312,21 @@ const CreateDropSheet = ({
     
     (async () => {
       try {
+        if (!address) {
+          throw new Error("Connect wallet before saving the drop.");
+        }
+
+        const persistedArtist = await dbGetArtistProfile(address);
+        if (!persistedArtist?.id) {
+          throw new Error("Artist profile was not found in the database. Save your profile and try again.");
+        }
+
         const storedType = toStoredDropType(pendingResult.mode);
         const contractKind = pendingResult.mode === "auction" ? "poapCampaign" : "artDrop";
         const contractAddress = pendingResult.mode === "auction" ? POAP_CAMPAIGN_ADDRESS : artistContractAddress;
 
         const savedDrop = await dbCreateDrop({
-          artist_id: resolveArtistForWallet(address).id, // Get artist ID from wallet
+          artist_id: persistedArtist.id,
           title: form.title,
           description: form.description,
           price_eth: parseFloat(form.price),
@@ -377,7 +386,7 @@ const CreateDropSheet = ({
         }
       } catch (dbError) {
         console.error("❌ Failed to save drop to database:", dbError);
-        toast.error("Drop minted but failed to save to database. Please refresh.");
+        toast.error(dbError instanceof Error ? dbError.message : "Drop minted but failed to save to database. Please refresh.");
         setPendingResult(null);
         setIsUploading(false);
       }
