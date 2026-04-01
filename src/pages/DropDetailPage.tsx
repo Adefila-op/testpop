@@ -192,7 +192,7 @@ const DropDetailPage = () => {
             <AlertTriangle className="h-4 w-4" />
             Contract not deployed yet
           </div>
-        ) : !drop.contractDropId ? (
+        ) : drop.contractDropId === null || drop.contractDropId === undefined ? (
           <div className="rounded-xl border border-warning/60 bg-warning/10 p-3 text-warning text-xs flex items-center gap-2">
             <AlertTriangle className="h-4 w-4" />
             This listing is stored locally, but its on-chain ID is missing.

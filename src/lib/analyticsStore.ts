@@ -34,6 +34,7 @@ interface UserEngagement {
 }
 
 const engagementByWallet = new Map<string, UserEngagement>();
+let analyticsEventsUnavailable = false;
 
 function todayKey() {
   return new Date().toISOString().slice(0, 10);
@@ -80,21 +81,30 @@ function getAnalyticsSessionId() {
 
 async function trackToSupabase(payload: AnalyticsEventPayload) {
   try {
-    const { error: modernError } = await supabase
-      .from("analytics_events")
-      .insert({
-        event_type: payload.eventType,
-        artist_id: payload.artistId || null,
-        drop_id: payload.dropId || null,
-        product_id: payload.productId || null,
-        session_id: getAnalyticsSessionId(),
-        user_agent: navigator.userAgent,
-        referrer: document.referrer || null,
-        metadata: {
-          page: payload.page,
-        },
-        created_at: new Date().toISOString(),
-      });
+    let modernError = null;
+    if (!analyticsEventsUnavailable) {
+      const result = await supabase
+        .from("analytics_events")
+        .insert({
+          event_type: payload.eventType,
+          artist_id: payload.artistId || null,
+          drop_id: payload.dropId || null,
+          product_id: payload.productId || null,
+          session_id: getAnalyticsSessionId(),
+          user_agent: navigator.userAgent,
+          referrer: document.referrer || null,
+          metadata: {
+            page: payload.page,
+          },
+          created_at: new Date().toISOString(),
+        });
+
+      modernError = result.error;
+
+      if (modernError?.code === "404" || modernError?.message?.includes("relation \"public.analytics_events\" does not exist")) {
+        analyticsEventsUnavailable = true;
+      }
+    }
 
     if (!modernError) {
       return;

@@ -477,7 +477,10 @@ export async function initializeFromSupabase() {
         bids: 0,
         poap: drop.type === "campaign",
         contractAddress: drop.contract_address || null,
-        contractDropId: drop.contract_drop_id || null,
+        contractDropId:
+          drop.contract_drop_id === null || drop.contract_drop_id === undefined
+            ? null
+            : drop.contract_drop_id,
         contractKind: (drop.contract_kind as "artDrop" | "poapCampaign" | null) || null,
         maxBuy: drop.supply || 1,
         bought: drop.sold || 0,

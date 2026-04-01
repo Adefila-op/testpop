@@ -168,7 +168,11 @@ const Index = () => {
       setLiveDrops(supabaseLiveDrops.map((drop) => {
         const artist = drop.artists && !Array.isArray(drop.artists) ? drop.artists : null;
         // Only include drops that have both contract_address and contract_drop_id (properly deployed)
-        if (!drop.contract_drop_id || !drop.contract_address) {
+        if (
+          drop.contract_drop_id === null ||
+          drop.contract_drop_id === undefined ||
+          !drop.contract_address
+        ) {
           console.warn(`⚠️ Drop "${drop.title}" missing contract_address or contract_drop_id - skipping`);
           return null;
         }
@@ -295,7 +299,11 @@ const Index = () => {
 
     try {
       // Validate drop has required contract fields
-      if (!drop.contractDropId || !drop.contractAddress) {
+      if (
+        drop.contractDropId === null ||
+        drop.contractDropId === undefined ||
+        !drop.contractAddress
+      ) {
         throw new Error("This drop is not properly deployed on-chain yet");
       }
       

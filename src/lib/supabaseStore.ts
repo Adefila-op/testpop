@@ -6,6 +6,24 @@
 import { supabase } from "./db";
 import { toast } from "sonner";
 
+function isMissingColumnError(error: { message?: string } | null | undefined, table: string, column: string) {
+  const message = error?.message || "";
+  return message.includes(`column ${table}.${column} does not exist`);
+}
+
+function withDropDefaults<T extends Record<string, any> | null>(drop: T): T {
+  if (!drop) return drop;
+
+  return {
+    preview_uri: null,
+    delivery_uri: null,
+    asset_type: "image",
+    is_gated: false,
+    contract_kind: null,
+    ...drop,
+  };
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // ARTISTS - Fetch from Supabase
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -173,7 +191,7 @@ export async function fetchAllDropsFromSupabase() {
 export async function fetchLiveDropsFromSupabase() {
   try {
     console.log("📖 Fetching live drops from Supabase...");
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from("drops")
       .select(`
         id,
@@ -205,6 +223,48 @@ export async function fetchLiveDropsFromSupabase() {
       .not("contract_drop_id", "is", null)
       .order("created_at", { ascending: false });
 
+    if (
+      error &&
+      (
+        isMissingColumnError(error, "drops", "preview_uri") ||
+        isMissingColumnError(error, "drops", "delivery_uri") ||
+        isMissingColumnError(error, "drops", "asset_type") ||
+        isMissingColumnError(error, "drops", "contract_kind")
+      )
+    ) {
+      ({ data, error } = await supabase
+        .from("drops")
+        .select(`
+          id,
+          artist_id,
+          title,
+          price_eth,
+          image_url,
+          image_ipfs_uri,
+          metadata_ipfs_uri,
+          status,
+          type,
+          ends_at,
+          supply,
+          sold,
+          contract_address,
+          contract_drop_id,
+          artists:artist_id (
+            id,
+            name,
+            avatar_url
+          )
+        `)
+        .eq("status", "live")
+        .not("contract_address", "is", null)
+        .not("contract_drop_id", "is", null)
+        .order("created_at", { ascending: false }));
+
+      if (!error) {
+        data = (data || []).map((drop) => withDropDefaults(drop));
+      }
+    }
+
     if (error) {
       console.error("❌ Error fetching drops:", error.message);
       throw error;
@@ -221,7 +281,7 @@ export async function fetchLiveDropsFromSupabase() {
 export async function fetchDropByIdFromSupabase(dropId: string) {
   try {
     console.log(`📖 Fetching drop by ID from Supabase: ${dropId}`);
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from("drops")
       .select(`
         id,
@@ -253,12 +313,54 @@ export async function fetchDropByIdFromSupabase(dropId: string) {
       .eq("id", dropId)
       .maybeSingle();
 
+    if (
+      error &&
+      (
+        isMissingColumnError(error, "drops", "preview_uri") ||
+        isMissingColumnError(error, "drops", "delivery_uri") ||
+        isMissingColumnError(error, "drops", "asset_type") ||
+        isMissingColumnError(error, "drops", "contract_kind")
+      )
+    ) {
+      ({ data, error } = await supabase
+        .from("drops")
+        .select(`
+          id,
+          artist_id,
+          title,
+          description,
+          price_eth,
+          supply,
+          sold,
+          image_url,
+          image_ipfs_uri,
+          metadata_ipfs_uri,
+          status,
+          type,
+          ends_at,
+          contract_address,
+          contract_drop_id,
+          artists:artist_id (
+            id,
+            name,
+            handle,
+            avatar_url
+          )
+        `)
+        .eq("id", dropId)
+        .maybeSingle());
+
+      if (!error) {
+        data = withDropDefaults(data);
+      }
+    }
+
     if (error) {
       console.error("❌ Error fetching drop:", error.message);
       throw error;
     }
 
-    return data ?? null;
+    return withDropDefaults(data ?? null);
   } catch (error: any) {
     console.error("❌ fetchDropByIdFromSupabase failed:", error.message);
     throw error;
