@@ -24,11 +24,11 @@ import { formatEther } from "viem";
 import { toast } from "sonner";
 import { POAP_CAMPAIGN_ADDRESS } from "@/lib/contracts/poapCampaign";
 import {
-  createArtistDrop,
   deleteArtistDrop,
   getArtistDrops,
   resolveArtistForWallet,
   saveArtistPortfolio,
+  syncArtistDropCache,
   updateArtistProfile,
   updateDrop as dbUpdateDrop,
   updateArtistDropContractId,
@@ -220,13 +220,14 @@ const CreateDropSheet = ({ open, onClose, onCreated, artistContractAddress }: { 
           price_eth: parseFloat(form.price),
           supply: Number(form.supply),
           status: "live",
-          type: form.type,
+          type: form.type === "buy" ? "drop" : form.type,
           image_url: preview || undefined,
           metadata_ipfs_uri: pendingResult.metadataUri,
           image_ipfs_uri: pendingResult.imageUri,
           contract_address: artistContractAddress,
           contract_drop_id: createdDropId, // Save the on-chain drop ID
           contract_kind: "artDrop",
+          ends_at: new Date(Date.now() + Number(form.duration) * 3600 * 1000).toISOString(),
         });
 
         if (savedDrop) {
@@ -251,13 +252,20 @@ const CreateDropSheet = ({ open, onClose, onCreated, artistContractAddress }: { 
           });
           toast.success("Drop minted and saved to database! 🎉");
           
-          // Close dialog and reset state AFTER successful save
+          // Clear pending mint state so this effect cannot replay on rerender.
+          setPendingResult(null);
+          setForm({ title: "", description: "", price: "", duration: "24", supply: "1", type: "buy" });
+          setPreview(null);
+          setFile(null);
+          setStep(0);
+          setUploadErr(null);
           setIsUploading(false);
           onClose();
         }
       } catch (dbError) {
         console.error("❌ Failed to save drop to database:", dbError);
         toast.error("Drop minted but failed to save to database. Please refresh.");
+        setPendingResult(null);
         setIsUploading(false);
       }
     })();
@@ -1224,7 +1232,7 @@ const ArtistStudioPage = () => {
         artistContractAddress={deployedContractAddress}
         onCreated={d => {
           setDrops(prev => [d, ...prev]);
-          createArtistDrop({
+          syncArtistDropCache({
             id: d.id,
             artistId: publicArtistId,
             title: d.title,

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Loader2, ArrowLeft, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,7 @@ export function CheckoutPage() {
   const [notes, setNotes] = useState("");
   const [orderPlaced, setOrderPlaced] = useState(false);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
+  const checkoutInFlightRef = useRef(false);
 
   if (items.length === 0 && !orderPlaced) {
     return (
@@ -44,6 +45,10 @@ export function CheckoutPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (checkoutInFlightRef.current) {
+      return;
+    }
+
     if (!email || !shippingAddress || !city || !postalCode || !country) {
       toast.error("Please fill in all shipping details");
       return;
@@ -55,12 +60,23 @@ export function CheckoutPage() {
     }
 
     try {
+      checkoutInFlightRef.current = true;
       setIsCheckingOut(true);
       const allProducts = await dbGetProducts();
-      const shipping = [shippingAddress, city, postalCode, country].filter(Boolean).join(", ");
+      const shipping = [shippingAddress, city, postalCode, country, notes].filter(Boolean).join(", ");
 
       for (const item of items) {
         const matchedProduct = allProducts.find((product: any) => product.id === item.productId);
+        const availableStock = Number(matchedProduct?.stock ?? 0);
+
+        if (!matchedProduct) {
+          throw new Error(`Product ${item.name} is no longer available`);
+        }
+
+        if (availableStock > 0 && item.quantity > availableStock) {
+          throw new Error(`${item.name} only has ${availableStock} left in stock`);
+        }
+
         const nextStock = Math.max(0, Number(matchedProduct?.stock || 0) - item.quantity);
 
         await dbCreateOrder({
@@ -88,6 +104,7 @@ export function CheckoutPage() {
       const errorMessage = error instanceof Error ? error.message : "Checkout failed";
       toast.error(errorMessage);
     } finally {
+      checkoutInFlightRef.current = false;
       setIsCheckingOut(false);
     }
   };
@@ -251,7 +268,7 @@ export function CheckoutPage() {
                       {item.name} x {item.quantity}
                     </span>
                     <span className="font-semibold">
-                      {formatEther(item.price * BigInt(item.quantity))} ETH
+                      {formatEther(BigInt(item.price) * BigInt(item.quantity))} ETH
                     </span>
                   </div>
                 ))}

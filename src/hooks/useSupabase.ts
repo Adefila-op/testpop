@@ -17,6 +17,15 @@ import {
   fetchAllDropsFromSupabase,
 } from "@/lib/supabaseStore";
 
+const STANDARD_QUERY_OPTIONS = {
+  staleTime: 2 * 60 * 1000,
+  gcTime: 10 * 60 * 1000,
+  refetchOnWindowFocus: false,
+  refetchOnReconnect: false,
+  refetchInterval: false as const,
+  retry: 1,
+};
+
 /**
  * Unified return type compatible with old useState-based hooks
  * useQuery provides: data, error, isLoading, refetch, etc.
@@ -37,8 +46,7 @@ export function useSupabaseArtists() {
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["artists", "all"],
     queryFn: fetchAllArtistsFromSupabase,
-    staleTime: 5000, // 5 seconds - refetch more frequently for contract address updates
-    refetchInterval: 5000, // Auto-refetch every 5 seconds
+    ...STANDARD_QUERY_OPTIONS,
   });
 
   return {
@@ -56,8 +64,7 @@ export function useSupabaseArtistById(artistId: string | undefined) {
     queryKey: ["artists", artistId],
     queryFn: () => (artistId ? fetchArtistByIdFromSupabase(artistId) : null),
     enabled: !!artistId,
-    staleTime: 5000, // 5 seconds
-    refetchInterval: 5000,
+    ...STANDARD_QUERY_OPTIONS,
   });
 
   return {
@@ -78,8 +85,7 @@ export function useSupabasePublishedProducts() {
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["products", "published"],
     queryFn: fetchPublishedProductsFromSupabase,
-    staleTime: 5000, // 5 seconds
-    refetchInterval: 5000,
+    ...STANDARD_QUERY_OPTIONS,
   });
 
   return {
@@ -96,8 +102,7 @@ export function useSupabaseAllProducts() {
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["products", "all"],
     queryFn: fetchAllProductsFromSupabase,
-    staleTime: 5000, // 5 seconds
-    refetchInterval: 5000,
+    ...STANDARD_QUERY_OPTIONS,
   });
 
   return {
@@ -118,8 +123,7 @@ export function useSupabaseProductsByCreator(creatorWallet: string | undefined) 
         ? fetchProductsByCreatorFromSupabase(creatorWallet)
         : Promise.resolve([]),
     enabled: !!creatorWallet,
-    staleTime: 5000, // 5 seconds
-    refetchInterval: 5000,
+    ...STANDARD_QUERY_OPTIONS,
   });
 
   return {
@@ -140,8 +144,10 @@ export function useSupabaseLiveDrops() {
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["drops", "live"],
     queryFn: fetchLiveDropsFromSupabase,
-    staleTime: 5000, // 5 seconds - refetch to show newly created drops
-    refetchInterval: 5000, // Auto-refetch every 5 seconds
+    ...STANDARD_QUERY_OPTIONS,
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
   });
 
   return {
@@ -154,12 +160,12 @@ export function useSupabaseLiveDrops() {
   };
 }
 
-export function useSupabaseAllDrops() {
+export function useSupabaseAllDrops(enabled = true) {
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["drops", "all"],
     queryFn: fetchAllDropsFromSupabase,
-    staleTime: 5000, // 5 seconds
-    refetchInterval: 5000,
+    enabled,
+    ...STANDARD_QUERY_OPTIONS,
   });
 
   return {
@@ -180,8 +186,7 @@ export function useSupabaseDropsByArtist(artistId: string | undefined) {
         ? fetchDropsByArtistFromSupabase(artistId)
         : Promise.resolve([]),
     enabled: !!artistId,
-    staleTime: 5000, // 5 seconds
-    refetchInterval: 5000,
+    ...STANDARD_QUERY_OPTIONS,
   });
 
   return {
@@ -206,8 +211,7 @@ export function useSupabaseOrdersByBuyer(buyerWallet: string | undefined) {
         ? fetchOrdersByBuyerFromSupabase(buyerWallet)
         : Promise.resolve([]),
     enabled: !!buyerWallet,
-    staleTime: 5000, // 5 seconds
-    refetchInterval: 5000,
+    ...STANDARD_QUERY_OPTIONS,
   });
 
   return {

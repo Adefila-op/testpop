@@ -51,7 +51,7 @@ export function ShoppingCart() {
                   <div>
                     <h4 className="font-semibold">{item.name}</h4>
                     <p className="text-sm text-muted-foreground">
-                      {formatEther(item.price)} ETH each
+                      {formatEther(BigInt(item.price))} ETH each
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
@@ -65,7 +65,7 @@ export function ShoppingCart() {
                       className="w-16"
                     />
                     <span className="text-sm font-semibold">
-                      {formatEther(item.price * BigInt(item.quantity))} ETH
+                      {formatEther(BigInt(item.price) * BigInt(item.quantity))} ETH
                     </span>
                   </div>
                 </div>

@@ -88,6 +88,7 @@ export type ArtistPublicProfile = {
 const SUPABASE_ENABLED =
   typeof import.meta.env.VITE_SUPABASE_URL === "string" &&
   import.meta.env.VITE_SUPABASE_URL.length > 0;
+const IS_DEV = import.meta.env.DEV;
 
 const EMPTY_ARTISTS: ArtistPublicProfile[] = [];
 const EMPTY_DROPS: ArtistDropRecord[] = [];
@@ -367,6 +368,12 @@ export function createArtistDrop(drop: ArtistDropRecord) {
   return drop;
 }
 
+export function syncArtistDropCache(drop: ArtistDropRecord) {
+  const drops = _dropsCache || EMPTY_DROPS;
+  _dropsCache = [drop, ...drops.filter((existing) => existing.id !== drop.id)];
+  return drop;
+}
+
 export function deleteArtistDrop(dropId: string) {
   const drops = _dropsCache || EMPTY_DROPS;
   const next = drops.filter((drop) => drop.id !== dropId);
@@ -395,12 +402,16 @@ export function createArtistCampaign(campaign: ArtistCampaignRecord) {
 
 export async function initializeFromSupabase() {
   if (!SUPABASE_ENABLED) {
-    console.log("ℹ️  Supabase not configured, artist bootstrap skipped");
+    if (IS_DEV) {
+      console.log("ℹ️  Supabase not configured, artist bootstrap skipped");
+    }
     return;
   }
 
   try {
-    console.log("📡 Loading data from Supabase...");
+    if (IS_DEV) {
+      console.log("📡 Loading data from Supabase...");
+    }
 
     // Load approved artists from Supabase into the in-memory runtime cache.
     const whitelistEntries = await getServerArtistWhitelist();
@@ -422,7 +433,48 @@ export async function initializeFromSupabase() {
     const validDbArtists = dbArtists.filter((a): a is ArtistPublicProfile => Boolean(a));
     _artistsCache = validDbArtists;
 
-    console.log(`✅ Loaded ${validDbArtists.length} artists from Supabase`);
+    const dbDrops = await Promise.all(
+      validDbArtists.map(async (artist) => {
+        try {
+          return await dbGetArtistDrops(artist.id);
+        } catch {
+          return [];
+        }
+      })
+    );
+
+    _dropsCache = dbDrops
+      .flat()
+      .map((drop) => ({
+        id: drop.id,
+        artistId: drop.artist_id,
+        title: drop.title || "Untitled Drop",
+        artist: validDbArtists.find((artist) => artist.id === drop.artist_id)?.name || "Studio Artist",
+        artistAvatar: validDbArtists.find((artist) => artist.id === drop.artist_id)?.avatar || "",
+        image: drop.image_url || "",
+        imageUri: drop.image_ipfs_uri || undefined,
+        metadataUri: drop.metadata_ipfs_uri || "",
+        priceEth: String(drop.price_eth || 0),
+        currentBidEth: null,
+        endsIn: drop.ends_at
+          ? `${Math.max(0, Math.floor((new Date(drop.ends_at).getTime() - Date.now()) / (1000 * 60 * 60)))}h`
+          : "--",
+        type: drop.type === "auction" ? "Auction" : drop.type === "campaign" ? "Campaign" : "Drop",
+        description: drop.description || "",
+        edition: `1 of ${drop.supply || 1}`,
+        bids: 0,
+        poap: drop.type === "campaign",
+        contractAddress: drop.contract_address || null,
+        contractDropId: drop.contract_drop_id || null,
+        contractKind: (drop.contract_kind as "artDrop" | "poapCampaign" | null) || null,
+        maxBuy: drop.supply || 1,
+        bought: drop.sold || 0,
+        status: (drop.status as "live" | "upcoming" | "ended" | "draft") || "draft",
+      }));
+
+    if (IS_DEV) {
+      console.log(`✅ Loaded ${validDbArtists.length} artists and ${_dropsCache.length} drops from Supabase`);
+    }
   } catch (error) {
     console.error("Failed to initialize from Supabase:", error);
   }

@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
 
 export interface CartItem {
   productId: string;
@@ -27,62 +28,78 @@ interface CartStore {
   getCartSize: () => number;
 }
 
-export const useCartStore = create<CartStore>()((set, get) => ({
-  items: [],
-  isLoading: false,
+export const useCartStore = create<CartStore>()(
+  persist(
+    (set, get) => ({
+      items: [],
+      isLoading: false,
 
-  addItem: (productId, quantity, price, name, image) => {
-    const { items } = get();
-    const existingItem = items.find((item) => item.productId === productId);
-    const priceStr = price.toString();
+      addItem: (productId, quantity, price, name, image) => {
+        const { items } = get();
+        const priceStr = price.toString();
+        const existingItem = items.find((item) => item.productId === productId);
 
-    if (existingItem) {
-      existingItem.quantity += quantity;
-      set({ items: [...items] });
-      return;
+        if (existingItem) {
+          set({
+            items: items.map((item) =>
+              item.productId === productId
+                ? { ...item, quantity: item.quantity + quantity, price: priceStr, name, image }
+                : item
+            ),
+          });
+          return;
+        }
+
+        set({
+          items: [
+            ...items,
+            { productId, quantity, price: priceStr, name, image },
+          ],
+        });
+      },
+
+      removeItem: (productId) => {
+        const { items } = get();
+        set({ items: items.filter((item) => item.productId !== productId) });
+      },
+
+      updateQuantity: (productId, quantity) => {
+        const { items } = get();
+        set({
+          items: items.map((item) =>
+            item.productId === productId
+              ? { ...item, quantity: Math.max(1, quantity) }
+              : item
+          ),
+        });
+      },
+
+      clearCart: () => set({ items: [] }),
+
+      setLoading: (loading) => set({ isLoading: loading }),
+
+      getTotalPrice: () => {
+        const { items } = get();
+        return items.reduce(
+          (total, item) => total + BigInt(item.price) * BigInt(item.quantity),
+          BigInt(0)
+        );
+      },
+
+      getTotalItems: () => {
+        const { items } = get();
+        return items.reduce((total, item) => total + item.quantity, 0);
+      },
+
+      getCartSize: () => {
+        const { items } = get();
+        return items.length;
+      },
+    }),
+    {
+      name: "popup-cart",
+      storage: createJSONStorage(() => localStorage),
+      partialize: (state) => ({ items: state.items }),
     }
-
-    set({
-      items: [
-        ...items,
-        { productId, quantity, price: priceStr, name, image },
-      ],
-    });
-  },
-
-  removeItem: (productId) => {
-    const { items } = get();
-    set({ items: items.filter((item) => item.productId !== productId) });
-  },
-
-  updateQuantity: (productId, quantity) => {
-    const { items } = get();
-    const item = items.find((entry) => entry.productId === productId);
-    if (!item) return;
-
-    item.quantity = quantity;
-    set({ items: [...items] });
-  },
-
-  clearCart: () => set({ items: [] }),
-
-  setLoading: (loading) => set({ isLoading: loading }),
-
-  getTotalPrice: () => {
-    const { items } = get();
-    return items.reduce(
-      (total, item) => total + BigInt(item.price) * BigInt(item.quantity),
-      BigInt(0)
-    );
-  },
-
-  getTotalItems: () => {
-    const { items } = get();
-    return items.reduce((total, item) => total + item.quantity, 0);
-  },
-
-  getCartSize: () => {
-    const { items } = get();
-    return items.length;
-  },
-}));
+  )
+);
