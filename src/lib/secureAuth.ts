@@ -2,6 +2,7 @@ import { supabase } from "@/lib/db";
 import {
   clearRuntimeSession,
   getRuntimeApiToken,
+  getRuntimeSession,
   setRuntimeSession,
 } from "@/lib/runtimeSession";
 import { SECURE_API_BASE } from "@/lib/apiBase";
@@ -151,6 +152,22 @@ export async function verifyWalletChallenge(
 
 export async function establishSecureSession(wallet: string): Promise<SecureSession> {
   try {
+    const normalizedWallet = wallet.trim().toLowerCase();
+    const existingSession = getRuntimeSession();
+    if (
+      existingSession.apiToken &&
+      existingSession.wallet &&
+      existingSession.wallet.trim().toLowerCase() === normalizedWallet &&
+      existingSession.role
+    ) {
+      return {
+        wallet: existingSession.wallet,
+        role: existingSession.role,
+        apiToken: existingSession.apiToken,
+        supabaseToken: existingSession.supabaseToken || null,
+        expiresInSeconds: 0,
+      };
+    }
     console.log("🔐 Starting secure session establishment for wallet:", wallet);
     console.log("🌐 API Base URL:", secureApiBaseUrl);
 

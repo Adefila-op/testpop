@@ -102,6 +102,7 @@ const ART_TYPES = ["Digital Art", "Sculpture", "Photography", "Mixed Media", "Ge
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
 const toGatewayUrl = (cidOrUri: string) => ipfsToHttp(cidOrUri.startsWith("ipfs://") ? cidOrUri : `ipfs://${cidOrUri}`);
+const isDataUrl = (value?: string | null) => typeof value === "string" && value.startsWith("data:");
 
 // ─── Small helpers ────────────────────────────────────────────────────────────
 const StatusPill = ({ status }: { status: string }) => {
@@ -325,6 +326,10 @@ const CreateDropSheet = ({
         const contractKind = pendingResult.mode === "auction" ? "poapCampaign" : "artDrop";
         const contractAddress = pendingResult.mode === "auction" ? POAP_CAMPAIGN_ADDRESS : artistContractAddress;
 
+        const persistedImageUrl = isDataUrl(preview)
+          ? (pendingResult.previewUri ? ipfsToHttp(pendingResult.previewUri) : ipfsToHttp(pendingResult.imageUri))
+          : (preview || undefined);
+
         const savedDrop = await dbCreateDrop({
           artist_id: persistedArtist.id,
           title: form.title,
@@ -333,7 +338,7 @@ const CreateDropSheet = ({
           supply: Number(form.supply),
           status: "live",
           type: storedType,
-          image_url: preview || undefined,
+          image_url: persistedImageUrl,
           metadata_ipfs_uri: pendingResult.metadataUri,
           image_ipfs_uri: pendingResult.imageUri,
           asset_type: pendingResult.assetType,
@@ -361,7 +366,7 @@ const CreateDropSheet = ({
             type: pendingResult.mode,
             endsIn: `${form.duration}h`,
             revenue: "0",
-            image: preview,
+            image: persistedImageUrl ?? preview,
             metadataUri: pendingResult.metadataUri,
             imageUri: pendingResult.imageUri,
             assetType: pendingResult.assetType,

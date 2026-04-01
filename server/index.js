@@ -786,7 +786,7 @@ app.use(
 // Explicit OPTIONS handler for preflight requests
 app.options('*', cors());
 
-app.use(express.json({ limit: "2mb" }));
+app.use(express.json({ limit: "8mb" }));
 app.use(cookieParser());
 
 // ═════════════════════════════════════════════════════════════════════════════
