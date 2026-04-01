@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useWallet } from "@/hooks/useContracts";
 import { trackCollectionView } from "@/lib/analyticsStore";
 import { ImageViewer, VideoViewer, AudioPlayer, PdfReader, EpubReader, DownloadPanel } from "@/components/collection";
+import { ipfsToHttp } from "@/lib/pinata";
 import { useCollectionStore, type CollectedDropItem } from "@/stores/collectionStore";
 
 const MyCollectionPage = () => {
@@ -50,12 +51,13 @@ const MyCollectionPage = () => {
   const renderViewer = () => {
     if (!selectedItem) return null;
 
-    const src = selectedItem.deliveryUri || selectedItem.previewUri || selectedItem.imageUrl;
+    const src = ipfsToHttp(selectedItem.deliveryUri || selectedItem.previewUri || selectedItem.imageUrl);
+    const poster = ipfsToHttp(selectedItem.previewUri || selectedItem.imageUrl || "");
     if (!src) return null;
 
     switch (selectedItem.assetType) {
       case "video":
-        return <VideoViewer src={src} onClose={() => setSelectedItem(null)} />;
+        return <VideoViewer src={src} poster={poster} onClose={() => setSelectedItem(null)} />;
       case "audio":
         return <AudioPlayer src={src} title={selectedItem.title} onClose={() => setSelectedItem(null)} />;
       case "pdf":
@@ -98,11 +100,11 @@ const MyCollectionPage = () => {
                   fileType={selectedItem.assetType}
                   isGated={selectedItem.isGated || false}
                   isOwned={true}
-                  downloadUrl={selectedItem.deliveryUri || selectedItem.previewUri}
+                  downloadUrl={ipfsToHttp(selectedItem.deliveryUri || selectedItem.previewUri || "")}
                   accessNote={selectedItem.isGated ? "You own this item. Delivery files are available." : undefined}
                   onDownload={() => {
                     if (selectedItem.deliveryUri) {
-                      window.open(selectedItem.deliveryUri, "_blank");
+                      window.open(ipfsToHttp(selectedItem.deliveryUri), "_blank");
                     }
                   }}
                 />
@@ -166,7 +168,7 @@ const MyCollectionPage = () => {
                   <div className="aspect-square overflow-hidden relative bg-secondary">
                     {drop.assetType === "video" && drop.previewUri ? (
                       <img
-                        src={drop.previewUri}
+                        src={ipfsToHttp(drop.previewUri)}
                         alt={drop.title}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                       />
@@ -184,7 +186,7 @@ const MyCollectionPage = () => {
                       </div>
                     ) : (
                       <img
-                        src={drop.imageUrl || "https://images.unsplash.com/photo-1578321272176-c8593e05e55a?w=400&h=400&fit=crop"}
+                        src={ipfsToHttp(drop.imageUrl || "https://images.unsplash.com/photo-1578321272176-c8593e05e55a?w=400&h=400&fit=crop")}
                         alt={drop.title}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                       />

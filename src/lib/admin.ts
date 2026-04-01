@@ -1,17 +1,29 @@
 /**
- * Admin wallet address for accessing /admin.
- * Loaded from VITE_ADMIN_WALLET environment variable.
- * If not set, admin page will deny all access.
+ * Admin wallet allowlist for accessing /admin.
+ * Supports either a single VITE_ADMIN_WALLET value or a comma-separated list.
+ * VITE_FOUNDER_WALLET is also accepted as a fallback alias.
  */
-const ADMIN_WALLET_RAW = import.meta.env.VITE_ADMIN_WALLET?.trim() || "";
+const adminWalletCandidates = [
+  import.meta.env.VITE_ADMIN_WALLET || "",
+  import.meta.env.VITE_ADMIN_WALLETS || "",
+  import.meta.env.VITE_FOUNDER_WALLET || "",
+];
 
-export const ADMIN_WALLET = ADMIN_WALLET_RAW.toLowerCase();
+export const ADMIN_WALLETS = Array.from(
+  new Set(
+    adminWalletCandidates
+      .flatMap((value) => value.split(","))
+      .map((value) => value.trim().toLowerCase())
+      .filter(Boolean)
+  )
+);
+
+export const ADMIN_WALLET = ADMIN_WALLETS[0] || "";
 
 export function isAdminWallet(address: string | undefined): boolean {
-  // If no admin wallet configured, deny all access
-  if (!ADMIN_WALLET) {
+  if (!address || ADMIN_WALLETS.length === 0) {
     return false;
   }
-  if (!address) return false;
-  return address.toLowerCase() === ADMIN_WALLET;
+
+  return ADMIN_WALLETS.includes(address.toLowerCase());
 }

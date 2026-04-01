@@ -3,11 +3,15 @@ import { Palette, Wallet, Lock, LogOut, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useWallet } from "@/hooks/useContracts";
 import { isWhitelistedArtist } from "@/lib/whitelist";
+import { establishSecureSession } from "@/lib/secureAuth";
+import { toast } from "sonner";
 
 const ArtistGuard = ({ children }: { children: React.ReactNode }) => {
   const { address, isConnected, isConnecting, connectWallet, disconnect } = useWallet();
   const [isChecking, setIsChecking] = useState(false);
   const [isApproved, setIsApproved] = useState(false);
+  const [sessionEstablished, setSessionEstablished] = useState(false);
+  const [sessionError, setSessionError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -16,6 +20,8 @@ const ArtistGuard = ({ children }: { children: React.ReactNode }) => {
       if (!isConnected || !address) {
         setIsApproved(false);
         setIsChecking(false);
+        setSessionEstablished(false);
+        setSessionError(null);
         return;
       }
 
@@ -25,11 +31,16 @@ const ArtistGuard = ({ children }: { children: React.ReactNode }) => {
         const approved = await isWhitelistedArtist(address);
         if (!cancelled) {
           setIsApproved(approved);
+          if (!approved) {
+            setSessionEstablished(false);
+            setSessionError(null);
+          }
         }
       } catch (error) {
         console.error("Failed to verify artist whitelist status:", error);
         if (!cancelled) {
           setIsApproved(false);
+          setSessionEstablished(false);
         }
       } finally {
         if (!cancelled) {
@@ -44,6 +55,41 @@ const ArtistGuard = ({ children }: { children: React.ReactNode }) => {
       cancelled = true;
     };
   }, [address, isConnected]);
+
+  useEffect(() => {
+    if (!isConnected) {
+      setSessionEstablished(false);
+      setSessionError(null);
+      return;
+    }
+
+    if (!address || !isApproved || sessionEstablished) {
+      return;
+    }
+
+    let cancelled = false;
+
+    establishSecureSession(address)
+      .then(() => {
+        if (!cancelled) {
+          setSessionEstablished(true);
+          setSessionError(null);
+        }
+      })
+      .catch((error) => {
+        const message = error instanceof Error ? error.message : "Failed to authenticate with backend";
+        console.error("Failed to establish artist secure session:", error);
+        if (!cancelled) {
+          setSessionEstablished(false);
+          setSessionError(message);
+          toast.error(`Artist authentication failed: ${message}`);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [address, isApproved, isConnected, sessionEstablished]);
 
   if (!isConnected) {
     return (
@@ -64,7 +110,7 @@ const ArtistGuard = ({ children }: { children: React.ReactNode }) => {
           className="rounded-full gradient-primary text-primary-foreground font-semibold px-8 h-12"
         >
           <Wallet className="h-4 w-4 mr-2" />
-          {isConnecting ? "Connecting…" : "Connect Wallet"}
+          {isConnecting ? "Connecting..." : "Connect Wallet"}
         </Button>
       </div>
     );
@@ -80,6 +126,31 @@ const ArtistGuard = ({ children }: { children: React.ReactNode }) => {
         <p className="text-sm text-muted-foreground max-w-xs">
           Verifying your wallet against the secure artist whitelist.
         </p>
+      </div>
+    );
+  }
+
+  if (sessionError) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center px-6 text-center">
+        <div className="h-20 w-20 rounded-3xl bg-secondary flex items-center justify-center mb-6">
+          <Lock className="h-10 w-10 text-destructive" />
+        </div>
+        <h1 className="text-2xl font-bold text-foreground mb-2">Authentication Error</h1>
+        <p className="text-sm text-muted-foreground mb-2 max-w-xs">
+          We verified your whitelist access, but the secure backend session could not be created.
+        </p>
+        <p className="text-xs font-mono text-muted-foreground bg-secondary px-3 py-1.5 rounded-lg mb-8 max-w-xs">
+          {sessionError}
+        </p>
+        <Button
+          variant="outline"
+          onClick={() => window.location.reload()}
+          className="rounded-full px-8 h-11 gap-2"
+        >
+          <LogOut className="h-4 w-4" />
+          Refresh Page
+        </Button>
       </div>
     );
   }
@@ -108,6 +179,20 @@ const ArtistGuard = ({ children }: { children: React.ReactNode }) => {
           <LogOut className="h-4 w-4" />
           Try another wallet
         </Button>
+      </div>
+    );
+  }
+
+  if (!sessionEstablished) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center px-6 text-center">
+        <div className="h-20 w-20 rounded-3xl bg-secondary flex items-center justify-center mb-6">
+          <Loader2 className="h-10 w-10 text-primary animate-spin" />
+        </div>
+        <h1 className="text-2xl font-bold text-foreground mb-2">Establishing Secure Session</h1>
+        <p className="text-sm text-muted-foreground max-w-xs">
+          Authenticating your artist wallet with the backend before opening the studio.
+        </p>
       </div>
     );
   }

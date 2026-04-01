@@ -14,9 +14,9 @@ import ArtistGuard from "./components/ArtistGuard";
 // ── Eagerly loaded — always needed on first paint ──
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
-import AdminPage from "./pages/AdminPage";
 
 // ── Lazily loaded — parsed only when navigated to ──
+const AdminPage = lazy(() => import("./pages/AdminPage"));
 const ArtistApplicationPage = lazy(() => import("./pages/ArtistApplicationPage"));
 const DropsPage        = lazy(() => import("./pages/DropsPage"));
 const DropDetailPage   = lazy(() => import("./pages/DropDetailPage"));
@@ -43,10 +43,11 @@ const PageLoader = () => (
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 60_000,          // data stays fresh for 1 min
-      gcTime: 5 * 60_000,         // cached in memory for 5 min
-      retry: 2,
+      staleTime: 2 * 60_000,
+      gcTime: 10 * 60_000,
+      retry: 1,
       refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
     },
   },
 });

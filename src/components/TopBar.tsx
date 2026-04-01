@@ -163,7 +163,7 @@ function NotificationsPanel({ onClose }: { onClose: () => void }) {
             .from("artist_applications")
             .select("status, submitted_at")
             .eq("wallet_address", address.toLowerCase())
-            .single();
+            .maybeSingle();
 
           if (data) {
             items.push({

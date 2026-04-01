@@ -38,6 +38,10 @@ export interface Drop {
   image_url?: string;
   image_ipfs_uri?: string;
   metadata_ipfs_uri?: string;
+  asset_type?: "image" | "video" | "audio" | "pdf" | "epub" | "merchandise" | "digital";
+  preview_uri?: string;
+  delivery_uri?: string;
+  is_gated?: boolean;
   status?: "draft" | "live" | "ended";
   type?: "drop" | "auction" | "campaign";
   contract_address?: string;

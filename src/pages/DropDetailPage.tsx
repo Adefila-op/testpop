@@ -13,6 +13,7 @@ import { getAllArtists } from "@/lib/artistStore";
 import { useSupabaseAllDrops } from "@/hooks/useSupabase";
 import { Web3Error } from "@/lib/types";
 import type { AssetType } from "@/lib/assetTypes";
+import { ipfsToHttp } from "@/lib/pinata";
 import { VideoViewer } from "@/components/collection/VideoViewer";
 import { AudioPlayer } from "@/components/collection/AudioPlayer";
 import { PdfReader } from "@/components/collection/PdfReader";
@@ -67,14 +68,15 @@ const DropDetailPage = () => {
       image: foundDrop.image_url || "",
       imageUri: foundDrop.image_ipfs_uri || "",
       metadataUri: foundDrop.metadata_ipfs_uri || "",
+      deliveryUri: foundDrop.delivery_uri || foundDrop.image_ipfs_uri || "",
+      previewUri: foundDrop.preview_uri || undefined,
       contractAddress: foundDrop.contract_address || null,
       contractDropId: foundDrop.contract_drop_id !== null && foundDrop.contract_drop_id !== undefined ? Number(foundDrop.contract_drop_id) : null,
       contractKind: normalizedContractKind as "artDrop" | "poapCampaign" | null,
       poap: false,
       poapNote: "",
       assetType: (foundDrop.asset_type || "image") as AssetType,
-      previewUri: foundDrop.preview_uri || undefined,
-    };
+      };
   }, [allDrops, id]);
 
   const priceEth = drop?.priceEth ?? "0";
@@ -85,6 +87,8 @@ const DropDetailPage = () => {
   const isBuyDrop = drop?.type === "drop" && drop.contractKind === "artDrop";
   const isAuctionDrop = drop?.type === "auction" && drop.contractKind === "poapCampaign";
   const isCampaignDrop = drop?.type === "campaign";
+  const mediaSrc = drop ? ipfsToHttp(drop.deliveryUri || drop.imageUri || drop.image || "") : "";
+  const posterSrc = drop ? ipfsToHttp(drop.previewUri || drop.image || "") : "";
 
   useEffect(() => {
     if (id) {
@@ -101,6 +105,7 @@ const DropDetailPage = () => {
         artist: drop.artist,
         imageUrl: drop.image,
         previewUri: drop.previewUri,
+        deliveryUri: drop.deliveryUri,
         assetType: drop.assetType,
         mintedTokenId,
         contractAddress: drop.contractAddress,
@@ -287,15 +292,15 @@ const DropDetailPage = () => {
     <div className="space-y-0 pb-4">
       <div className="relative">
         <div className="aspect-square overflow-hidden bg-secondary">
-          {drop.assetType === "image" && <img src={drop.image} alt={drop.title} className="w-full h-full object-cover" />}
-          {drop.assetType === "video" && <VideoViewer src={drop.image} poster={drop.previewUri} alt={drop.title} />}
+          {drop.assetType === "image" && <img src={ipfsToHttp(drop.image || mediaSrc)} alt={drop.title} className="w-full h-full object-cover" />}
+          {drop.assetType === "video" && <VideoViewer src={mediaSrc} poster={posterSrc} alt={drop.title} />}
           {drop.assetType === "audio" && (
             <div className="w-full h-full flex items-center justify-center">
-              <AudioPlayer src={drop.image} title={drop.title} />
+              <AudioPlayer src={mediaSrc} title={drop.title} />
             </div>
           )}
-          {drop.assetType === "pdf" && <PdfReader src={drop.image} title={drop.title} />}
-          {drop.assetType === "epub" && <EpubReader src={drop.image} title={drop.title} />}
+          {drop.assetType === "pdf" && <PdfReader src={mediaSrc} title={drop.title} />}
+          {drop.assetType === "epub" && <EpubReader src={mediaSrc} title={drop.title} />}
         </div>
         <button onClick={() => navigate(-1)} className="absolute top-3 left-3 p-2 rounded-full bg-background/60 backdrop-blur-sm">
           <ArrowLeft className="h-4 w-4 text-foreground" />

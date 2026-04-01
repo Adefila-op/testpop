@@ -22,6 +22,7 @@ import { useGetArtistContract } from "@/hooks/useContractIntegrations";
 import { ipfsToHttp, uploadFileToPinata, uploadMetadataToPinata } from "@/lib/pinata";
 import { formatEther } from "viem";
 import { toast } from "sonner";
+import { detectAssetTypeFromFile, type AssetType } from "@/lib/assetTypes";
 import { POAP_CAMPAIGN_ADDRESS } from "@/lib/contracts/poapCampaign";
 import {
   deleteArtistDrop,
@@ -69,6 +70,10 @@ type Drop = {
   image: string | null;
   metadataUri: string;
   imageUri?: string;
+  assetType?: AssetType;
+  previewUri?: string;
+  deliveryUri?: string;
+  isGated?: boolean;
   contractAddress?: string | null;
   contractDropId?: number | null;
   contractKind?: "artDrop" | "poapCampaign" | null;
@@ -146,7 +151,15 @@ const CreateDropSheet = ({
   const [preview, setPreview] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadErr, setUploadErr] = useState<string | null>(null);
-  const [pendingResult, setPendingResult] = useState<{ metadataUri: string; imageUri: string; mode: DropMode } | null>(null);
+  const [pendingResult, setPendingResult] = useState<{
+    metadataUri: string;
+    imageUri: string;
+    deliveryUri: string;
+    previewUri?: string;
+    assetType: AssetType;
+    isGated: boolean;
+    mode: DropMode;
+  } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const { isConnected, connectWallet, address } = useWallet();
   const {
@@ -172,9 +185,13 @@ const CreateDropSheet = ({
     if (!f) return;
     if (f.size > 10 * 1024 * 1024) { toast.error("Max 10MB"); return; }
     setFile(f);
-    const r = new FileReader();
-    r.onload = ev => setPreview(ev.target?.result as string);
-    r.readAsDataURL(f);
+    if (detectAssetTypeFromFile(f) === "image") {
+      const r = new FileReader();
+      r.onload = ev => setPreview(ev.target?.result as string);
+      r.readAsDataURL(f);
+      return;
+    }
+    setPreview(null);
   };
 
   const handlePublish = async () => {
@@ -224,11 +241,31 @@ const CreateDropSheet = ({
     setIsUploading(true); setUploadErr(null);
     try {
       toast.info("Uploading artwork to IPFS…");
+      const assetType = detectAssetTypeFromFile(file);
       const imageCid = await uploadFileToPinata(file);
       const imageUri = `ipfs://${imageCid}`;
+      const previewUri = assetType === "image" ? imageUri : undefined;
       toast.info("Pinning metadata…");
-      const uri = await uploadMetadataToPinata({ name: form.title, description: form.description, image: imageUri });
-      setPendingResult({ metadataUri: uri, imageUri, mode: form.type });
+      const uri = await uploadMetadataToPinata({
+        name: form.title,
+        description: form.description,
+        image: previewUri || imageUri,
+        animation_url: assetType !== "image" ? imageUri : undefined,
+        properties: {
+          assetType,
+          deliveryUri: imageUri,
+          previewUri: previewUri || null,
+        },
+      });
+      setPendingResult({
+        metadataUri: uri,
+        imageUri,
+        deliveryUri: imageUri,
+        previewUri,
+        assetType,
+        isGated: false,
+        mode: form.type,
+      });
       
       const now = Math.floor(Date.now() / 1000);
       try {
@@ -290,6 +327,10 @@ const CreateDropSheet = ({
           image_url: preview || undefined,
           metadata_ipfs_uri: pendingResult.metadataUri,
           image_ipfs_uri: pendingResult.imageUri,
+          asset_type: pendingResult.assetType,
+          preview_uri: pendingResult.previewUri,
+          delivery_uri: pendingResult.deliveryUri,
+          is_gated: pendingResult.isGated,
           contract_address: contractAddress,
           contract_drop_id: publishedId,
           contract_kind: contractKind,
@@ -314,6 +355,10 @@ const CreateDropSheet = ({
             image: preview,
             metadataUri: pendingResult.metadataUri,
             imageUri: pendingResult.imageUri,
+            assetType: pendingResult.assetType,
+            previewUri: pendingResult.previewUri,
+            deliveryUri: pendingResult.deliveryUri,
+            isGated: pendingResult.isGated,
             contractAddress: contractAddress ?? null,
             contractDropId: publishedId,
             contractKind,
@@ -392,7 +437,7 @@ const CreateDropSheet = ({
         <div className="space-y-4 mt-1">
           {step === 0 && (
             <div>
-              <input ref={fileRef} type="file" accept="image/*,video/*" className="hidden" onChange={handleFile} />
+              <input ref={fileRef} type="file" accept="image/*,video/*,audio/*,.pdf,.epub" className="hidden" onChange={handleFile} />
               {preview ? (
                 <div className="relative aspect-square rounded-xl overflow-hidden">
                   <img src={preview} className="w-full h-full object-cover" />
@@ -561,6 +606,10 @@ const ArtistStudioPage = () => {
       image: drop.image,
       metadataUri: drop.metadataUri,
       imageUri: drop.imageUri,
+      assetType: drop.assetType,
+      previewUri: drop.previewUri,
+      deliveryUri: drop.deliveryUri,
+      isGated: drop.isGated,
       contractAddress: drop.contractAddress,
       contractDropId: drop.contractDropId,
       contractKind: drop.contractKind,
@@ -1340,6 +1389,10 @@ const ArtistStudioPage = () => {
             image: d.image || profile.bannerPreview || "",
             imageUri: d.imageUri,
             metadataUri: d.metadataUri,
+            assetType: d.assetType,
+            previewUri: d.previewUri,
+            deliveryUri: d.deliveryUri,
+            isGated: d.isGated,
             priceEth: d.price,
             currentBidEth: d.type === "auction" ? d.price : null,
             endsIn: d.endsIn,

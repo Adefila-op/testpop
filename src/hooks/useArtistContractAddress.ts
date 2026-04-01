@@ -162,7 +162,7 @@ export function usePrefetchContractAddress() {
           .from('artists')
           .select('contract_address')
           .eq('wallet', artistWallet)
-          .single();
+          .maybeSingle();
         return data?.contract_address || null;
       },
     });

@@ -181,6 +181,7 @@ const Index = () => {
           priceEth: drop.price_eth ? parseFloat(drop.price_eth).toFixed(3) : "0",
           image: drop.image_url || "",
           previewUri: drop.preview_uri || "",
+          deliveryUri: drop.delivery_uri || "",
           assetType: drop.asset_type || "image",
           type: (drop.type || "drop").toLowerCase() as "drop" | "auction" | "campaign",
           status: drop.status as "live" | "draft" | "ended",
@@ -366,6 +367,7 @@ const Index = () => {
         artist: collectingDrop.artist,
         imageUrl: collectingDrop.image,
         previewUri: collectingDrop.previewUri,
+        deliveryUri: collectingDrop.deliveryUri,
         assetType: collectingDrop.assetType,
         mintedTokenId: mintedArtistTokenId,
         contractAddress: collectingDrop.contractAddress,
@@ -508,11 +510,23 @@ const Index = () => {
                     <div className="rounded-2xl bg-card shadow-card overflow-hidden transition-all duration-700 [transform-style:preserve-3d]">
                       {/* Drop Image */}
                       <div className="relative aspect-square overflow-hidden">
-                        <img
-                          src={drop.image}
-                          alt={drop.title}
-                          className="w-full h-full object-cover"
-                        />
+                        {drop.assetType === "image" && drop.image ? (
+                          <img
+                            src={drop.image}
+                            alt={drop.title}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : drop.assetType === "video" && (drop.previewUri || drop.image) ? (
+                          <img
+                            src={drop.previewUri || drop.image}
+                            alt={drop.title}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-700 to-slate-500 text-white text-xs font-semibold uppercase tracking-[0.2em]">
+                            {drop.assetType || "digital"}
+                          </div>
+                        )}
                         <Badge className="absolute top-2 left-2 bg-background/80 text-foreground backdrop-blur-sm text-[10px]">
                           {drop.type === "drop" ? "collect" : drop.type}
                         </Badge>

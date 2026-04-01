@@ -41,6 +41,10 @@ export type ArtistDropRecord = {
   image: string;
   imageUri?: string;
   metadataUri: string;
+  assetType?: "image" | "video" | "audio" | "pdf" | "epub" | "merchandise" | "digital";
+  previewUri?: string;
+  deliveryUri?: string;
+  isGated?: boolean;
   priceEth: string;
   currentBidEth?: string | null;
   endsIn: string;
@@ -358,6 +362,10 @@ export function createArtistDrop(drop: ArtistDropRecord) {
     image_url: drop.image,
     image_ipfs_uri: drop.imageUri,
     metadata_ipfs_uri: drop.metadataUri,
+    asset_type: drop.assetType,
+    preview_uri: drop.previewUri,
+    delivery_uri: drop.deliveryUri,
+    is_gated: drop.isGated,
     status: drop.status,
     type: drop.type,
     contract_address: drop.contractAddress,
@@ -454,6 +462,10 @@ export async function initializeFromSupabase() {
         image: drop.image_url || "",
         imageUri: drop.image_ipfs_uri || undefined,
         metadataUri: drop.metadata_ipfs_uri || "",
+        assetType: (drop.asset_type as ArtistDropRecord["assetType"]) || "image",
+        previewUri: drop.preview_uri || undefined,
+        deliveryUri: drop.delivery_uri || undefined,
+        isGated: drop.is_gated || false,
         priceEth: String(drop.price_eth || 0),
         currentBidEth: null,
         endsIn: drop.ends_at

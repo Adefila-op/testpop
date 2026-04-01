@@ -42,18 +42,28 @@ export const EpubReader: FC<EpubReaderProps> = ({ src, title, onClose }) => {
         )}
 
         <div className="flex-1 flex items-center justify-center overflow-auto">
-          <div className="max-w-2xl w-full h-full flex items-center justify-center">
-            <div className="p-8 text-center text-orange-700">
-              <p className="text-sm mb-4">
-                EPUB Reader is loading. For full functionality, use a dedicated EPUB reader application.
-              </p>
-              <p className="text-xs text-orange-600">
-                File: {src}
-              </p>
-              <button className="mt-6 px-4 py-2 bg-orange-200 hover:bg-orange-300 text-orange-900 rounded-lg transition-colors text-sm">
-                Open in External Reader
-              </button>
-            </div>
+          <div className="w-full h-full">
+            <object
+              data={src}
+              type="application/epub+zip"
+              className="w-full h-full"
+            >
+              <div className="max-w-2xl w-full h-full flex items-center justify-center">
+                <div className="p-8 text-center text-orange-700">
+                  <p className="text-sm mb-4">
+                    This EPUB is stored as your collectible delivery file. If your browser cannot render it inline, open the source directly.
+                  </p>
+                  <a
+                    href={src}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex mt-2 px-4 py-2 bg-orange-200 hover:bg-orange-300 text-orange-900 rounded-lg transition-colors text-sm"
+                  >
+                    Open EPUB Source
+                  </a>
+                </div>
+              </div>
+            </object>
           </div>
         </div>
       </div>
