@@ -1,7 +1,7 @@
 import { create } from "zustand";
 
 export interface CartItem {
-  productId: number;
+  productId: string;
   quantity: number;
   price: string;
   name: string;
@@ -12,14 +12,14 @@ interface CartStore {
   items: CartItem[];
   isLoading: boolean;
   addItem: (
-    productId: number,
+    productId: string,
     quantity: number,
     price: bigint,
     name: string,
     image: string
   ) => void;
-  removeItem: (productId: number) => void;
-  updateQuantity: (productId: number, quantity: number) => void;
+  removeItem: (productId: string) => void;
+  updateQuantity: (productId: string, quantity: number) => void;
   clearCart: () => void;
   setLoading: (loading: boolean) => void;
   getTotalPrice: () => bigint;

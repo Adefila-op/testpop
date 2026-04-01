@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { useWallet, useSubscribeToArtistContract, useIsSubscribedToArtistContract } from "@/hooks/useContracts";
 import { useMintArtist } from "@/hooks/useContractsArtist";
 import { usePlaceBid } from "@/hooks/useContracts";
+import { useGetArtistContract } from "@/hooks/useContractIntegrations";
 import { recordPageVisit, recordDropView } from "@/lib/analyticsStore";
 import { useSupabaseArtists, useSupabaseLiveDrops } from "@/hooks/useSupabase";
 import { useToast } from "@/hooks/use-toast";
@@ -13,6 +14,11 @@ import { parseEther } from "viem";
 
 const SubscribeButtonWrapper = ({ artist, isConnected, connectWallet, toast }: any) => {
   const [subscribingContractAddress, setSubscribingContractAddress] = useState<string | null>(null);
+  const onchainContractAddress = useGetArtistContract(artist?.wallet);
+  const effectiveContractAddress =
+    onchainContractAddress && onchainContractAddress !== "0x0000000000000000000000000000000000000000"
+      ? onchainContractAddress
+      : artist?.contractAddress ?? null;
   const { subscribe, isPending: isSubscribePending, isConfirming: isSubscribeConfirming, isSuccess: isSubscribeSuccess } = useSubscribeToArtistContract(subscribingContractAddress);
   const [isSubscribing, setIsSubscribing] = useState(false);
 
@@ -22,7 +28,7 @@ const SubscribeButtonWrapper = ({ artist, isConnected, connectWallet, toast }: a
       return;
     }
 
-    if (!artist?.contractAddress) {
+    if (!effectiveContractAddress) {
       toast({
         title: "Error",
         description: "Artist contract not deployed yet. Please try again later.",
@@ -33,10 +39,10 @@ const SubscribeButtonWrapper = ({ artist, isConnected, connectWallet, toast }: a
 
     const subscriptionPrice = String(artist.subscriptionPrice ?? "0.01");
 
-    setSubscribingContractAddress(artist.contractAddress);
+    setSubscribingContractAddress(effectiveContractAddress);
     setIsSubscribing(true);
     try {
-      console.log("🎨 Subscribing to artist contract:", artist.contractAddress);
+      console.log("🎨 Subscribing to artist contract:", effectiveContractAddress);
       const txHash = await subscribe(subscriptionPrice);
       setIsSubscribing(false);
       

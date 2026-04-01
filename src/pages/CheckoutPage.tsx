@@ -8,15 +8,14 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useAccount } from "wagmi";
 import { useCartStore } from "@/stores/cartStore";
-import { useCheckoutCart } from "@/hooks/useProductStore";
 import { formatEther } from "viem";
 import { toast } from "sonner";
+import { createOrder as dbCreateOrder, getProducts as dbGetProducts, updateProduct as dbUpdateProduct } from "@/lib/db";
 
 export function CheckoutPage() {
   const navigate = useNavigate();
   const { address } = useAccount();
   const { items, getTotalPrice, clearCart } = useCartStore();
-  const checkoutCart = useCheckoutCart();
 
   const [email, setEmail] = useState("");
   const [shippingAddress, setShippingAddress] = useState("");
@@ -50,21 +49,36 @@ export function CheckoutPage() {
       return;
     }
 
+    if (!address) {
+      toast.error("Connect your wallet to place the order");
+      return;
+    }
+
     try {
       setIsCheckingOut(true);
-      // Create order metadata (IPFS would be used in production)
-      const orderMetadata = JSON.stringify({
-        email,
-        shippingAddress,
-        city,
-        postalCode,
-        country,
-        notes,
-        timestamp: new Date().toISOString(),
-      });
+      const allProducts = await dbGetProducts();
+      const shipping = [shippingAddress, city, postalCode, country].filter(Boolean).join(", ");
 
-      // Execute checkout
-      await checkoutCart(totalPrice, orderMetadata);
+      for (const item of items) {
+        const matchedProduct = allProducts.find((product: any) => product.id === item.productId);
+        const nextStock = Math.max(0, Number(matchedProduct?.stock || 0) - item.quantity);
+
+        await dbCreateOrder({
+          product_id: item.productId,
+          buyer_wallet: address.toLowerCase(),
+          quantity: item.quantity,
+          total_price_eth: Number(formatEther(BigInt(item.price) * BigInt(item.quantity))),
+          status: "pending",
+          shipping_address: shipping,
+        });
+
+        if (matchedProduct) {
+          await dbUpdateProduct(item.productId, {
+            stock: nextStock,
+            status: nextStock > 0 ? "published" : "out_of_stock",
+          });
+        }
+      }
 
       // Clear cart after successful checkout
       clearCart();

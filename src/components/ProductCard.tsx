@@ -8,7 +8,7 @@ import { useCartStore } from "@/stores/cartStore";
 import { formatEther } from "viem";
 
 interface ProductCardProps {
-  id: number;
+  id: string;
   name: string;
   image: string;
   price: bigint;
