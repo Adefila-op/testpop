@@ -1,16 +1,11 @@
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { Loader2, ArrowLeft, Clock, Share2, Heart, Award, Link as LinkIcon, AlertTriangle } from "lucide-react";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Loader2, ArrowLeft, Clock, Gavel, Share2, Heart, Award, Link as LinkIcon, AlertTriangle } from "lucide-react";
-import { useNavigate, useParams } from "react-router-dom";
-import { useEffect, useMemo, useState } from "react";
-import { toast } from "sonner";
-import { parseEther } from "viem";
-import { useWallet, usePlaceBid } from "@/hooks/useContracts";
-import { useMintArtist } from "@/hooks/useContractsArtist";
 import { recordDropView } from "@/lib/analyticsStore";
 import { useSupabaseDropById } from "@/hooks/useSupabase";
-import { Web3Error } from "@/lib/types";
 import type { AssetType } from "@/lib/assetTypes";
 import { ipfsToHttp } from "@/lib/pinata";
 import { VideoViewer } from "@/components/collection/VideoViewer";
@@ -18,6 +13,8 @@ import { AudioPlayer } from "@/components/collection/AudioPlayer";
 import { PdfReader } from "@/components/collection/PdfReader";
 import { EpubReader } from "@/components/collection/EpubReader";
 import { useCollectionStore } from "@/stores/collectionStore";
+
+const DropPrimaryActionCard = lazy(() => import("@/components/wallet/DropPrimaryActionCard"));
 
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
@@ -27,12 +24,8 @@ const formatDropTypeLabel = (type: "drop" | "auction" | "campaign") =>
 const DropDetailPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { address, isConnected, connectWallet } = useWallet();
-  const { placeBid, isPending: isBidPending, isConfirming: isBidConfirming, isSuccess: isBidSuccess, error: bidError } = usePlaceBid();
   const addCollectedDrop = useCollectionStore((state) => state.addCollectedDrop);
-  const { mint: mintArtist, mintedTokenId, isConfirming: isMintConfirming, isSuccess: isMintSuccess, error: mintError } = useMintArtist();
   const { data: dropRecord, loading: dropsLoading, refetch: refetchDrop } = useSupabaseDropById(id);
-  const [bidAmount, setBidAmount] = useState("");
   const [isLiked, setIsLiked] = useState(false);
 
   const drop = useMemo(() => {
@@ -75,14 +68,7 @@ const DropDetailPage = () => {
     };
   }, [dropRecord]);
 
-  const priceEth = drop?.priceEth ?? "0";
-  const remaining = (drop?.maxBuy ?? 0) - (drop?.bought ?? 0);
-  const boughtPct = drop?.maxBuy ? Math.round(((drop?.bought ?? 0) / drop.maxBuy) * 100) : 0;
   const hasContractAddress = Boolean(drop?.contractAddress && drop.contractAddress !== ZERO_ADDRESS);
-  const hasContractListing = drop?.contractDropId !== null && drop?.contractDropId !== undefined;
-  const isBuyDrop = drop?.type === "drop" && drop.contractKind === "artDrop";
-  const isAuctionDrop = drop?.type === "auction" && drop.contractKind === "poapCampaign";
-  const isCampaignDrop = drop?.type === "campaign";
   const mediaSrc = drop ? ipfsToHttp(drop.deliveryUri || drop.imageUri || drop.image || "") : "";
   const posterSrc = drop ? ipfsToHttp(drop.previewUri || drop.image || "") : "";
 
@@ -91,63 +77,6 @@ const DropDetailPage = () => {
       recordDropView(id);
     }
   }, [id]);
-
-  useEffect(() => {
-    if (isMintSuccess && id && drop && address) {
-      addCollectedDrop({
-        id: drop.id,
-        ownerWallet: address,
-        title: drop.title,
-        artist: drop.artist,
-        imageUrl: drop.image,
-        previewUri: drop.previewUri,
-        deliveryUri: drop.deliveryUri,
-        assetType: drop.assetType,
-        mintedTokenId,
-        contractAddress: drop.contractAddress,
-        contractDropId: drop.contractDropId,
-        collectedAt: new Date().toISOString(),
-      });
-      toast.success("Collected successfully!");
-      refetchDrop()?.catch((error) => {
-        console.warn("Failed to refresh drop data:", error);
-      });
-      window.setTimeout(() => {
-        navigate("/collection", {
-          state: {
-            highlightDropId: drop.id,
-          },
-        });
-      }, 500);
-    }
-  }, [addCollectedDrop, address, drop, id, isMintSuccess, mintedTokenId, navigate, refetchDrop]);
-
-  useEffect(() => {
-    if (isBidSuccess) {
-      toast.success("Bid placed successfully!");
-    }
-  }, [isBidSuccess]);
-
-  useEffect(() => {
-    if (bidError) {
-      toast.error(`Bid failed: ${bidError?.message || "Unknown error"}`);
-    }
-  }, [bidError]);
-
-  useEffect(() => {
-    if (!mintError) return;
-
-    const errMsg = (mintError as Web3Error)?.message || "Unknown error";
-    if (errMsg.includes("insufficient funds")) {
-      toast.error("Insufficient balance for mint plus gas fees.");
-      return;
-    }
-    if (errMsg.includes("network fee") || errMsg.includes("gas")) {
-      toast.error("Network congested. Try again in a moment.");
-      return;
-    }
-    toast.error(`Mint failed: ${errMsg}`);
-  }, [mintError]);
 
   if (dropsLoading || !drop) {
     if (dropsLoading) {
@@ -170,118 +99,32 @@ const DropDetailPage = () => {
     );
   }
 
-  const handleCollectDrop = () => {
-    if (!isConnected) {
-      connectWallet();
-      return;
-    }
-    if (!isBuyDrop) {
-      toast.error("This listing is not a direct collect drop.");
-      return;
-    }
-    if (remaining <= 0) {
-      toast.error("Sold out");
-      return;
-    }
-    if (!hasContractListing || drop.contractDropId === null) {
-      toast.error("This drop is not linked to a live ArtDrop listing yet.");
-      return;
-    }
-    if (!hasContractAddress || !drop.contractAddress) {
-      toast.error("Artist contract not properly deployed yet.");
-      return;
-    }
-
-    mintArtist(drop.contractDropId, parseEther(priceEth), drop.contractAddress);
-  };
-
-  const handlePlaceBid = () => {
-    if (!isConnected) {
-      connectWallet();
-      return;
-    }
-    if (!isAuctionDrop) {
-      toast.error("This listing is not an auction.");
-      return;
-    }
-    if (!bidAmount || parseFloat(bidAmount) <= 0) {
-      toast.error("Enter a valid bid amount");
-      return;
-    }
-    if (!hasContractListing || drop.contractDropId === null) {
-      toast.error("Auction not linked to contract");
-      return;
-    }
-
-    placeBid(drop.contractDropId, bidAmount);
-    toast.loading("Placing bid...");
-  };
-
-  const renderPrimaryAction = () => {
-    if (isBuyDrop) {
-      return (
-        <>
-          <div className="mb-3">
-            <div className="h-2 rounded-full bg-secondary overflow-hidden">
-              <div className="h-full rounded-full gradient-primary" style={{ width: `${boughtPct}%` }} />
-            </div>
-            <p className="text-xs text-muted-foreground mt-2">
-              {drop.bought || 0} of {drop.maxBuy} claimed · {remaining} left
-            </p>
-          </div>
-          <Button
-            onClick={handleCollectDrop}
-            disabled={!hasContractListing || remaining <= 0 || isMintConfirming || isMintSuccess}
-            className="w-full rounded-full gradient-primary text-primary-foreground font-semibold h-11"
-          >
-            {isMintConfirming ? "Collecting..." : isMintSuccess ? "Collected" : `Collect · ${drop.priceEth} ETH`}
-          </Button>
-          {mintError && (
-            <p className="text-xs text-destructive mt-2">
-              {(mintError as Web3Error).shortMessage || (mintError as Web3Error).message}
-            </p>
-          )}
-        </>
-      );
-    }
-
-    if (isAuctionDrop) {
-      return (
-        <div className="space-y-3">
-          <Input
-            type="number"
-            min="0.001"
-            value={bidAmount}
-            onChange={(event) => setBidAmount(event.target.value)}
-            placeholder="Enter bid amount (ETH)"
-            className="h-10 rounded-xl bg-secondary text-sm"
-          />
-          <p className="text-xs text-muted-foreground">Auction bidding is live on-chain for this listing.</p>
-          <Button
-            onClick={handlePlaceBid}
-            disabled={isBidPending || isBidConfirming}
-            className="w-full rounded-full gradient-primary text-primary-foreground font-semibold h-11"
-          >
-            {isBidPending || isBidConfirming ? "Confirming..." : "Place Bid"}
-          </Button>
-        </div>
-      );
-    }
-
-    if (isCampaignDrop) {
-      return (
-        <div className="rounded-xl border border-border bg-secondary/40 p-4 text-sm text-muted-foreground">
-          Campaign drops are being redesigned before launch. Subscriber claims and content-entry flows are temporarily disabled until the real allocation workflow is implemented.
-        </div>
-      );
-    }
-
-    return (
-      <div className="rounded-xl border border-warning/60 bg-warning/10 p-3 text-warning text-xs flex items-center gap-2">
-        <AlertTriangle className="h-4 w-4" />
-        This drop has an unsupported contract configuration.
-      </div>
-    );
+  const handleCollectSuccess = ({ ownerWallet, mintedTokenId }: { ownerWallet: string; mintedTokenId: number | null }) => {
+    addCollectedDrop({
+      id: drop.id,
+      ownerWallet,
+      title: drop.title,
+      artist: drop.artist,
+      imageUrl: drop.image,
+      previewUri: drop.previewUri,
+      deliveryUri: drop.deliveryUri,
+      assetType: drop.assetType,
+      mintedTokenId,
+      contractAddress: drop.contractAddress,
+      contractDropId: drop.contractDropId,
+      collectedAt: new Date().toISOString(),
+    });
+    toast.success("Collected successfully!");
+    refetchDrop()?.catch((error) => {
+      console.warn("Failed to refresh drop data:", error);
+    });
+    window.setTimeout(() => {
+      navigate("/collection", {
+        state: {
+          highlightDropId: drop.id,
+        },
+      });
+    }, 500);
   };
 
   return (
@@ -289,7 +132,7 @@ const DropDetailPage = () => {
       <div className="relative">
         <div className="aspect-square overflow-hidden bg-secondary">
           {drop.assetType === "image" && <img src={ipfsToHttp(drop.image || mediaSrc)} alt={drop.title} className="w-full h-full object-cover" />}
-          {drop.assetType === "video" && <VideoViewer src={mediaSrc} poster={posterSrc} alt={drop.title} />}
+          {drop.assetType === "video" && <VideoViewer src={mediaSrc} poster={posterSrc} />}
           {drop.assetType === "audio" && (
             <div className="w-full h-full flex items-center justify-center">
               <AudioPlayer src={mediaSrc} title={drop.title} />
@@ -349,7 +192,7 @@ const DropDetailPage = () => {
             <AlertTriangle className="h-4 w-4" />
             Contract not deployed yet
           </div>
-        ) : !hasContractListing ? (
+        ) : !drop.contractDropId ? (
           <div className="rounded-xl border border-warning/60 bg-warning/10 p-3 text-warning text-xs flex items-center gap-2">
             <AlertTriangle className="h-4 w-4" />
             This listing is stored locally, but its on-chain ID is missing.
@@ -368,21 +211,17 @@ const DropDetailPage = () => {
 
         <p className="text-sm text-muted-foreground font-body">{drop.description}</p>
 
-        <div className="p-4 rounded-2xl bg-card shadow-card">
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <p className="text-xs text-muted-foreground">{isAuctionDrop && drop.currentBidEth ? "Current Bid" : "Price"}</p>
-              <p className="text-xl font-bold text-primary">{drop.currentBidEth || drop.priceEth} ETH</p>
+        <Suspense
+          fallback={
+            <div className="p-4 rounded-2xl bg-card shadow-card">
+              <div className="flex items-center justify-center h-24">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              </div>
             </div>
-            {drop.bids > 0 && (
-              <p className="text-xs text-muted-foreground flex items-center gap-1">
-                <Gavel className="h-3 w-3" /> {drop.bids} bids
-              </p>
-            )}
-          </div>
-
-          {renderPrimaryAction()}
-        </div>
+          }
+        >
+          <DropPrimaryActionCard drop={drop} onCollectSuccess={handleCollectSuccess} />
+        </Suspense>
 
         {drop.poap && (
           <div className="p-3 rounded-xl bg-accent border border-border flex items-start gap-2">

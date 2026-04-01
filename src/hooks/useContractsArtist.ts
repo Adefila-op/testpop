@@ -90,11 +90,11 @@ export function useCreateDropArtist(artistContractAddress?: string | null) {
       maxSupply,
       startTime,
       endTime,
-      contractAddress: effectiveContractAddress,
+      contractAddress: normalized,
     });
 
     return writeContract({
-      address: effectiveContractAddress as `0x${string}`,
+      address: normalized as `0x${string}`,
       abi: ARTIST_DROP_ABI,
       functionName: "createDrop",
       args: [metadataURI, weiPrice, BigInt(maxSupply), BigInt(startTime), BigInt(endTime)],
@@ -167,12 +167,12 @@ export function useMintArtist(artistContractAddress?: string | null) {
     console.log("🎨 Minting NFT from artist contract:", {
       dropId,
       priceWei: priceWei.toString(),
-      contractAddress: normalized,
+      contractAddress: effectiveContractAddress,
       userAddress: address,
     });
 
     return writeContract({
-      address: normalized as `0x${string}`,
+      address: effectiveContractAddress as `0x${string}`,
       abi: ARTIST_DROP_ABI,
       functionName: "mint",
       args: [BigInt(dropId)],

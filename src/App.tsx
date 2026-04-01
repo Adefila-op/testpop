@@ -1,38 +1,31 @@
 import { lazy, Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
-import { WagmiProvider } from "wagmi";
-import { config } from "@/lib/wagmi";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Loader2 } from "lucide-react";
 import AppLayout from "./components/AppLayout";
-import AdminGuard from "./components/AdminGuard";
-import ArtistGuard from "./components/ArtistGuard";
-
-// ── Eagerly loaded — always needed on first paint ──
-import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 
-// ── Lazily loaded — parsed only when navigated to ──
-const AdminPage = lazy(() => import("./pages/AdminPage"));
-const ArtistApplicationPage = lazy(() => import("./pages/ArtistApplicationPage"));
-const DropsPage        = lazy(() => import("./pages/DropsPage"));
-const DropDetailPage   = lazy(() => import("./pages/DropDetailPage"));
-const ArtistsPage      = lazy(() => import("./pages/ArtistsPage"));
-const ArtistProfilePage = lazy(() => import("./pages/ArtistProfilePage"));
-const MarketplacePage  = lazy(() => import("./pages/MarketplacePage"));
-const ProfilePage      = lazy(() => import("./pages/ProfilePage"));
-const MyCollectionPage = lazy(() => import("./pages/MyCollectionPage"));
-const MyPOAPsPage      = lazy(() => import("./pages/MyPOAPsPage"));
-const MySubscriptionsPage = lazy(() => import("./pages/MySubscriptionsPage"));
-const ArtistStudioPage = lazy(() => import("./pages/ArtistStudioPage"));
-const ProductsPage     = lazy(() => import("./pages/ProductsPage").then(m => ({ default: m.ProductsPage })));
-const ProductDetailPage = lazy(() => import("./pages/ProductDetailPage").then(m => ({ default: m.ProductDetailPage })));
-const CartPage         = lazy(() => import("./pages/CartPage").then(m => ({ default: m.CartPage })));
-const CheckoutPage     = lazy(() => import("./pages/CheckoutPage").then(m => ({ default: m.CheckoutPage })));
-const OrderHistoryPage = lazy(() => import("./pages/OrderHistoryPage").then(m => ({ default: m.OrderHistoryPage })));
+const WalletIndexRoute = lazy(() => import("./routes/WalletIndexRoute"));
+const WalletArtistApplicationRoute = lazy(() => import("./routes/WalletArtistApplicationRoute"));
+const DropsPage = lazy(() => import("./pages/DropsPage"));
+const DropDetailPage = lazy(() => import("./pages/DropDetailPage"));
+const WalletArtistsRoute = lazy(() => import("./routes/WalletArtistsRoute"));
+const WalletArtistProfileRoute = lazy(() => import("./routes/WalletArtistProfileRoute"));
+const WalletMarketplaceRoute = lazy(() => import("./routes/WalletMarketplaceRoute"));
+const WalletProfileRoute = lazy(() => import("./routes/WalletProfileRoute"));
+const WalletCollectionRoute = lazy(() => import("./routes/WalletCollectionRoute"));
+const WalletPOAPsRoute = lazy(() => import("./routes/WalletPOAPsRoute"));
+const WalletSubscriptionsRoute = lazy(() => import("./routes/WalletSubscriptionsRoute"));
+const WalletStudioRoute = lazy(() => import("./routes/WalletStudioRoute"));
+const WalletAdminRoute = lazy(() => import("./routes/WalletAdminRoute"));
+const ProductsPage = lazy(() => import("./pages/ProductsPage").then((module) => ({ default: module.ProductsPage })));
+const ProductDetailPage = lazy(() => import("./pages/ProductDetailPage").then((module) => ({ default: module.ProductDetailPage })));
+const CartPage = lazy(() => import("./pages/CartPage").then((module) => ({ default: module.CartPage })));
+const CheckoutPage = lazy(() => import("./pages/CheckoutPage").then((module) => ({ default: module.CheckoutPage })));
+const OrderHistoryPage = lazy(() => import("./pages/OrderHistoryPage").then((module) => ({ default: module.OrderHistoryPage })));
 
 const PageLoader = () => (
   <div className="flex items-center justify-center min-h-[40vh]">
@@ -53,53 +46,40 @@ const queryClient = new QueryClient({
 });
 
 const App = () => (
-    <WagmiProvider config={config}>
-      <QueryClientProvider client={queryClient}>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-          <Suspense fallback={<PageLoader />}>
-            <Routes>
-              {/* ── Public app (with TopBar + BottomNav) ── */}
-              <Route element={<AppLayout />}>
-                <Route path="/" element={<Index />} />
-                <Route path="/apply" element={<ArtistApplicationPage />} />
-                <Route path="/drops" element={<DropsPage />} />
-                <Route path="/drops/:id" element={<DropDetailPage />} />
-                <Route path="/artists" element={<ArtistsPage />} />
-                <Route path="/artists/:id" element={<ArtistProfilePage />} />
-                <Route path="/invest" element={<MarketplacePage />} />
-                <Route path="/profile" element={<ProfilePage />} />
-                <Route path="/collection" element={<MyCollectionPage />} />
-                <Route path="/poaps" element={<MyPOAPsPage />} />
-                <Route path="/subscriptions" element={<MySubscriptionsPage />} />
-                <Route path="/products" element={<ProductsPage />} />
-                <Route path="/products/:id" element={<ProductDetailPage />} />
-                <Route path="/cart" element={<CartPage />} />
-                <Route path="/checkout" element={<CheckoutPage />} />
-                <Route path="/orders" element={<OrderHistoryPage />} />
-              </Route>
+  <QueryClientProvider client={queryClient}>
+    <TooltipProvider>
+      <Toaster />
+      <Sonner />
+      <BrowserRouter>
+        <Suspense fallback={<PageLoader />}>
+          <Routes>
+            <Route element={<AppLayout />}>
+              <Route path="/" element={<WalletIndexRoute />} />
+              <Route path="/apply" element={<WalletArtistApplicationRoute />} />
+              <Route path="/drops" element={<DropsPage />} />
+              <Route path="/drops/:id" element={<DropDetailPage />} />
+              <Route path="/artists" element={<WalletArtistsRoute />} />
+              <Route path="/artists/:id" element={<WalletArtistProfileRoute />} />
+              <Route path="/invest" element={<WalletMarketplaceRoute />} />
+              <Route path="/profile" element={<WalletProfileRoute />} />
+              <Route path="/collection" element={<WalletCollectionRoute />} />
+              <Route path="/poaps" element={<WalletPOAPsRoute />} />
+              <Route path="/subscriptions" element={<WalletSubscriptionsRoute />} />
+              <Route path="/products" element={<ProductsPage />} />
+              <Route path="/products/:id" element={<ProductDetailPage />} />
+              <Route path="/cart" element={<CartPage />} />
+              <Route path="/checkout" element={<CheckoutPage />} />
+              <Route path="/orders" element={<OrderHistoryPage />} />
+            </Route>
 
-              {/* ── Admin panel (no nav, wallet-gated) ── */}
-              <Route
-                path="/admin"
-                element={<AdminGuard><AdminPage /></AdminGuard>}
-              />
-
-              {/* ── Artist studio (no nav, wallet-gated) ── */}
-              <Route
-                path="/studio"
-                element={<ArtistGuard><ArtistStudioPage /></ArtistGuard>}
-              />
-
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </Suspense>
-        </BrowserRouter>
-      </TooltipProvider>
-    </QueryClientProvider>
-  </WagmiProvider>
+            <Route path="/admin" element={<WalletAdminRoute />} />
+            <Route path="/studio" element={<WalletStudioRoute />} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </Suspense>
+      </BrowserRouter>
+    </TooltipProvider>
+  </QueryClientProvider>
 );
 
 export default App;
