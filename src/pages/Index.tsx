@@ -234,7 +234,6 @@ const Index = () => {
     }
 
     if (isHorizontalSwipe.current) {
-      e.preventDefault();
       setSwipeOffset(deltaX);
     }
   }, [isSwiping]);
@@ -271,7 +270,6 @@ const Index = () => {
     }
 
     if (isDropHorizontalSwipe.current) {
-      e.preventDefault();
       setDropSwipeOffset(deltaX);
     }
   }, [isDropSwiping]);

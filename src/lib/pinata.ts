@@ -78,11 +78,26 @@ export async function uploadMetadataToPinata(metadata: object): Promise<string> 
   throw new Error("Pinata proxy did not return a CID or URI");
 }
 
+function isBareIpfsCid(value: string): boolean {
+  return /^(bafy[a-z2-7]+|bafk[a-z2-7]+|Qm[1-9A-HJ-NP-Za-km-z]{44,})$/i.test(value);
+}
+
 export function ipfsToHttp(uri: string): string {
-  if (uri.startsWith("ipfs://")) {
-    return `https://gateway.pinata.cloud/ipfs/${uri.slice(7)}`;
+  const normalized = uri.trim();
+
+  if (normalized.startsWith("ipfs://ipfs/")) {
+    return `https://gateway.pinata.cloud/ipfs/${normalized.slice("ipfs://ipfs/".length)}`;
   }
-  return uri;
+
+  if (normalized.startsWith("ipfs://")) {
+    return `https://gateway.pinata.cloud/ipfs/${normalized.slice(7)}`;
+  }
+
+  if (isBareIpfsCid(normalized)) {
+    return `https://gateway.pinata.cloud/ipfs/${normalized}`;
+  }
+
+  return normalized;
 }
 
 export function resolveMediaUrl(...candidates: Array<string | null | undefined>): string {
