@@ -29,17 +29,32 @@ export const useCollectionStore = create<CollectionStore>()(
       items: [],
       addCollectedDrop: (item) => {
         const ownerWallet = item.ownerWallet.toLowerCase();
+        const normalizedContractAddress = item.contractAddress?.toLowerCase() || null;
         const existingIndex = get().items.findIndex(
-          (entry) =>
-            entry.ownerWallet.toLowerCase() === ownerWallet &&
-            entry.id === item.id
+          (entry) => {
+            const sameMintedToken =
+              normalizedContractAddress &&
+              item.mintedTokenId !== null &&
+              item.mintedTokenId !== undefined &&
+              entry.contractAddress?.toLowerCase() === normalizedContractAddress &&
+              entry.mintedTokenId === item.mintedTokenId;
+
+            if (sameMintedToken) {
+              return true;
+            }
+
+            return (
+              entry.ownerWallet.toLowerCase() === ownerWallet &&
+              entry.id === item.id
+            );
+          }
         );
 
         if (existingIndex >= 0) {
           set({
             items: get().items.map((entry, index) =>
               index === existingIndex
-                ? { ...entry, ...item, ownerWallet }
+                ? { ...entry, ...item, ownerWallet, contractAddress: normalizedContractAddress }
                 : entry
             ),
           });
@@ -47,7 +62,7 @@ export const useCollectionStore = create<CollectionStore>()(
         }
 
         set({
-          items: [{ ...item, ownerWallet }, ...get().items],
+          items: [{ ...item, ownerWallet, contractAddress: normalizedContractAddress }, ...get().items],
         });
       },
       clearCollectionForOwner: (ownerWallet) =>

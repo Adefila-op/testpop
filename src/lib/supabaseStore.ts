@@ -6,9 +6,25 @@
 import { supabase } from "./db";
 import { toast } from "sonner";
 
+let dropsColumnsMode: "full" | "legacy" | null = null;
+let dropsArtistRelationMode: "embedded" | "detached" | null = null;
+
 function isMissingColumnError(error: { message?: string } | null | undefined, table: string, column: string) {
   const message = error?.message || "";
   return message.includes(`column ${table}.${column} does not exist`);
+}
+
+function isMissingRelationError(
+  error: { message?: string } | null | undefined,
+  sourceTable: string,
+  targetTable: string
+) {
+  const message = (error?.message || "").toLowerCase();
+  return (
+    message.includes("relationship") &&
+    message.includes(sourceTable.toLowerCase()) &&
+    message.includes(targetTable.toLowerCase())
+  );
 }
 
 function withDropDefaults<T extends Record<string, any> | null>(drop: T): T {
@@ -22,6 +38,128 @@ function withDropDefaults<T extends Record<string, any> | null>(drop: T): T {
     contract_kind: null,
     ...drop,
   };
+}
+
+async function fetchArtistsByIdsFromSupabase(artistIds: Array<string | null | undefined>) {
+  const uniqueArtistIds = Array.from(
+    new Set(artistIds.filter((artistId): artistId is string => Boolean(artistId)))
+  );
+
+  if (uniqueArtistIds.length === 0) {
+    return new Map<string, Record<string, any>>();
+  }
+
+  const { data, error } = await supabase
+    .from("artists")
+    .select("id, name, handle, avatar_url")
+    .in("id", uniqueArtistIds);
+
+  if (error) {
+    throw error;
+  }
+
+  return new Map((data || []).map((artist) => [artist.id, artist]));
+}
+
+function shouldUseFullDropColumns() {
+  return dropsColumnsMode !== "legacy";
+}
+
+function shouldUseEmbeddedArtistRelation() {
+  return dropsArtistRelationMode !== "detached";
+}
+
+function updateDropSchemaModes(error: { message?: string } | null | undefined) {
+  if (!error) {
+    return;
+  }
+
+  if (
+    isMissingColumnError(error, "drops", "preview_uri") ||
+    isMissingColumnError(error, "drops", "delivery_uri") ||
+    isMissingColumnError(error, "drops", "asset_type") ||
+    isMissingColumnError(error, "drops", "contract_kind")
+  ) {
+    dropsColumnsMode = "legacy";
+  }
+
+  if (isMissingRelationError(error, "drops", "artists")) {
+    dropsArtistRelationMode = "detached";
+  }
+}
+
+function getLiveDropsSelectClause() {
+  const columns = [
+    "id",
+    "artist_id",
+    "title",
+    "price_eth",
+    "image_url",
+    "image_ipfs_uri",
+    "metadata_ipfs_uri",
+    "status",
+    "type",
+    "ends_at",
+    "supply",
+    "sold",
+    "contract_address",
+    "contract_drop_id",
+  ];
+
+  if (shouldUseFullDropColumns()) {
+    columns.splice(7, 0, "preview_uri", "delivery_uri", "asset_type");
+    columns.push("contract_kind");
+  }
+
+  if (shouldUseEmbeddedArtistRelation()) {
+    columns.push(`
+      artists:artist_id (
+        id,
+        name,
+        avatar_url
+      )
+    `);
+  }
+
+  return columns.join(",\n        ");
+}
+
+function getDropDetailSelectClause() {
+  const columns = [
+    "id",
+    "artist_id",
+    "title",
+    "description",
+    "price_eth",
+    "supply",
+    "sold",
+    "image_url",
+    "image_ipfs_uri",
+    "metadata_ipfs_uri",
+    "status",
+    "type",
+    "ends_at",
+    "contract_address",
+    "contract_drop_id",
+  ];
+
+  if (shouldUseFullDropColumns()) {
+    columns.splice(10, 0, "preview_uri", "delivery_uri", "asset_type");
+    columns.push("contract_kind");
+  }
+
+  if (shouldUseEmbeddedArtistRelation()) {
+    columns.push(`
+      artists:artist_id (
+        id,
+        name,
+        handle,
+        avatar_url
+      )
+    `);
+  }
+
+  return columns.join(",\n        ");
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -193,76 +331,36 @@ export async function fetchLiveDropsFromSupabase() {
     console.log("📖 Fetching live drops from Supabase...");
     let { data, error } = await supabase
       .from("drops")
-      .select(`
-        id,
-        artist_id,
-        title,
-        price_eth,
-        image_url,
-        image_ipfs_uri,
-        metadata_ipfs_uri,
-        preview_uri,
-        delivery_uri,
-        asset_type,
-        status,
-        type,
-        ends_at,
-        supply,
-        sold,
-        contract_address,
-        contract_drop_id,
-        contract_kind,
-        artists:artist_id (
-          id,
-          name,
-          avatar_url
-        )
-      `)
+      .select(getLiveDropsSelectClause())
       .eq("status", "live")
       .not("contract_address", "is", null)
       .not("contract_drop_id", "is", null)
       .order("created_at", { ascending: false });
 
-    if (
-      error &&
-      (
-        isMissingColumnError(error, "drops", "preview_uri") ||
-        isMissingColumnError(error, "drops", "delivery_uri") ||
-        isMissingColumnError(error, "drops", "asset_type") ||
-        isMissingColumnError(error, "drops", "contract_kind")
-      )
-    ) {
+    updateDropSchemaModes(error);
+    const needsFallback = Boolean(error && (dropsColumnsMode === "legacy" || dropsArtistRelationMode === "detached"));
+
+    if (needsFallback) {
       ({ data, error } = await supabase
         .from("drops")
-        .select(`
-          id,
-          artist_id,
-          title,
-          price_eth,
-          image_url,
-          image_ipfs_uri,
-          metadata_ipfs_uri,
-          status,
-          type,
-          ends_at,
-          supply,
-          sold,
-          contract_address,
-          contract_drop_id,
-          artists:artist_id (
-            id,
-            name,
-            avatar_url
-          )
-        `)
+        .select(getLiveDropsSelectClause())
         .eq("status", "live")
         .not("contract_address", "is", null)
         .not("contract_drop_id", "is", null)
         .order("created_at", { ascending: false }));
 
       if (!error) {
-        data = (data || []).map((drop) => withDropDefaults(drop));
+        if (dropsArtistRelationMode === "detached") {
+          const artistMap = await fetchArtistsByIdsFromSupabase((data || []).map((drop) => drop.artist_id));
+          data = (data || []).map((drop) => ({
+            ...withDropDefaults(drop),
+            artists: artistMap.get(drop.artist_id) || null,
+          }));
+        }
       }
+    } else {
+      dropsColumnsMode = shouldUseFullDropColumns() ? "full" : "legacy";
+      dropsArtistRelationMode = shouldUseEmbeddedArtistRelation() ? "embedded" : "detached";
     }
 
     if (error) {
@@ -283,76 +381,34 @@ export async function fetchDropByIdFromSupabase(dropId: string) {
     console.log(`📖 Fetching drop by ID from Supabase: ${dropId}`);
     let { data, error } = await supabase
       .from("drops")
-      .select(`
-        id,
-        artist_id,
-        title,
-        description,
-        price_eth,
-        supply,
-        sold,
-        image_url,
-        image_ipfs_uri,
-        metadata_ipfs_uri,
-        preview_uri,
-        delivery_uri,
-        asset_type,
-        status,
-        type,
-        ends_at,
-        contract_address,
-        contract_drop_id,
-        contract_kind,
-        artists:artist_id (
-          id,
-          name,
-          handle,
-          avatar_url
-        )
-      `)
+      .select(getDropDetailSelectClause())
       .eq("id", dropId)
       .maybeSingle();
 
-    if (
-      error &&
-      (
-        isMissingColumnError(error, "drops", "preview_uri") ||
-        isMissingColumnError(error, "drops", "delivery_uri") ||
-        isMissingColumnError(error, "drops", "asset_type") ||
-        isMissingColumnError(error, "drops", "contract_kind")
-      )
-    ) {
+    updateDropSchemaModes(error);
+    const needsFallback = Boolean(error && (dropsColumnsMode === "legacy" || dropsArtistRelationMode === "detached"));
+
+    if (needsFallback) {
       ({ data, error } = await supabase
         .from("drops")
-        .select(`
-          id,
-          artist_id,
-          title,
-          description,
-          price_eth,
-          supply,
-          sold,
-          image_url,
-          image_ipfs_uri,
-          metadata_ipfs_uri,
-          status,
-          type,
-          ends_at,
-          contract_address,
-          contract_drop_id,
-          artists:artist_id (
-            id,
-            name,
-            handle,
-            avatar_url
-          )
-        `)
+        .select(getDropDetailSelectClause())
         .eq("id", dropId)
         .maybeSingle());
 
       if (!error) {
-        data = withDropDefaults(data);
+        if (dropsArtistRelationMode === "detached") {
+          const artistMap = await fetchArtistsByIdsFromSupabase([data?.artist_id]);
+          data = data
+            ? {
+                ...withDropDefaults(data),
+                artists: artistMap.get(data.artist_id) || null,
+              }
+            : null;
+        }
       }
+    } else {
+      dropsColumnsMode = shouldUseFullDropColumns() ? "full" : "legacy";
+      dropsArtistRelationMode = shouldUseEmbeddedArtistRelation() ? "embedded" : "detached";
     }
 
     if (error) {

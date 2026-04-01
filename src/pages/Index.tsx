@@ -368,7 +368,7 @@ const Index = () => {
   useEffect(() => {
     if (isMintSuccessArtist && mintingDropId && collectingDrop && address) {
       console.log("✅ Mint succeeded! Refetching drops...");
-      addCollectedDrop({
+      const collectedItem = {
         id: collectingDrop.id,
         ownerWallet: address,
         title: collectingDrop.title,
@@ -381,7 +381,8 @@ const Index = () => {
         contractAddress: collectingDrop.contractAddress,
         contractDropId: collectingDrop.contractDropId,
         collectedAt: new Date().toISOString(),
-      });
+      };
+      addCollectedDrop(collectedItem);
       setFlippingDropId(collectingDrop.id);
       toast({
         title: "Collected",
@@ -399,6 +400,7 @@ const Index = () => {
           state: {
             highlightDropId: collectingDrop.id,
             fromDeckCollect: true,
+            collectedItem,
           },
         });
         setMintingDropId(null);

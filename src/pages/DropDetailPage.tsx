@@ -25,7 +25,7 @@ const DropDetailPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const addCollectedDrop = useCollectionStore((state) => state.addCollectedDrop);
-  const { data: dropRecord, loading: dropsLoading, refetch: refetchDrop } = useSupabaseDropById(id);
+  const { data: dropRecord, loading: dropsLoading, error: dropError, refetch: refetchDrop } = useSupabaseDropById(id);
   const [isLiked, setIsLiked] = useState(false);
 
   const drop = useMemo(() => {
@@ -78,16 +78,28 @@ const DropDetailPage = () => {
     }
   }, [id]);
 
-  if (dropsLoading || !drop) {
-    if (dropsLoading) {
-      return (
-        <div className="px-4 py-10 text-center space-y-4">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
-          <p className="text-sm text-muted-foreground">Loading drop details...</p>
-        </div>
-      );
-    }
+  if (dropsLoading) {
+    return (
+      <div className="px-4 py-10 text-center space-y-4">
+        <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
+        <p className="text-sm text-muted-foreground">Loading drop details...</p>
+      </div>
+    );
+  }
 
+  if (dropError) {
+    return (
+      <div className="px-4 py-10 text-center space-y-4">
+        <p className="text-lg font-semibold text-foreground">Unable to load this drop</p>
+        <p className="text-sm text-muted-foreground">{dropError.message}</p>
+        <Button onClick={() => refetchDrop()} className="rounded-full gradient-primary text-primary-foreground">
+          Try Again
+        </Button>
+      </div>
+    );
+  }
+
+  if (!drop) {
     return (
       <div className="px-4 py-10 text-center space-y-4">
         <p className="text-lg font-semibold text-foreground">Drop not found</p>
@@ -100,7 +112,7 @@ const DropDetailPage = () => {
   }
 
   const handleCollectSuccess = ({ ownerWallet, mintedTokenId }: { ownerWallet: string; mintedTokenId: number | null }) => {
-    addCollectedDrop({
+    const collectedItem = {
       id: drop.id,
       ownerWallet,
       title: drop.title,
@@ -113,7 +125,8 @@ const DropDetailPage = () => {
       contractAddress: drop.contractAddress,
       contractDropId: drop.contractDropId,
       collectedAt: new Date().toISOString(),
-    });
+    };
+    addCollectedDrop(collectedItem);
     toast.success("Collected successfully!");
     refetchDrop()?.catch((error) => {
       console.warn("Failed to refresh drop data:", error);
@@ -122,6 +135,7 @@ const DropDetailPage = () => {
       navigate("/collection", {
         state: {
           highlightDropId: drop.id,
+          collectedItem,
         },
       });
     }, 500);
