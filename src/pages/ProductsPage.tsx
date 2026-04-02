@@ -1,14 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { Search, Filter, ShoppingCart } from "lucide-react";
+import { Search, ShoppingCart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useNavigate } from "react-router-dom";
 import { ProductCard, ProductGrid } from "@/components/ProductCard";
 import { useProductStore } from "@/stores/productStore";
@@ -35,8 +28,10 @@ function mapSupabaseProductToStoreProduct(p: any) {
 
 export function ProductsPage() {
   const navigate = useNavigate();
-  const { setProducts } = useProductStore();
-  const { getTotalItems } = useCartStore();
+  const setProducts = useProductStore((state) => state.setProducts);
+  const totalCartItems = useCartStore((state) =>
+    state.items.reduce((total, item) => total + item.quantity, 0)
+  );
   const { data: supabaseProducts, loading, error } = useSupabasePublishedProducts();
   
   const [searchQuery, setSearchQuery] = useState("");
@@ -54,7 +49,16 @@ export function ProductsPage() {
     setProducts([]);
   }, [supabaseProducts, setProducts]);
 
-  const totalCartItems = getTotalItems();
+  const categoryOptions = useMemo(() => {
+    const categories = new Set(
+      (supabaseProducts || [])
+        .map((product) => product.category || "Other")
+        .filter(Boolean)
+    );
+
+    return ["all", ...Array.from(categories).sort((a, b) => a.localeCompare(b))];
+  }, [supabaseProducts]);
+
   const filteredByCategory = useMemo(() => {
     let products = (supabaseProducts || []).map(mapSupabaseProductToStoreProduct);
 
@@ -83,11 +87,11 @@ export function ProductsPage() {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <div className="border-b sticky top-0 z-40 bg-background/95 backdrop-blur">
-        <div className="container mx-auto px-4 py-4">
+        <div className="container mx-auto px-4 py-4 max-w-6xl">
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h1 className="text-3xl font-bold">Shop</h1>
-              <p className="text-muted-foreground">Discover exclusive artist merchandise</p>
+              <h1 className="text-3xl font-bold">Marketplace</h1>
+              <p className="text-muted-foreground">Discover exclusive artist merchandise and collectibles</p>
             </div>
             <Button
               onClick={() => navigate("/cart")}
@@ -116,35 +120,37 @@ export function ProductsPage() {
               />
             </div>
 
-            <Select value={category} onValueChange={setCategory}>
-              <SelectTrigger className="w-full md:w-32">
-                <SelectValue placeholder="Category" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Categories</SelectItem>
-                <SelectItem value="Merchandise">Merchandise</SelectItem>
-                <SelectItem value="Prints">Prints</SelectItem>
-                <SelectItem value="Digital">Digital</SelectItem>
-                <SelectItem value="Music">Music</SelectItem>
-              </SelectContent>
-            </Select>
+            <label className="sr-only" htmlFor="product-category">Filter by category</label>
+            <select
+              id="product-category"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm md:w-44"
+            >
+              {categoryOptions.map((option) => (
+                <option key={option} value={option}>
+                  {option === "all" ? "All Categories" : option}
+                </option>
+              ))}
+            </select>
 
-            <Select value={sortOrder} onValueChange={setSortOrder}>
-              <SelectTrigger className="w-full md:w-32">
-                <SelectValue placeholder="Sort by" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="newest">Newest</SelectItem>
-                <SelectItem value="price-low">Price: Low to High</SelectItem>
-                <SelectItem value="price-high">Price: High to Low</SelectItem>
-              </SelectContent>
-            </Select>
+            <label className="sr-only" htmlFor="product-sort">Sort products</label>
+            <select
+              id="product-sort"
+              value={sortOrder}
+              onChange={(e) => setSortOrder(e.target.value)}
+              className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm md:w-44"
+            >
+              <option value="newest">Newest</option>
+              <option value="price-low">Price: Low to High</option>
+              <option value="price-high">Price: High to Low</option>
+            </select>
           </div>
         </div>
       </div>
 
       {/* Products Grid */}
-      <div className="container mx-auto px-4 py-12">
+      <div className="container mx-auto px-4 py-12 max-w-6xl">
         {loading && (
           <div className="text-center py-12">
             <p className="text-muted-foreground">Loading products from Supabase...</p>

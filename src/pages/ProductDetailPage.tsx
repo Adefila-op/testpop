@@ -80,12 +80,12 @@ export function ProductDetailPage() {
 
   const handleAddToCart = () => {
     if (!address) {
-      alert("Please connect your wallet first");
+      toast.error("Please connect your wallet first");
       return;
     }
 
     if (!isOnchainReady) {
-      toast.error("This product is not ready for onchain checkout yet");
+      toast.error("This product is not ready for checkout yet");
       return;
     }
 

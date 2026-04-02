@@ -5,7 +5,7 @@ const navItems = [
   { icon: Home, label: "Home", path: "/" },
   { icon: Flame, label: "Drops", path: "/drops" },
   { icon: Users, label: "Artists", path: "/artists" },
-  { icon: ShoppingBag, label: "Market", path: "/invest" },
+  { icon: ShoppingBag, label: "Shop", path: "/products" },
   { icon: User, label: "Profile", path: "/profile" },
 ];
 
@@ -14,11 +14,11 @@ const BottomNav = () => {
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-xl border-t border-border safe-bottom">
-      <div className="flex items-center justify-around h-14 md:h-16 max-w-lg mx-auto px-2 pb-safe">
+      <div className="flex items-center justify-around h-14 md:h-16 max-w-6xl mx-auto px-2 pb-safe">
         {navItems.map((item) => {
-          // Support multiple paths for Market (both /invest and /products routes)
+          // Support the legacy /invest path and all commerce sub-routes under Shop.
           const isActive = location.pathname === item.path ||
-            (item.path === "/invest" && (location.pathname.startsWith("/invest") || location.pathname.startsWith("/products") || location.pathname.startsWith("/cart") || location.pathname.startsWith("/checkout") || location.pathname.startsWith("/orders")));
+            (item.path === "/products" && (location.pathname.startsWith("/invest") || location.pathname.startsWith("/products") || location.pathname.startsWith("/cart") || location.pathname.startsWith("/checkout") || location.pathname.startsWith("/orders")));
           return (
             <Link
               key={item.path}

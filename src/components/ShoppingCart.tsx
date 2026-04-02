@@ -73,6 +73,7 @@ export function ShoppingCart() {
                   variant="ghost"
                   size="icon"
                   onClick={() => removeItem(item.productId)}
+                  aria-label={`Remove ${item.name} from cart`}
                   className="text-destructive"
                 >
                   <Trash2 className="w-4 h-4" />
@@ -93,13 +94,16 @@ export function ShoppingCart() {
             <span className="font-semibold">{formatEther(totalPrice)} ETH</span>
           </div>
           <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Gas estimate:</span>
-            <span className="font-semibold">~0.005 ETH</span>
+            <span className="text-muted-foreground">Estimated wallet gas:</span>
+            <span className="font-semibold">Paid separately</span>
           </div>
           <div className="border-t pt-3 flex justify-between">
-            <span className="font-bold">Total:</span>
+            <span className="font-bold">Items total:</span>
             <span className="text-lg font-bold">{formatEther(totalPrice)} ETH</span>
           </div>
+          <p className="text-xs text-muted-foreground">
+            Network gas is confirmed in your wallet and is not included in the items total above.
+          </p>
         </CardContent>
       </Card>
 

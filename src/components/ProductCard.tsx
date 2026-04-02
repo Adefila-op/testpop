@@ -7,6 +7,7 @@ import { useAccount } from "wagmi";
 import { useCartStore } from "@/stores/cartStore";
 import { useProductStore } from "@/stores/productStore";
 import { formatEther } from "viem";
+import { toast } from "sonner";
 
 interface ProductCardProps {
   id: string;
@@ -33,18 +34,19 @@ export function ProductCard({ id, name, image, price, creator, description, stoc
   const handleQuickAdd = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!address) {
-      alert("Please connect your wallet first");
+      toast.error("Please connect your wallet first");
       return;
     }
 
     setIsAdding(true);
     try {
       if (!isOnchainReady) {
-        alert("This product is not ready for onchain checkout yet");
+        toast.error("This product is not ready for checkout yet");
         return;
       }
 
       addItem(id, contractProductId, 1, price, name, image);
+      toast.success("Added to cart");
     } finally {
       setIsAdding(false);
     }

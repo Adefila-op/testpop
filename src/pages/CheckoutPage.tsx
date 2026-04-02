@@ -349,20 +349,20 @@ export function CheckoutPage() {
                   <span className="font-semibold">{formatEther(totalPrice)} ETH</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Network Fee:</span>
-                  <span className="font-semibold">~0.005 ETH</span>
+                  <span className="text-muted-foreground">Estimated wallet gas:</span>
+                  <span className="font-semibold">Paid separately</span>
                 </div>
               </div>
 
               <div className="border-t pt-4 flex justify-between">
-                <span className="font-bold">Total:</span>
+                <span className="font-bold">Items total:</span>
                 <span className="text-lg font-bold">{formatEther(totalPrice)} ETH</span>
               </div>
 
               <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded p-3 text-sm">
                 <p className="font-semibold mb-1">Powered by Base Sepolia</p>
                 <p className="text-muted-foreground">
-                  Checkout submits an onchain purchase for each product in your cart and records the matching tx hash in your order history.
+                  Checkout submits an onchain purchase for each product in your cart, records the matching tx hash in your order history, and asks your wallet to confirm gas separately.
                 </p>
               </div>
             </CardContent>
