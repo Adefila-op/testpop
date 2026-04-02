@@ -159,6 +159,7 @@ const Index = () => {
         tag: artist.tag || "artist",
         bio: artist.bio || "This artist has not published a public bio yet.",
         cover: artist.banner_url || artist.avatar_url || "",
+        portfolio: Array.isArray(artist.portfolio) ? artist.portfolio : [],
       })));
     }
   }, [supabaseArtists]);
@@ -487,6 +488,24 @@ const Index = () => {
   const desktopHeroArtist = visibleCards[0] ?? null;
   const desktopSupportingArtists = visibleCards.slice(1);
   const desktopLiveDrops = liveDrops.slice(0, 3);
+  const getPortfolioImage = (piece: any) =>
+    resolveMediaUrl(piece?.image, piece?.image, piece?.imageUri) || "";
+  const getArtistHeroFrame = (artist: any) =>
+    getPortfolioImage(artist?.portfolio?.[0]) || artist?.cover || artist?.avatar || "";
+  const getArtistDeckFrames = (artist: any) => {
+    const portfolioFrames = Array.isArray(artist?.portfolio)
+      ? artist.portfolio
+          .slice(1, 3)
+          .map((piece: any) => getPortfolioImage(piece))
+          .filter(Boolean)
+      : [];
+
+    if (portfolioFrames.length >= 2) {
+      return portfolioFrames;
+    }
+
+    return [artist?.cover, artist?.avatar].filter(Boolean).slice(0, 2);
+  };
 
   return (
     <div className="flex flex-col min-h-[calc(100vh-88px)] px-4 overflow-y-auto md:px-0">
@@ -590,16 +609,44 @@ const Index = () => {
             <div className="grid gap-4 lg:grid-cols-[0.72fr_1fr_0.72fr]">
               <div className="flex flex-col gap-4 pt-8">
                 {desktopSupportingArtists.map((artist: any, index: number) => (
-                  <div key={`${artist.id}-hero-art-${index}`} className="overflow-hidden rounded-[1.75rem] border border-border bg-secondary/40">
-                    <img src={artist.cover || artist.avatar} alt={artist.name} className="h-44 w-full object-cover" />
-                  </div>
+                  <button
+                    key={`${artist.id}-hero-art-${index}`}
+                    type="button"
+                    onClick={() => {
+                      const nextIndex = featuredArtists.findIndex((entry: any) => entry.id === artist.id);
+                      setCurrentCard(nextIndex >= 0 ? nextIndex : 0);
+                    }}
+                    className="overflow-hidden rounded-[1.75rem] border border-border bg-secondary/40 text-left transition-transform duration-300 hover:-translate-y-1"
+                  >
+                    <img
+                      src={getArtistDeckFrames(artist)[0] || artist.cover || artist.avatar}
+                      alt={artist.name}
+                      className="h-44 w-full object-cover"
+                    />
+                  </button>
                 ))}
               </div>
 
               {desktopHeroArtist ? (
-                <div className="overflow-hidden rounded-[2rem] border border-border bg-secondary/30">
-                  <img src={desktopHeroArtist.cover || desktopHeroArtist.avatar} alt={desktopHeroArtist.name} className="h-full min-h-[460px] w-full object-cover" />
-                </div>
+                <Link
+                  to={`/artists/${desktopHeroArtist.id}`}
+                  className="group block overflow-hidden rounded-[2rem] border border-border bg-secondary/30"
+                >
+                  <div className="relative min-h-[460px] overflow-hidden bg-gradient-to-b from-black/10 via-transparent to-black/25">
+                    <img
+                      src={getArtistHeroFrame(desktopHeroArtist)}
+                      alt={desktopHeroArtist.name}
+                      className="h-full min-h-[460px] w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+                    />
+                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent p-6 text-white">
+                      <p className="text-xs uppercase tracking-[0.26em] text-white/70">POPUP Artist Deck</p>
+                      <p className="mt-3 text-2xl font-semibold">{desktopHeroArtist.name}</p>
+                      <p className="mt-2 max-w-xs text-sm leading-6 text-white/80">
+                        Open the artist profile to explore the full portfolio, current drops, and subscription access.
+                      </p>
+                    </div>
+                  </div>
+                </Link>
               ) : (
                 <div className="flex min-h-[460px] items-center justify-center rounded-[2rem] border border-dashed border-border bg-secondary/20 text-muted-foreground">
                   Featured artist coming soon
@@ -608,36 +655,32 @@ const Index = () => {
 
               <div className="space-y-4 pt-4">
                 <div className="rounded-[1.75rem] border border-border bg-background/80 p-5">
-                  <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">Live Drops</p>
-                  <h2 className="mt-3 text-2xl font-semibold text-foreground">Live Drops</h2>
+                  <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">Portfolio Showcase</p>
+                  <h2 className="mt-3 text-2xl font-semibold text-foreground">Featured Art In Frame</h2>
                   <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                    Fresh collectible moments are live right now. Browse what is active, what is dropping, and what is ready to collect.
+                    The main frame highlights featured work from the selected artist. Supporting frames rotate with the deck so desktop feels closer to a curated gallery.
                   </p>
                 </div>
 
-                {desktopLiveDrops.slice(0, 2).map((drop: any) => (
-                  <button
-                    key={`hero-drop-${drop.id}`}
-                    type="button"
-                    onClick={() => navigate(`/drops/${drop.id}`)}
-                    className="flex w-full items-center gap-3 rounded-[1.5rem] border border-border bg-background/80 p-3 text-left transition-colors hover:bg-secondary/70"
-                  >
-                    <div className="h-20 w-20 overflow-hidden rounded-2xl bg-secondary">
-                      {drop.image ? (
-                        <img src={drop.image} alt={drop.title} className="h-full w-full object-cover" />
-                      ) : (
-                        <div className="flex h-full w-full items-center justify-center text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-                          {drop.assetType || "drop"}
-                        </div>
-                      )}
-                    </div>
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-foreground">{drop.title}</p>
-                      <p className="truncate text-xs text-muted-foreground">{drop.artist}</p>
-                      <p className="mt-1 text-xs font-semibold text-primary">{drop.priceEth} ETH</p>
-                    </div>
-                  </button>
+                {getArtistDeckFrames(desktopHeroArtist).map((frame, index: number) => (
+                  <div key={`desktop-hero-frame-${index}`} className="overflow-hidden rounded-[1.5rem] border border-border bg-secondary/40">
+                    <img
+                      src={frame}
+                      alt={`${desktopHeroArtist.name} portfolio frame ${index + 2}`}
+                      className={`w-full object-cover ${index === 0 ? "h-48" : "h-36"}`}
+                    />
+                  </div>
                 ))}
+
+                <div className="rounded-[1.5rem] border border-border bg-background/80 p-4">
+                  <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">Live Drops</p>
+                  <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                    Live drops stay below the hero so the page opens with artists first, then active pieces ready to collect.
+                  </p>
+                  <Button variant="outline" className="mt-4 h-10 rounded-full px-4 font-semibold" asChild>
+                    <Link to="/drops">Browse live drops</Link>
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
