@@ -1,24 +1,14 @@
-import { Home, Flame, Users, ShoppingBag, User } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
-
-const navItems = [
-  { icon: Home, label: "Home", path: "/" },
-  { icon: Flame, label: "Drops", path: "/drops" },
-  { icon: Users, label: "Artists", path: "/artists" },
-  { icon: ShoppingBag, label: "Shop", path: "/products" },
-  { icon: User, label: "Profile", path: "/profile" },
-];
+import { appShellNavItems, isAppShellNavActive } from "./appShellNav";
 
 const BottomNav = () => {
   const location = useLocation();
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-xl border-t border-border safe-bottom">
-      <div className="flex items-center justify-around h-14 md:h-16 max-w-6xl mx-auto px-2 pb-safe">
-        {navItems.map((item) => {
-          // Support the legacy /invest path and all commerce sub-routes under Shop.
-          const isActive = location.pathname === item.path ||
-            (item.path === "/products" && (location.pathname.startsWith("/invest") || location.pathname.startsWith("/products") || location.pathname.startsWith("/cart") || location.pathname.startsWith("/checkout") || location.pathname.startsWith("/orders")));
+    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background/80 backdrop-blur-xl safe-bottom md:hidden">
+      <div className="flex items-center justify-around h-14 max-w-lg mx-auto px-2 pb-safe">
+        {appShellNavItems.map((item) => {
+          const isActive = isAppShellNavActive(item.path, location.pathname);
           return (
             <Link
               key={item.path}

@@ -1,8 +1,10 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { Search, X, Loader2 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import logo from "@/assets/logo.png";
 import { supabase } from "@/lib/db";
+import { appShellNavItems, isAppShellNavActive } from "./appShellNav";
+import { NavLink } from "./NavLink";
 
 const TopBarWalletControls = lazy(() => import("./wallet/TopBarWalletControls"));
 
@@ -189,23 +191,69 @@ function SearchPanel({ onClose }: { onClose: () => void }) {
 
 const TopBar = () => {
   const [showSearch, setShowSearch] = useState(false);
+  const location = useLocation();
 
   return (
     <>
-      <header className="sticky top-0 z-40 bg-background/80 backdrop-blur-xl border-b border-border">
-        <div className="flex items-center justify-between h-12 md:h-14 px-3 md:px-4 max-w-6xl mx-auto relative">
-          <img src={logo} alt="PopUp" className="h-6 md:h-7" />
-          <div className="flex items-center gap-1 md:gap-2">
+      <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur-xl">
+        <div className="mx-auto flex h-12 max-w-lg items-center justify-between px-3 md:hidden">
+          <img src={logo} alt="PopUp" className="h-6" />
+          <div className="flex items-center gap-1">
             <button
               onClick={() => {
                 setShowSearch(true);
               }}
               aria-label="Open search"
-              className="p-1.5 md:p-2 rounded-full hover:bg-secondary transition-colors"
+              className="rounded-full p-1.5 transition-colors hover:bg-secondary"
             >
-              <Search className="h-4 w-4 md:h-5 md:w-5 text-foreground" />
+              <Search className="h-4 w-4 text-foreground" />
             </button>
             <Suspense fallback={<div className="h-8 w-24 rounded-full bg-secondary animate-pulse" />}>
+              <TopBarWalletControls />
+            </Suspense>
+          </div>
+        </div>
+
+        <div className="mx-auto hidden max-w-6xl items-center gap-6 px-4 py-4 md:flex lg:px-6">
+          <div className="flex min-w-0 items-center gap-4">
+            <img src={logo} alt="PopUp" className="h-8" />
+            <div className="min-w-0">
+              <p className="text-sm font-semibold tracking-[0.18em] text-foreground/70 uppercase">Popup</p>
+              <p className="text-xs text-muted-foreground">Collect, discover, and shop digital culture.</p>
+            </div>
+          </div>
+
+          <nav className="flex flex-1 items-center justify-center gap-2">
+            {appShellNavItems.map((item) => {
+              const isActive = isAppShellNavActive(item.path, location.pathname);
+              return (
+                <NavLink
+                  key={item.path}
+                  to={item.path}
+                  className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+                    isActive
+                      ? "bg-foreground text-background"
+                      : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                  }`}
+                >
+                  {item.label}
+                </NavLink>
+              );
+            })}
+          </nav>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                setShowSearch(true);
+              }}
+              aria-label="Open search"
+              className="inline-flex h-11 items-center gap-2 rounded-full border border-border bg-background px-4 text-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+            >
+              <Search className="h-4 w-4" />
+              Search
+            </button>
+            <Suspense fallback={<div className="h-10 w-28 rounded-full bg-secondary animate-pulse" />}>
               <TopBarWalletControls />
             </Suspense>
           </div>
