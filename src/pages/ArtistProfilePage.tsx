@@ -35,7 +35,7 @@ const ArtistProfilePage = () => {
   const transformedArtist = useMemo(() => {
     try {
       if (!artist) return null;
-      
+
       return {
         id: artist.id,
         name: artist.name || "Untitled Artist",
@@ -49,7 +49,7 @@ const ArtistProfilePage = () => {
         investRaised: 0,
         investTotal: 0,
         investPct: 0,
-        investGoals: [], // Add investGoals as empty array
+        investGoals: [],
         subscribers: 0,
         subscriptionPrice: artist.subscription_price ? String(artist.subscription_price) : "0.01",
         twitterUrl: artist.twitter_url,
@@ -62,11 +62,11 @@ const ArtistProfilePage = () => {
       throw error;
     }
   }, [artist]);
-  
+
   const drops = useMemo(() => {
     try {
       if (!supabaseDrops || !Array.isArray(supabaseDrops)) return [];
-      return supabaseDrops.map(drop => ({
+      return supabaseDrops.map((drop) => ({
         id: drop.id,
         title: drop.title,
         artistId: drop.artist_id,
@@ -88,10 +88,12 @@ const ArtistProfilePage = () => {
       return [];
     }
   }, [supabaseDrops]);
+
   const effectiveContractAddress = useResolvedArtistContract(
     transformedArtist?.wallet,
     transformedArtist?.contractAddress
   );
+
   const [lightboxImage, setLightboxImage] = useState<{ image: string; title: string; medium: string; year: string } | null>(null);
   const [isSubscribing, setIsSubscribing] = useState(false);
   const [buySharesOpen, setBuySharesOpen] = useState(false);
@@ -102,11 +104,20 @@ const ArtistProfilePage = () => {
     targetAmount: "",
   });
 
-  const { subscribe, isPending: isSubscribePending, isConfirming: isSubscribeConfirming, isSuccess: isSubscribeSuccess, error: subscribeError } = useSubscribeToArtistContract(effectiveContractAddress);
+  const {
+    subscribe,
+    isPending: isSubscribePending,
+    isConfirming: isSubscribeConfirming,
+    isSuccess: isSubscribeSuccess,
+  } = useSubscribeToArtistContract(effectiveContractAddress);
 
   const { count: onchainSubscribers, isLoading: isSubscribersLoading } = useGetSubscriberCountFromArtistContract(effectiveContractAddress);
 
-  const { isSubscribed, isLoading: isSubscribedLoading, refetch: refetchSubscriptionStatus } = useIsSubscribedToArtistContract(effectiveContractAddress, address ?? null);
+  const {
+    isSubscribed,
+    isLoading: isSubscribedLoading,
+    refetch: refetchSubscriptionStatus,
+  } = useIsSubscribedToArtistContract(effectiveContractAddress, address ?? null);
 
   useEffect(() => {
     if (transformedArtist?.id) {
@@ -114,13 +125,11 @@ const ArtistProfilePage = () => {
     }
   }, [transformedArtist?.id]);
 
-  // Refetch subscription status after successful subscribe
   useEffect(() => {
     if (isSubscribeSuccess) {
       console.log("✅ Subscribe succeeded! Refetching subscription status...");
       toast.success("Successfully subscribed to artist!");
-      
-      // Wait a moment for blockchain to update, then refetch subscription status
+
       setTimeout(() => {
         refetchSubscriptionStatus();
       }, 2000);
@@ -129,7 +138,7 @@ const ArtistProfilePage = () => {
 
   if (invalidArtistId) {
     return (
-      <div className="px-4 py-10 text-center space-y-4">
+      <div className="space-y-4 px-4 py-10 text-center">
         <p className="text-lg font-semibold text-foreground">Invalid artist ID</p>
         <p className="text-sm text-muted-foreground">No artist ID provided in the URL.</p>
         <Button onClick={() => navigate("/artists")} className="rounded-full gradient-primary text-primary-foreground">
@@ -139,11 +148,10 @@ const ArtistProfilePage = () => {
     );
   }
 
-  // Add loading check before error checks
   if (artistLoading) {
     return (
-      <div className="px-4 py-10 text-center space-y-4">
-        <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
+      <div className="space-y-4 px-4 py-10 text-center">
+        <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
         <p className="text-sm text-muted-foreground">Loading artist profile...</p>
       </div>
     );
@@ -151,10 +159,10 @@ const ArtistProfilePage = () => {
 
   if (artistError) {
     return (
-      <div className="px-4 py-10 text-center space-y-4">
+      <div className="space-y-4 px-4 py-10 text-center">
         <p className="text-lg font-semibold text-foreground">Error loading artist</p>
         <p className="text-sm text-muted-foreground">There was an error fetching the artist data.</p>
-        <p className="text-xs text-muted-foreground bg-secondary p-2 rounded">{artistError.message}</p>
+        <p className="rounded bg-secondary p-2 text-xs text-muted-foreground">{artistError.message}</p>
         <Button onClick={() => navigate("/artists")} className="rounded-full gradient-primary text-primary-foreground">
           Back to Artists
         </Button>
@@ -164,7 +172,7 @@ const ArtistProfilePage = () => {
 
   if (!transformedArtist) {
     return (
-      <div className="px-4 py-10 text-center space-y-4">
+      <div className="space-y-4 px-4 py-10 text-center">
         <p className="text-lg font-semibold text-foreground">Artist not found</p>
         <p className="text-sm text-muted-foreground">This artist is not public yet or is no longer whitelisted.</p>
         <Button onClick={() => navigate("/artists")} className="rounded-full gradient-primary text-primary-foreground">
@@ -173,8 +181,6 @@ const ArtistProfilePage = () => {
       </div>
     );
   }
-
-  const investPct = transformedArtist.investTotal ? Math.round((transformedArtist.investRaised / transformedArtist.investTotal) * 100) : 0;
 
   const handleSubscribe = async () => {
     if (!isConnected) {
@@ -187,7 +193,7 @@ const ArtistProfilePage = () => {
       return;
     }
 
-    const subscriptionPrice = String(transformedArtist.subscriptionPrice ?? "0.01"); // default price in ETH
+    const subscriptionPrice = String(transformedArtist.subscriptionPrice ?? "0.01");
 
     setIsSubscribing(true);
     try {
@@ -215,33 +221,35 @@ const ArtistProfilePage = () => {
   return (
     <div className="space-y-0">
       <div className="relative h-44 overflow-hidden">
-        <img src={transformedArtist.banner} alt="" className="w-full h-full object-cover" />
+        <img src={transformedArtist.banner} alt="" className="h-full w-full object-cover" />
         <div className="absolute inset-0 bg-gradient-to-t from-background via-background/20 to-transparent" />
-        <button onClick={() => navigate(-1)} className="absolute top-3 left-3 p-2 rounded-full bg-background/60 backdrop-blur-sm">
+        <button onClick={() => navigate(-1)} className="absolute left-3 top-3 rounded-full bg-background/60 p-2 backdrop-blur-sm">
           <ArrowLeft className="h-4 w-4 text-foreground" />
         </button>
-        <button onClick={handleShare} className="absolute top-3 right-3 p-2 rounded-full bg-background/60 backdrop-blur-sm">
+        <button onClick={handleShare} className="absolute right-3 top-3 rounded-full bg-background/60 p-2 backdrop-blur-sm">
           <Share2 className="h-4 w-4 text-foreground" />
         </button>
       </div>
 
-      <div className="px-4 -mt-10 relative z-10">
+      <div className="relative z-10 -mt-10 px-4">
         <div className="flex items-end gap-3">
-          <div className="h-20 w-20 rounded-2xl overflow-hidden border-4 border-background shadow-elevated">
+          <div className="h-20 w-20 overflow-hidden rounded-2xl border-4 border-background shadow-elevated">
             <img src={transformedArtist.avatar} alt={transformedArtist.name} className="h-full w-full object-cover" />
           </div>
           <div className="flex-1 pb-1">
             <h1 className="text-xl font-bold text-foreground">{transformedArtist.name}</h1>
-            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-              <Badge variant="secondary" className="text-[10px]">{transformedArtist.tag}</Badge>
+            <div className="mt-0.5 flex flex-wrap items-center gap-2">
+              <Badge variant="secondary" className="text-[10px]">
+                {transformedArtist.tag}
+              </Badge>
               {transformedArtist.handle && <span className="text-[11px] text-muted-foreground">@{transformedArtist.handle}</span>}
             </div>
           </div>
         </div>
 
-        <p className="text-sm text-muted-foreground font-body mt-3">{transformedArtist.bio}</p>
+        <p className="mt-3 font-body text-sm text-muted-foreground">{transformedArtist.bio}</p>
 
-        <div className="flex gap-4 mt-4">
+        <div className="mt-4 flex gap-4">
           <div className="flex items-center gap-1.5 text-xs">
             <Users className="h-3.5 w-3.5 text-primary" />
             <span className="font-semibold text-foreground">{isSubscribersLoading ? "..." : onchainSubscribers}</span>
@@ -255,7 +263,7 @@ const ArtistProfilePage = () => {
         </div>
 
         {publicLinks.length > 0 && (
-          <div className="flex flex-wrap gap-2 mt-4">
+          <div className="mt-4 flex flex-wrap gap-2">
             {publicLinks.map((link) => (
               <a key={link.label} href={link.href} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-xs text-primary">
                 <Globe className="h-3.5 w-3.5" /> {link.label}
@@ -264,98 +272,103 @@ const ArtistProfilePage = () => {
           </div>
         )}
 
-        <div className="flex gap-2 mt-4">
+        <div className="mt-4 flex gap-2">
           <Button
             onClick={handleSubscribe}
             disabled={isSubscribing || isSubscribePending || isSubscribeConfirming || isSubscribed || isSubscribedLoading}
-            className="flex-1 rounded-full gradient-primary text-primary-foreground font-semibold text-sm h-10"
+            className="h-10 flex-1 rounded-full gradient-primary text-sm font-semibold text-primary-foreground"
           >
             {isConnected
               ? isSubscribed
                 ? "Subscribed ✓"
                 : isSubscribedLoading
-                ? "Checking..."
-                : isSubscribing || isSubscribePending
-                ? "Processing..."
-                : isSubscribeConfirming
-                ? "Confirming..."
-                : `Subscribe · ${transformedArtist.subscriptionPrice} ETH/mo`
+                  ? "Checking..."
+                  : isSubscribing || isSubscribePending
+                    ? "Processing..."
+                    : isSubscribeConfirming
+                      ? "Confirming..."
+                      : `Subscribe · ${transformedArtist.subscriptionPrice} ETH/mo`
               : "Connect Wallet to Subscribe"}
           </Button>
-          <Button 
-            onClick={() => setBuySharesOpen(true)} 
+          <Button
+            onClick={() => setBuySharesOpen(true)}
             disabled={onchainSubscribers < 100}
-            variant={onchainSubscribers < 100 ? "secondary" : "outline"} 
-            className="flex-1 rounded-full border border-border text-sm font-semibold h-10"
+            variant={onchainSubscribers < 100 ? "secondary" : "outline"}
+            className="h-10 flex-1 rounded-full border border-border text-sm font-semibold"
             title={onchainSubscribers < 100 ? "Artist needs 100+ subscribers to sell shares" : ""}
           >
             {onchainSubscribers < 100 ? `Buy Shares (${onchainSubscribers}/100)` : "Buy Shares"}
           </Button>
-          <Button variant="outline" size="icon" className="rounded-full h-10 w-10">
+          <Button variant="outline" size="icon" className="h-10 w-10 rounded-full">
             <Heart className="h-4 w-4" />
           </Button>
         </div>
       </div>
 
-      <div className="px-4 mt-6">
+      <div className="mt-6 px-4">
         <Tabs defaultValue="portfolio">
-          <TabsList className="w-full bg-secondary rounded-xl">
-            <TabsTrigger value="portfolio" className="flex-1 rounded-lg text-xs">Portfolio</TabsTrigger>
-            <TabsTrigger value="drops" className="flex-1 rounded-lg text-xs">Drops</TabsTrigger>
+          <TabsList className="w-full rounded-xl bg-secondary">
+            <TabsTrigger value="portfolio" className="flex-1 rounded-lg text-xs">
+              Portfolio
+            </TabsTrigger>
+            <TabsTrigger value="drops" className="flex-1 rounded-lg text-xs">
+              Drops
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="portfolio" className="mt-4">
             {transformedArtist.portfolio.length === 0 ? (
-              <p className="text-center text-xs text-muted-foreground py-8">No portfolio pieces yet.</p>
+              <p className="py-8 text-center text-xs text-muted-foreground">No portfolio pieces yet.</p>
             ) : (
               <div className="grid grid-cols-2 gap-1.5">
                 {transformedArtist.portfolio.map((piece, idx) => (
                   <button
                     key={piece.id}
                     onClick={() => setLightboxImage(piece)}
-                    className={`relative overflow-hidden rounded-xl group ${idx === 0 ? "col-span-2 aspect-[2/1]" : "aspect-square"}`}
+                    className={`group relative overflow-hidden rounded-xl ${idx === 0 ? "col-span-2 aspect-[2/1]" : "aspect-square"}`}
                   >
-                    <img src={piece.image} alt={piece.title} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
-                    <div className="absolute inset-0 bg-gradient-to-t from-card/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                    <div className="absolute bottom-0 left-0 right-0 p-2.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <p className="text-xs font-semibold text-card-foreground truncate">{piece.title}</p>
-                      <p className="text-[10px] text-muted-foreground">{piece.medium} · {piece.year}</p>
+                    <img src={piece.image} alt={piece.title} className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-card/80 via-transparent to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
+                    <div className="absolute bottom-0 left-0 right-0 p-2.5 opacity-0 transition-opacity group-hover:opacity-100">
+                      <p className="truncate text-xs font-semibold text-card-foreground">{piece.title}</p>
+                      <p className="text-[10px] text-muted-foreground">
+                        {piece.medium} · {piece.year}
+                      </p>
                     </div>
                   </button>
                 ))}
               </div>
             )}
-            <p className="text-center text-xs text-muted-foreground font-body mt-4">
-              <Grid3X3 className="h-3 w-3 inline mr-1" />
+            <p className="mt-4 text-center font-body text-xs text-muted-foreground">
+              <Grid3X3 className="mr-1 inline h-3 w-3" />
               {transformedArtist.portfolio.length} pieces in collection
             </p>
           </TabsContent>
 
           <TabsContent value="drops" className="mt-4">
             {drops.length === 0 ? (
-              <p className="text-center text-xs text-muted-foreground py-8">No drops yet.</p>
+              <p className="py-8 text-center text-xs text-muted-foreground">No drops yet.</p>
             ) : (
               <div className="grid grid-cols-2 gap-3">
                 {drops.map((drop) => (
-                  <Link key={drop.id} to={`/drops/${drop.id}`} className="rounded-2xl bg-card shadow-card overflow-hidden">
+                  <Link key={drop.id} to={`/drops/${drop.id}`} className="overflow-hidden rounded-2xl bg-card shadow-card">
                     <div className="aspect-square overflow-hidden">
-                      <img src={drop.image} alt={drop.title} className="w-full h-full object-cover" />
+                      <img src={drop.image} alt={drop.title} className="h-full w-full object-cover" />
                     </div>
                     <div className="p-3">
-                      <p className="text-sm font-semibold truncate text-card-foreground">{drop.title}</p>
-                      <p className="text-sm font-bold text-primary mt-1">{drop.priceEth} ETH</p>
+                      <p className="truncate text-sm font-semibold text-card-foreground">{drop.title}</p>
+                      <p className="mt-1 text-sm font-bold text-primary">{drop.priceEth} ETH</p>
                     </div>
                   </Link>
                 ))}
               </div>
             )}
           </TabsContent>
-
         </Tabs>
       </div>
 
       <Dialog open={buySharesOpen} onOpenChange={setBuySharesOpen}>
-        <DialogContent className="max-w-md p-4 rounded-2xl bg-card shadow-card max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-h-[80vh] max-w-md overflow-y-auto rounded-2xl bg-card p-4 shadow-card">
           <DialogHeader>
             <DialogTitle>Buy Shares in {transformedArtist.name}</DialogTitle>
           </DialogHeader>
@@ -375,7 +388,7 @@ const ArtistProfilePage = () => {
               <select
                 value={shareDetails.productType}
                 onChange={(e) => setShareDetails({ ...shareDetails, productType: e.target.value })}
-                className="w-full h-9 px-3 rounded-lg bg-secondary border border-border text-sm text-foreground"
+                className="h-9 w-full rounded-lg border border-border bg-secondary px-3 text-sm text-foreground"
               >
                 <option value="music">Music</option>
                 <option value="video">Video</option>
@@ -391,7 +404,7 @@ const ArtistProfilePage = () => {
                 placeholder="Describe your production and what the investment will fund..."
                 value={shareDetails.description}
                 onChange={(e) => setShareDetails({ ...shareDetails, description: e.target.value })}
-                className="w-full h-20 p-2 rounded-lg bg-secondary border border-border text-sm text-foreground placeholder-muted-foreground resize-none"
+                className="h-20 w-full resize-none rounded-lg border border-border bg-secondary p-2 text-sm text-foreground placeholder-muted-foreground"
               />
             </div>
 
@@ -408,30 +421,34 @@ const ArtistProfilePage = () => {
               />
             </div>
 
-            <div className="rounded-xl bg-secondary p-3 border border-border">
-              <p className="text-xs font-semibold text-foreground mb-2">Revenue Split (Subscriptions)</p>
+            <div className="rounded-xl border border-border bg-secondary p-3">
+              <p className="mb-2 text-xs font-semibold text-foreground">Revenue Split (Subscriptions)</p>
               <div className="space-y-1 text-xs text-muted-foreground">
-                <p>• Artist: 70%</p>
-                <p>• Founder: 30%</p>
+                <p>Artist: 70%</p>
+                <p>Founder: 30%</p>
               </div>
-              <p className="text-[10px] text-muted-foreground mt-2">Mints: 97.5% artist, 2.5% platform</p>
+              <p className="mt-2 text-[10px] text-muted-foreground">Mints: 97.5% artist, 2.5% platform</p>
             </div>
-            
-            <div className="rounded-xl bg-blue-500/10 p-3 border border-blue-500/20">
-              <p className="text-xs text-blue-700 dark:text-blue-400">ℹ️ Investor shares feature coming soon. Currently supporting direct artist subscriptions with 70/30 split.</p>
+
+            <div className="rounded-xl border border-blue-500/20 bg-blue-500/10 p-3">
+              <p className="text-xs text-blue-700 dark:text-blue-400">
+                Investor shares feature coming soon. Currently supporting direct artist subscriptions with 70/30 split.
+              </p>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setBuySharesOpen(false)}>Cancel</Button>
-            <Button 
-              onClick={() => { 
+            <Button variant="outline" onClick={() => setBuySharesOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
                 if (!shareDetails.productionName.trim() || !shareDetails.description.trim() || !shareDetails.targetAmount) {
                   toast.error("Please fill in all required fields");
                   return;
                 }
                 toast.success("Production posted! Investors can now view your offering.");
                 setShareDetails({ productionName: "", productType: "music", description: "", targetAmount: "" });
-                setBuySharesOpen(false); 
+                setBuySharesOpen(false);
               }}
               className="gradient-primary text-primary-foreground"
             >
@@ -442,13 +459,15 @@ const ArtistProfilePage = () => {
       </Dialog>
 
       <Dialog open={!!lightboxImage} onOpenChange={() => setLightboxImage(null)}>
-        <DialogContent className="max-w-lg p-0 rounded-2xl overflow-hidden bg-card border-none">
+        <DialogContent className="max-w-lg overflow-hidden rounded-2xl border-none bg-card p-0">
           {lightboxImage && (
             <>
-              <img src={lightboxImage.image} alt={lightboxImage.title} className="w-full aspect-square object-cover" />
+              <img src={lightboxImage.image} alt={lightboxImage.title} className="aspect-square w-full object-cover" />
               <div className="p-4">
                 <p className="font-bold text-foreground">{lightboxImage.title}</p>
-                <p className="text-xs text-muted-foreground mt-1">{lightboxImage.medium} · {lightboxImage.year}</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {lightboxImage.medium} · {lightboxImage.year}
+                </p>
               </div>
             </>
           )}
