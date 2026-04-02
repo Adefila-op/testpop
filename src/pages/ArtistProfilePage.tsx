@@ -3,6 +3,7 @@ import { ArrowLeft, Flame, Globe, Grid3X3, Heart, Loader2, Share2, Users } from 
 import { useNavigate, useParams, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -20,7 +21,7 @@ const artistFallbackArt =
 const ArtistProfilePage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { isConnected, address } = useWallet();
+  const { isConnected, address, connectWallet } = useWallet();
   const artistId = id ?? "";
   const invalidArtistId = !id;
 
@@ -176,8 +177,7 @@ const ArtistProfilePage = () => {
     medium: transformedArtist.tag,
     year: "Now",
   };
-
-  const secondaryPortfolio = portfolioPieces.slice(1, 4);
+  const portfolioSlides = portfolioPieces.length > 0 ? portfolioPieces : [featuredPortfolio];
 
   const publicLinks = [
     { label: "X / Twitter", href: transformedArtist.twitterUrl },
@@ -187,7 +187,7 @@ const ArtistProfilePage = () => {
 
   const handleSubscribe = async () => {
     if (!isConnected) {
-      toast.error("Connect wallet to subscribe");
+      await connectWallet();
       return;
     }
 
@@ -319,18 +319,41 @@ const ArtistProfilePage = () => {
 
                 <h2 className="mt-3 text-4xl font-black tracking-[-0.04em] text-foreground sm:text-5xl md:text-6xl xl:text-7xl">Portfolio</h2>
 
-                <div className="mt-5 overflow-hidden rounded-[1.8rem] bg-[#eaf3ff] p-2 shadow-[0_22px_45px_rgba(37,99,235,0.08)]">
-                  <button
-                    type="button"
-                    onClick={() => setLightboxImage(featuredPortfolio)}
-                    className="group relative block h-[220px] w-full overflow-hidden rounded-[1.4rem] sm:h-[250px]"
+                <div className="mt-5 rounded-[1.8rem] bg-[#eaf3ff] p-3 shadow-[0_22px_45px_rgba(37,99,235,0.08)]">
+                  <Carousel
+                    opts={{ loop: portfolioSlides.length > 1 }}
+                    className="mx-auto w-full"
                   >
-                    <img src={featuredPortfolio.image} alt={featuredPortfolio.title} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
-                    <div className="absolute bottom-4 left-4 rounded-full bg-white/85 px-3 py-1 text-xs font-semibold text-foreground backdrop-blur-sm">
-                      {featuredPortfolio.title}
-                    </div>
-                  </button>
+                    <CarouselContent>
+                      {portfolioSlides.map((piece) => (
+                        <CarouselItem key={piece.id}>
+                          <button
+                            type="button"
+                            onClick={() => setLightboxImage(piece)}
+                            className="group relative block h-[260px] w-full overflow-hidden rounded-[1.4rem] sm:h-[340px]"
+                          >
+                            <img src={piece.image} alt={piece.title} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-black/10 to-transparent" />
+                            <div className="absolute bottom-4 left-4 right-4 flex items-end justify-between gap-3">
+                              <div className="rounded-[1.1rem] bg-white/88 px-4 py-2 text-left text-foreground backdrop-blur-sm">
+                                <p className="text-sm font-semibold">{piece.title}</p>
+                                <p className="text-xs text-muted-foreground">{`${piece.medium} - ${piece.year}`}</p>
+                              </div>
+                              <div className="rounded-full bg-white/82 px-3 py-1 text-xs font-semibold text-foreground backdrop-blur-sm">
+                                {portfolioSlides.length > 1 ? "Open piece" : "Featured work"}
+                              </div>
+                            </div>
+                          </button>
+                        </CarouselItem>
+                      ))}
+                    </CarouselContent>
+                    {portfolioSlides.length > 1 && (
+                      <>
+                        <CarouselPrevious className="left-3 top-auto bottom-3 h-10 w-10 translate-y-0 border-white/70 bg-white/85 text-foreground hover:bg-white" />
+                        <CarouselNext className="right-3 top-auto bottom-3 h-10 w-10 translate-y-0 border-white/70 bg-white/85 text-foreground hover:bg-white" />
+                      </>
+                    )}
+                  </Carousel>
                 </div>
               </div>
 
@@ -355,28 +378,18 @@ const ArtistProfilePage = () => {
             </div>
 
             <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px]">
-              <div className="grid gap-4 md:grid-cols-2">
-                {secondaryPortfolio.length > 0 ? (
-                  secondaryPortfolio.map((piece, index) => (
-                    <button
-                      key={piece.id}
-                      type="button"
-                      onClick={() => setLightboxImage(piece)}
-                      className={`overflow-hidden rounded-[1.5rem] ${index === 0 ? "bg-[#365b9d]" : "bg-[#102a56]"} p-2 text-left shadow-[0_18px_40px_rgba(37,99,235,0.10)]`}
-                    >
-                      <img src={piece.image} alt={piece.title} className="h-32 w-full rounded-[1.15rem] object-cover sm:h-36" />
-                      <div className="px-2 pb-1 pt-3">
-                        <p className="text-sm font-semibold text-white">{piece.title}</p>
-                        <p className="mt-1 text-xs text-white/70">{`${piece.medium} - ${piece.year}`}</p>
-                      </div>
-                    </button>
-                  ))
-                ) : (
-                  <div className="rounded-[1.5rem] bg-[#365b9d] p-5 text-white shadow-[0_18px_40px_rgba(37,99,235,0.10)]">
-                    <p className="text-lg font-semibold">Artist Preview</p>
-                    <p className="mt-2 text-sm text-white/70">Portfolio art will appear here as soon as new pieces are published.</p>
+              <div className="rounded-[1.5rem] bg-white/70 p-5 shadow-[inset_0_0_0_1px_rgba(37,99,235,0.08)]">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-lg font-semibold text-foreground">Portfolio Slider</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Every portfolio piece now lives in one shared carousel instead of separate stacked frames.
+                    </p>
                   </div>
-                )}
+                  <Badge className="bg-[#dbeafe] text-[#1d4ed8] hover:bg-[#dbeafe]">
+                    {portfolioSlides.length} piece{portfolioSlides.length === 1 ? "" : "s"}
+                  </Badge>
+                </div>
               </div>
 
               <div className="rounded-[1.5rem] bg-[linear-gradient(135deg,#eff6ff_0%,#dbeafe_100%)] p-5 text-foreground shadow-[0_18px_40px_rgba(37,99,235,0.08)]">

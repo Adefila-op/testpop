@@ -128,7 +128,7 @@ function getInitials(address?: string) {
 const ProfilePage = () => {
   const { address, isConnected, chain, balance, disconnect } = useWallet();
   const [copied, setCopied] = useState(false);
-  const [activeWorkspace, setActiveWorkspace] = useState<CollectorWorkspace>("overview");
+  const [activeWorkspace, setActiveWorkspace] = useState<CollectorWorkspace>("collection");
   const [activeSubscriptionCount, setActiveSubscriptionCount] = useState(0);
   const [activeSubscriptionArtists, setActiveSubscriptionArtists] = useState<SubscriptionArtist[]>([]);
   const [subscriptionsLoading, setSubscriptionsLoading] = useState(false);
@@ -290,11 +290,10 @@ const ProfilePage = () => {
           title: "Artist Studio",
           description: "If this wallet has an artist profile, review the studio summary, portfolio, and live drops from the same desktop frame.",
         };
-      case "overview":
       default:
         return {
-          title: "My Profile",
-          description: "Review your wallet identity, library access, and the areas where you collect, support artists, and open owned content.",
+          title: "My Collection",
+          description: "Open the items you own, preview recent purchases, and keep your library visible without leaving the collector desktop hub.",
         };
     }
   }, [activeWorkspace]);
@@ -402,7 +401,7 @@ const ProfilePage = () => {
                   type="button"
                   onClick={() => setActiveWorkspace(item.workspace)}
                   className={`flex items-center gap-3 rounded-2xl px-4 py-3 text-left transition-colors ${
-                    (index === 0 && activeWorkspace === "overview") || activeWorkspace === item.workspace
+                    activeWorkspace === item.workspace
                       ? "bg-[#dbeafe] text-foreground shadow-sm"
                       : "hover:bg-[#eaf3ff]"
                   }`}
@@ -482,7 +481,6 @@ const ProfilePage = () => {
 
                 <div className="mt-5 flex flex-wrap gap-3 text-sm">
                   {[
-                    { label: "Overview", value: "overview" },
                     { label: "Collection", value: "collection" },
                     { label: "POAPs", value: "poaps" },
                     { label: "Subscriptions", value: "subscriptions" },
@@ -499,144 +497,22 @@ const ProfilePage = () => {
                   ))}
                 </div>
 
-                {activeWorkspace === "overview" && (
-                  <div className="mt-6 grid gap-4">
-                  <div className="grid gap-3 rounded-[1.75rem] border border-[#dbe7ff] bg-white p-4 shadow-[0_20px_45px_rgba(37,99,235,0.06)] md:grid-cols-[220px_minmax(0,1fr)]">
-                    <div className="rounded-[1.4rem] bg-[linear-gradient(135deg,#60a5fa_0%,#2563eb_100%)] p-4 shadow-inner">
-                      <div
-                        className="mx-auto flex h-36 w-full max-w-[180px] items-center justify-center rounded-[1.2rem] bg-white/15 text-white shadow-[0_16px_40px_rgba(37,99,235,0.18)]"
-                        style={{ backgroundColor: `${getAvatarColor(address)}33` }}
-                      >
-                        <div
-                          className="flex h-24 w-24 items-center justify-center rounded-full text-2xl font-black text-white ring-4 ring-white/70"
-                          style={{ backgroundColor: getAvatarColor(address) }}
-                        >
-                          {getInitials(address)}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="min-w-0 p-1">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="text-xl font-bold text-foreground">Collector Identity</p>
-                          <p className="mt-1 text-sm text-muted-foreground">
-                            Manage the wallet used for your collection, POAP access, and protected ebook content.
-                          </p>
-                        </div>
-                        <div className="rounded-full bg-[#dbeafe] px-3 py-1 text-xs font-semibold text-[#1d4ed8]">
-                          {isConnected ? "Active" : "Offline"}
-                        </div>
-                      </div>
-
-                      <div className="mt-4 flex flex-wrap gap-2">
-                        {quickStats.map((stat) => (
-                          <div key={stat.label} className={`rounded-full px-3 py-1 text-xs font-semibold ${stat.tone}`}>
-                            {stat.label}: {stat.value}
-                          </div>
-                        ))}
-                      </div>
-
-                      {isConnected ? (
-                        <>
-                          <div className="mt-4 rounded-2xl bg-[#f3f8ff] p-3 ring-1 ring-[#dbe7ff]">
-                            <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">Wallet Address</p>
-                            <div className="mt-2 flex items-center gap-2">
-                              <p className="min-w-0 flex-1 truncate font-mono text-sm text-foreground">{address}</p>
-                              <button
-                                onClick={copyAddress}
-                                className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white text-foreground shadow-sm ring-1 ring-[#dbe7ff] transition-colors hover:bg-[#eef5ff]"
-                              >
-                                {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                              </button>
-                            </div>
-                          </div>
-
-                          <div className="mt-4 flex flex-wrap gap-3">
-                            <Button className="rounded-full gradient-primary text-primary-foreground" onClick={() => setActiveWorkspace("collection")}>
-                              Open My Collection
-                            </Button>
-                            <Button variant="outline" className="rounded-full" onClick={handleDisconnect}>
-                              Disconnect
-                            </Button>
-                          </div>
-                        </>
-                      ) : (
-                        <div className="mt-5 rounded-2xl bg-[#f3f8ff] p-4 ring-1 ring-[#dbe7ff]">
-                          <p className="text-sm text-muted-foreground">Connect your Base wallet to unlock your collection, owned ebooks, subscriptions, and POAPs.</p>
-                          <div className="mt-4">
-                            <WalletConnect />
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <button
-                      type="button"
-                      onClick={() => setActiveWorkspace("collection")}
-                      className="rounded-[1.6rem] border border-[#dbe7ff] bg-white p-4 text-left shadow-[0_18px_40px_rgba(37,99,235,0.06)] transition-transform hover:-translate-y-1"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#eef4ff] text-[#2b63c0]">
-                          <ShoppingBag className="h-5 w-5" />
-                        </div>
-                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                      </div>
-                      <p className="mt-4 text-lg font-semibold text-foreground">Collection Library</p>
-                      <p className="mt-1 text-sm text-muted-foreground">{ownedCollectionCount} owned item{ownedCollectionCount === 1 ? "" : "s"} available across your collection and order history.</p>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setActiveWorkspace("subscriptions")}
-                      className="rounded-[1.6rem] border border-[#dbe7ff] bg-white p-4 text-left shadow-[0_18px_40px_rgba(37,99,235,0.06)] transition-transform hover:-translate-y-1"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#dbeafe] text-[#2563eb]">
-                          <BarChart3 className="h-5 w-5" />
-                        </div>
-                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                      </div>
-                      <p className="mt-4 text-lg font-semibold text-foreground">Support Dashboard</p>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        {subscriptionsLoading ? "Checking active artist memberships..." : `Tracking ${activeSubscriptionCount} active subscription${activeSubscriptionCount === 1 ? "" : "s"}.`}
-                      </p>
-                    </button>
-                  </div>
-
-                  <div className="grid gap-4 lg:grid-cols-3">
-                    <div className="rounded-[1.6rem] border border-[#dbe7ff] bg-[linear-gradient(180deg,#ffffff_0%,#f3f8ff_100%)] p-4 shadow-[0_18px_40px_rgba(37,99,235,0.06)]">
-                      <p className="text-sm font-semibold text-foreground">Reading Access</p>
-                      <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                        Owned EPUB and PDF collectibles open directly inside your library with in-app reading and a safe fallback when a source cannot render.
-                      </p>
-                      <Button variant="outline" className="mt-4 rounded-full bg-white" onClick={() => setActiveWorkspace("collection")}>
-                        Open Library
-                      </Button>
-                    </div>
-
-                    <div className="rounded-[1.6rem] border border-[#dbe7ff] bg-white p-4 shadow-[0_18px_40px_rgba(37,99,235,0.06)]">
-                      <p className="text-sm font-semibold text-foreground">Collector Activity</p>
-                      <p className="mt-2 text-3xl font-black text-[#1d4ed8]">{orders?.length || 0}</p>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        Recorded orders tied to your current wallet and available for collection access.
-                      </p>
-                    </div>
-
-                    <div className="rounded-[1.6rem] border border-[#dbe7ff] bg-[linear-gradient(135deg,#eff6ff_0%,#dbeafe_100%)] p-4 shadow-[0_18px_40px_rgba(37,99,235,0.08)]">
-                      <p className="text-sm font-semibold text-foreground">Desktop Flow</p>
-                      <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                        Navigation stays in the left rail while the main canvas stays focused on identity, ownership, and reading access.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-                )}
-
                 {activeWorkspace === "collection" && (
                   <div className="mt-6 space-y-4">
+                    {!isConnected && (
+                      <div className="rounded-[1.75rem] border border-[#dbe7ff] bg-white p-5 shadow-[0_20px_45px_rgba(37,99,235,0.06)]">
+                        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                          <div>
+                            <p className="text-lg font-semibold text-foreground">Connect to open your collection</p>
+                            <p className="mt-1 text-sm text-muted-foreground">
+                              Connect your Base wallet to load owned items, subscriptions, POAPs, and gated content.
+                            </p>
+                          </div>
+                          <WalletConnect />
+                        </div>
+                      </div>
+                    )}
+
                     <div className="grid gap-4 lg:grid-cols-4">
                       <div className="rounded-[1.6rem] border border-[#dbe7ff] bg-[linear-gradient(180deg,#ffffff_0%,#f3f8ff_100%)] p-4">
                         <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Owned</p>
