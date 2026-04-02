@@ -737,9 +737,6 @@ const ArtistProfilePage = () => {
 };
 
 export default ArtistProfilePage;
-
-  return (
-    <div className="min-h-[calc(100vh-88px)] bg-[radial-gradient(circle_at_top,rgba(96,165,250,0.20),transparent_30%),linear-gradient(180deg,#f7fbff_0%,#edf5ff_100%)] px-4 py-4 md:px-6 md:py-6">
       <div className="mx-auto max-w-6xl rounded-[2rem] border border-white/80 bg-white/94 p-4 shadow-[0_38px_120px_rgba(37,99,235,0.10)] md:p-6">
         <div className="mb-4 flex items-center justify-between">
           <button onClick={() => navigate(-1)} className="rounded-full border border-[#dbe7ff] bg-white p-2.5 text-foreground transition-colors hover:bg-[#eef5ff]">
