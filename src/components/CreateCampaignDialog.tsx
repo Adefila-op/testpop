@@ -24,6 +24,10 @@ const campaignTypeValue = {
   Subscriber: 2,
 } as const;
 
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "Metadata upload failed";
+}
+
 const CreateCampaignDialog = () => {
   const { isConnected, connectWallet } = useWallet();
   const { createCampaign, isPending, isConfirming, isSuccess, error } = useCreateCampaign();
@@ -105,8 +109,8 @@ const CreateCampaignDialog = () => {
         form.bidderPct,
         form.creatorPct
       );
-    } catch (err: any) {
-      toast.error(err.message || "Metadata upload failed");
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err));
     } finally {
       setIsUploading(false);
     }

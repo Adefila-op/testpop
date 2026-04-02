@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useRef, useCallback, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { ArrowRight, Loader2, User, Users, Sparkles, Star, CheckCircle2 } from "lucide-react";

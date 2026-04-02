@@ -4,15 +4,24 @@ import { useAccount } from "wagmi";
 import { supabase } from "@/lib/db";
 import WalletConnect from "@/components/WalletConnect";
 
+type NotificationItem = {
+  id: string;
+  title: string;
+  body: string;
+  time: string;
+  icon: string;
+  read: boolean;
+};
+
 function NotificationsPanel({ onClose }: { onClose: () => void }) {
   const { address } = useAccount();
-  const [notifications, setNotifications] = useState<any[]>([]);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const load = async () => {
       setLoading(true);
-      const items: any[] = [
+      const items: NotificationItem[] = [
         {
           id: "welcome",
           title: "Welcome to POPUP",

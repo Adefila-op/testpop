@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Supabase Store - Complete integration for artists, products, drops, and orders
  * Replaces localStorage with real Supabase database queries

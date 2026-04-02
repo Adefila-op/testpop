@@ -54,14 +54,6 @@ export const ARTIST_SHARES_TOKEN_ABI = [
     ],
   },
 
-  {
-    type: "event",
-    name: "CampaignCancelled",
-    inputs: [
-      { name: "returnedAmount", type: "uint256", indexed: false },
-    ],
-  },
-
   // ─── Read Functions ──────────────────────────────────────────────
 
   {
@@ -128,6 +120,22 @@ export const ARTIST_SHARES_TOKEN_ABI = [
 
   {
     type: "function",
+    name: "getInvestorCount",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "view",
+  },
+
+  {
+    type: "function",
+    name: "investmentAmount",
+    inputs: [{ name: "", type: "address" }],
+    outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "view",
+  },
+
+  {
+    type: "function",
     name: "claimedRevenue",
     inputs: [{ name: "", type: "address" }],
     outputs: [{ name: "", type: "uint256" }],
@@ -175,6 +183,14 @@ export const ARTIST_SHARES_TOKEN_ABI = [
   {
     type: "function",
     name: "claimRevenue",
+    inputs: [],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+
+  {
+    type: "function",
+    name: "claimPendingRefund",
     inputs: [],
     outputs: [],
     stateMutability: "nonpayable",

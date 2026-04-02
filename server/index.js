@@ -1756,8 +1756,11 @@ async function createLegacyCheckoutOrders({
   buyerWallet,
   normalizedItems,
   shippingAddressJsonb,
+  shippingEth,
+  taxEth,
   currency,
   trackingCode,
+  txHash,
 }) {
   const productIds = normalizedItems.map((item) => item.product_id);
   const { data: products, error: productsError } = await supabase
@@ -1801,10 +1804,16 @@ async function createLegacyCheckoutOrders({
         product_id: product.id,
         quantity,
         currency,
+        subtotal_eth: totalPrice,
+        shipping_eth: shippingEth,
+        tax_eth: taxEth,
         total_price_eth: totalPrice,
         status: "paid",
         shipping_address: shippingAddress,
+        shipping_address_jsonb: shippingAddressJsonb,
         tracking_code: trackingCode,
+        tx_hash: txHash,
+        paid_at: new Date().toISOString(),
       })
       .select("id")
       .single();
@@ -1910,6 +1919,7 @@ app.post("/orders", authRequired, async (req, res) => {
     p_tax_eth: taxEth,
     p_currency: currency,
     p_tracking_code: trackingCode,
+    p_tx_hash: txHash,
   });
 
   if (rpcOrderError && isMissingOrderSchemaCompatError(rpcOrderError)) {
@@ -1918,8 +1928,11 @@ app.post("/orders", authRequired, async (req, res) => {
         buyerWallet,
         normalizedItems,
         shippingAddressJsonb,
+        shippingEth,
+        taxEth,
         currency,
         trackingCode,
+        txHash,
       });
     } catch (legacyError) {
       orderError = legacyError;
@@ -1946,7 +1959,12 @@ app.post("/orders", authRequired, async (req, res) => {
   if (txHash) {
     const { error: txUpdateError } = await supabase
       .from("orders")
-      .update({ tx_hash: txHash, updated_at: new Date().toISOString() })
+      .update({
+        tx_hash: txHash,
+        status: "paid",
+        paid_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
       .in("id", createdOrderIds);
 
     if (txUpdateError) {

@@ -46,22 +46,16 @@ export function useCreateProduct() {
 // ──────────────────────────────────────────────
 
 export function useAddToCart() {
-  const { writeContractAsync, isPending } = useWriteContract();
+  const { writeContractAsync } = useWriteContract();
 
   return useCallback(
-    async (productId: number, quantity: number) => {
-      try {
-        const tx = await writeContractAsync({
-          address: PRODUCT_STORE_ADDRESS,
-          abi: PRODUCT_STORE_ABI,
-          functionName: "addToCart",
-          args: [BigInt(productId), BigInt(quantity)],
-        });
-        return tx;
-      } catch (error) {
-        throw error;
-      }
-    },
+    async (productId: number, quantity: number) =>
+      writeContractAsync({
+        address: PRODUCT_STORE_ADDRESS,
+        abi: PRODUCT_STORE_ABI,
+        functionName: "addToCart",
+        args: [BigInt(productId), BigInt(quantity)],
+      }),
     [writeContractAsync]
   );
 }
@@ -74,18 +68,13 @@ export function useRemoveFromCart() {
   const { writeContractAsync } = useWriteContract();
 
   return useCallback(
-    async (productId: number) => {
-      try {
-        return await writeContractAsync({
-          address: PRODUCT_STORE_ADDRESS,
-          abi: PRODUCT_STORE_ABI,
-          functionName: "removeFromCart",
-          args: [BigInt(productId)],
-        });
-      } catch (error) {
-        throw error;
-      }
-    },
+    async (productId: number) =>
+      writeContractAsync({
+        address: PRODUCT_STORE_ADDRESS,
+        abi: PRODUCT_STORE_ABI,
+        functionName: "removeFromCart",
+        args: [BigInt(productId)],
+      }),
     [writeContractAsync]
   );
 }
@@ -95,23 +84,17 @@ export function useRemoveFromCart() {
 // ──────────────────────────────────────────────
 
 export function useBuyProduct() {
-  const { writeContractAsync, isPending } = useWriteContract();
+  const { writeContractAsync } = useWriteContract();
 
   return useCallback(
-    async (productId: number, quantity: number, totalPrice: bigint, orderMetadata: string) => {
-      try {
-        const tx = await writeContractAsync({
-          address: PRODUCT_STORE_ADDRESS,
-          abi: PRODUCT_STORE_ABI,
-          functionName: "buyProduct",
-          args: [BigInt(productId), BigInt(quantity), orderMetadata],
-          value: totalPrice,
-        });
-        return tx;
-      } catch (error) {
-        throw error;
-      }
-    },
+    async (productId: number, quantity: number, totalPrice: bigint, orderMetadata: string) =>
+      writeContractAsync({
+        address: PRODUCT_STORE_ADDRESS,
+        abi: PRODUCT_STORE_ABI,
+        functionName: "buyProduct",
+        args: [BigInt(productId), BigInt(quantity), orderMetadata],
+        value: totalPrice,
+      }),
     [writeContractAsync]
   );
 }
@@ -121,23 +104,17 @@ export function useBuyProduct() {
 // ──────────────────────────────────────────────
 
 export function useCheckoutCart() {
-  const { writeContractAsync, isPending } = useWriteContract();
+  const { writeContractAsync } = useWriteContract();
 
   return useCallback(
-    async (totalPrice: bigint, orderMetadata: string) => {
-      try {
-        const tx = await writeContractAsync({
-          address: PRODUCT_STORE_ADDRESS,
-          abi: PRODUCT_STORE_ABI,
-          functionName: "checkoutCart",
-          args: [orderMetadata],
-          value: totalPrice,
-        });
-        return tx;
-      } catch (error) {
-        throw error;
-      }
-    },
+    async (totalPrice: bigint, orderMetadata: string) =>
+      writeContractAsync({
+        address: PRODUCT_STORE_ADDRESS,
+        abi: PRODUCT_STORE_ABI,
+        functionName: "checkoutCart",
+        args: [orderMetadata],
+        value: totalPrice,
+      }),
     [writeContractAsync]
   );
 }
@@ -209,22 +186,16 @@ export function useGetArtistBalance(artistAddress?: string) {
 // ──────────────────────────────────────────────
 
 export function useWithdrawArtistBalance() {
-  const { writeContractAsync, isPending } = useWriteContract();
+  const { writeContractAsync } = useWriteContract();
 
   return useCallback(
-    async () => {
-      try {
-        const tx = await writeContractAsync({
-          address: PRODUCT_STORE_ADDRESS,
-          abi: PRODUCT_STORE_ABI,
-          functionName: "withdrawArtistBalance",
-          args: [],
-        });
-        return tx;
-      } catch (error) {
-        throw error;
-      }
-    },
+    async () =>
+      writeContractAsync({
+        address: PRODUCT_STORE_ADDRESS,
+        abi: PRODUCT_STORE_ABI,
+        functionName: "withdrawArtistBalance",
+        args: [],
+      }),
     [writeContractAsync]
   );
 }
@@ -237,18 +208,13 @@ export function useClearCart() {
   const { writeContractAsync } = useWriteContract();
 
   return useCallback(
-    async () => {
-      try {
-        return await writeContractAsync({
-          address: PRODUCT_STORE_ADDRESS,
-          abi: PRODUCT_STORE_ABI,
-          functionName: "clearCart",
-          args: [],
-        });
-      } catch (error) {
-        throw error;
-      }
-    },
+    async () =>
+      writeContractAsync({
+        address: PRODUCT_STORE_ADDRESS,
+        abi: PRODUCT_STORE_ABI,
+        functionName: "clearCart",
+        args: [],
+      }),
     [writeContractAsync]
   );
 }
@@ -261,18 +227,13 @@ export function useFulfillOrder() {
   const { writeContractAsync } = useWriteContract();
 
   return useCallback(
-    async (orderId: number) => {
-      try {
-        return await writeContractAsync({
-          address: PRODUCT_STORE_ADDRESS,
-          abi: PRODUCT_STORE_ABI,
-          functionName: "fulfillOrder",
-          args: [BigInt(orderId)],
-        });
-      } catch (error) {
-        throw error;
-      }
-    },
+    async (orderId: number) =>
+      writeContractAsync({
+        address: PRODUCT_STORE_ADDRESS,
+        abi: PRODUCT_STORE_ABI,
+        functionName: "fulfillOrder",
+        args: [BigInt(orderId)],
+      }),
     [writeContractAsync]
   );
 }

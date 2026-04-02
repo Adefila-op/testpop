@@ -1,5 +1,7 @@
-import { FC, useState } from "react";
-import { X, ChevronLeft, ChevronRight, Menu } from "lucide-react";
+import type { Book, NavItem, Rendition } from "epubjs";
+import ePub from "epubjs";
+import { FC, useEffect, useMemo, useRef, useState } from "react";
+import { X, ChevronLeft, ChevronRight, Menu, ExternalLink, Loader2, Type } from "lucide-react";
 
 interface EpubReaderProps {
   src: string;
@@ -7,8 +9,145 @@ interface EpubReaderProps {
   onClose?: () => void;
 }
 
+const FONT_SCALE_STEPS = [90, 100, 112, 126, 142];
+
 export const EpubReader: FC<EpubReaderProps> = ({ src, title, onClose }) => {
   const [showToc, setShowToc] = useState(false);
+  const [toc, setToc] = useState<NavItem[]>([]);
+  const [currentLocation, setCurrentLocation] = useState<string | null>(null);
+  const [currentLabel, setCurrentLabel] = useState("Opening book...");
+  const [fontScaleIndex, setFontScaleIndex] = useState(1);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const viewerRef = useRef<HTMLDivElement | null>(null);
+  const bookRef = useRef<Book | null>(null);
+  const renditionRef = useRef<Rendition | null>(null);
+
+  const storageKey = useMemo(() => `popup:ebook:${src}`, [src]);
+
+  useEffect(() => {
+    const container = viewerRef.current;
+    if (!container) {
+      return;
+    }
+
+    let cancelled = false;
+    const book = ePub(src);
+    const rendition = book.renderTo(container, {
+      width: "100%",
+      height: "100%",
+      flow: "paginated",
+      manager: "default",
+      spread: "none",
+      allowScriptedContent: true,
+    });
+
+    bookRef.current = book;
+    renditionRef.current = rendition;
+    setIsLoading(true);
+    setError(null);
+
+    rendition.themes.default({
+      body: {
+        "background-color": "#fffdf8",
+        color: "#18181b",
+        "line-height": "1.75",
+        padding: "22px 18px",
+      },
+      p: {
+        "margin-bottom": "1.1em",
+      },
+      "h1, h2, h3, h4, h5, h6": {
+        color: "#111827",
+      },
+      img: {
+        "max-width": "100%",
+        height: "auto",
+      },
+    });
+
+    rendition.themes.fontSize(`${FONT_SCALE_STEPS[1]}%`);
+
+    const openBook = async () => {
+      try {
+        const navigation = await book.loaded.navigation;
+        if (!cancelled) {
+          setToc(navigation.toc || []);
+        }
+
+        const savedLocation = window.localStorage.getItem(storageKey) || undefined;
+        await rendition.display(savedLocation);
+      } catch (loadError) {
+        console.error("Failed to render EPUB:", loadError);
+        if (!cancelled) {
+          setError("This EPUB could not be opened in the in-app reader.");
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    const handleRelocated = (location: { start?: { cfi?: string; index?: number; href?: string; display?: { page?: number; total?: number } } }) => {
+      const cfi = location.start?.cfi ?? null;
+      const href = location.start?.href ?? null;
+      const page = location.start?.display?.page;
+      const total = location.start?.display?.total;
+      const label = page && total ? `Page ${page} of ${total}` : href || "Reading";
+
+      setCurrentLocation(cfi);
+      setCurrentLabel(label);
+
+      if (cfi) {
+        window.localStorage.setItem(storageKey, cfi);
+      }
+    };
+
+    const handleRenderError = (renderError: unknown) => {
+      console.error("EPUB rendition error:", renderError);
+      setError("This EPUB could not be rendered in the reader.");
+      setIsLoading(false);
+    };
+
+    rendition.on("relocated", handleRelocated);
+    rendition.on("rendered", () => setIsLoading(false));
+    rendition.on("displayError", handleRenderError);
+
+    openBook();
+
+    return () => {
+      cancelled = true;
+      rendition.off("relocated", handleRelocated);
+      rendition.off("displayError", handleRenderError);
+      rendition.destroy();
+      book.destroy();
+      renditionRef.current = null;
+      bookRef.current = null;
+    };
+  }, [src, storageKey]);
+
+  useEffect(() => {
+    renditionRef.current?.themes.fontSize(`${FONT_SCALE_STEPS[fontScaleIndex]}%`);
+  }, [fontScaleIndex]);
+
+  const goPrev = () => {
+    void renditionRef.current?.prev();
+  };
+
+  const goNext = () => {
+    void renditionRef.current?.next();
+  };
+
+  const handleChapterSelect = (href?: string | null) => {
+    if (!href) {
+      return;
+    }
+
+    setShowToc(false);
+    setIsLoading(true);
+    void renditionRef.current?.display(href);
+  };
 
   return (
     <div className="relative w-full h-full flex flex-col bg-gradient-to-b from-amber-50 to-orange-50 rounded-xl overflow-hidden">
@@ -33,37 +172,54 @@ export const EpubReader: FC<EpubReaderProps> = ({ src, title, onClose }) => {
             <div className="p-4">
               <h4 className="font-semibold text-orange-900 mb-4">Table of Contents</h4>
               <div className="space-y-2 text-sm text-orange-800">
-                <div className="p-2 hover:bg-orange-50 rounded cursor-pointer">Chapter 1</div>
-                <div className="p-2 hover:bg-orange-50 rounded cursor-pointer">Chapter 2</div>
-                <div className="p-2 hover:bg-orange-50 rounded cursor-pointer">Chapter 3</div>
+                {toc.length > 0 ? (
+                  toc.map((chapter) => (
+                    <button
+                      key={chapter.id}
+                      type="button"
+                      onClick={() => handleChapterSelect(chapter.href)}
+                      className="block w-full rounded p-2 text-left transition-colors hover:bg-orange-50"
+                    >
+                      {chapter.label}
+                    </button>
+                  ))
+                ) : (
+                  <p className="text-xs text-orange-700/80">No chapter list was found in this EPUB.</p>
+                )}
               </div>
             </div>
           </div>
         )}
 
         <div className="flex-1 flex items-center justify-center overflow-auto">
-          <div className="w-full h-full">
-            <object
-              data={src}
-              type="application/epub+zip"
-              className="w-full h-full"
-            >
-              <div className="max-w-2xl w-full h-full flex items-center justify-center">
-                <div className="p-8 text-center text-orange-700">
-                  <p className="text-sm mb-4">
-                    This EPUB is stored as your collectible delivery file. If your browser cannot render it inline, open the source directly.
-                  </p>
+          <div className="relative h-full w-full">
+            <div ref={viewerRef} className="h-full w-full bg-[#fffdf8]" />
+
+            {isLoading && (
+              <div className="absolute inset-0 flex items-center justify-center bg-[#fffdf8]/90">
+                <div className="flex items-center gap-2 text-sm text-orange-800">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Opening EPUB...
+                </div>
+              </div>
+            )}
+
+            {error && (
+              <div className="absolute inset-0 flex items-center justify-center bg-[#fffdf8] p-6">
+                <div className="max-w-md rounded-2xl border border-orange-200 bg-white p-6 text-center text-orange-800 shadow-sm">
+                  <p className="text-sm">{error}</p>
                   <a
                     href={src}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex mt-2 px-4 py-2 bg-orange-200 hover:bg-orange-300 text-orange-900 rounded-lg transition-colors text-sm"
+                    className="mt-4 inline-flex items-center gap-2 rounded-lg bg-orange-200 px-4 py-2 text-sm font-medium text-orange-900 transition-colors hover:bg-orange-300"
                   >
+                    <ExternalLink className="h-4 w-4" />
                     Open EPUB Source
                   </a>
                 </div>
               </div>
-            </object>
+            )}
           </div>
         </div>
       </div>
@@ -77,18 +233,34 @@ export const EpubReader: FC<EpubReaderProps> = ({ src, title, onClose }) => {
         </button>
 
         <div className="flex items-center gap-4">
-          <button className="p-2 hover:bg-orange-100 rounded-lg transition-colors">
+          <button type="button" onClick={goPrev} className="p-2 hover:bg-orange-100 rounded-lg transition-colors">
             <ChevronLeft className="h-5 w-5 text-orange-800" />
           </button>
           <span className="text-sm text-orange-700 min-w-24 text-center">
-            Page 1
+            {currentLabel}
           </span>
-          <button className="p-2 hover:bg-orange-100 rounded-lg transition-colors">
+          <button type="button" onClick={goNext} className="p-2 hover:bg-orange-100 rounded-lg transition-colors">
             <ChevronRight className="h-5 w-5 text-orange-800" />
           </button>
         </div>
 
-        <div></div>
+        <div className="flex items-center gap-2">
+          <Type className="h-4 w-4 text-orange-700" />
+          <button
+            type="button"
+            onClick={() => setFontScaleIndex((current) => Math.max(0, current - 1))}
+            className="rounded-lg px-2 py-1 text-sm text-orange-800 transition-colors hover:bg-orange-100"
+          >
+            A-
+          </button>
+          <button
+            type="button"
+            onClick={() => setFontScaleIndex((current) => Math.min(FONT_SCALE_STEPS.length - 1, current + 1))}
+            className="rounded-lg px-2 py-1 text-sm text-orange-800 transition-colors hover:bg-orange-100"
+          >
+            A+
+          </button>
+        </div>
       </div>
     </div>
   );

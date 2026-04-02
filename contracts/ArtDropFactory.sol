@@ -98,16 +98,26 @@ contract ArtDropFactory {
     /// @dev Set artist approval status (replaces DB-only whitelist)
     function setArtistApproval(address _artist, bool _approved) external onlyOwner {
         require(_artist != address(0), "Invalid artist address");
-        
+
         bool wasApproved = artistApproved[_artist];
         artistApproved[_artist] = _approved;
         approvalTimestamp[_artist] = block.timestamp;
-        
-        // Track approved artists (add to list if newly approved)
+
         if (_approved && !wasApproved) {
             approvedArtists.push(_artist);
         }
-        
+
+        if (!_approved && wasApproved) {
+            uint256 approvedArtistsLength = approvedArtists.length;
+            for (uint256 i = 0; i < approvedArtistsLength; i++) {
+                if (approvedArtists[i] == _artist) {
+                    approvedArtists[i] = approvedArtists[approvedArtistsLength - 1];
+                    approvedArtists.pop();
+                    break;
+                }
+            }
+        }
+
         emit ArtistApprovalUpdated(_artist, _approved, block.timestamp);
     }
 

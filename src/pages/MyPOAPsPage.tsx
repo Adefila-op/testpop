@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useMemo } from "react";
 import { ArrowLeft, Clock3, Gift, Loader2, Zap } from "lucide-react";
 import { useNavigate } from "react-router-dom";

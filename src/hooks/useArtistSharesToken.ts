@@ -1,10 +1,9 @@
 // Hooks for ArtistSharesToken contract interaction
 // Used in share fundraising pages
 
-import { useState } from "react";
 import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadContract } from "wagmi";
 import { parseEther, formatEther } from "viem";
-import { ARTIST_SHARES_TOKEN_ABI, ARTIST_SHARES_TOKEN_ADDRESS } from "@/lib/contracts/artistSharesToken";
+import { ARTIST_SHARES_TOKEN_ABI } from "@/lib/contracts/artistSharesToken";
 import { ACTIVE_CHAIN } from "@/lib/wagmi";
 import { getAddress } from "viem";
 
@@ -12,7 +11,7 @@ import { getAddress } from "viem";
 export function useLaunchSharesCampaign(tokenAddress?: string | null) {
   const { address } = useAccount();
   const { writeContract, data: hash, isPending, error } = useWriteContract();
-  const { data: receipt, isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
 
   let validated: string | null = null;
   try {
@@ -58,7 +57,7 @@ export function useLaunchSharesCampaign(tokenAddress?: string | null) {
 export function useBuyShares(tokenAddress?: string | null) {
   const { address } = useAccount();
   const { writeContract, data: hash, isPending, error } = useWriteContract();
-  const { data: receipt, isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
 
   let validated: string | null = null;
   try {
@@ -113,13 +112,23 @@ export function useCampaignStatus(tokenAddress?: string | null) {
   });
 
   const campaign = data
-    ? {
-        targetEth: formatEther((data as any)[0]),
-        raisedEth: formatEther((data as any)[1]),
-        pricePerShare: (data as any)[2].toString(),
-        endTime: Number((data as any)[3]),
-        active: (data as any)[4],
-      }
+    ? (() => {
+        const [targetAmount, raised, pricePerShare, endTime, active] = data as [
+          bigint,
+          bigint,
+          bigint,
+          bigint,
+          boolean,
+        ];
+
+        return {
+          targetEth: formatEther(targetAmount),
+          raisedEth: formatEther(raised),
+          pricePerShare: pricePerShare.toString(),
+          endTime: Number(endTime),
+          active,
+        };
+      })()
     : null;
 
   return { campaign, isLoading, error, refetch };
@@ -159,7 +168,7 @@ export function useRevenueClaim(tokenAddress?: string | null, userAddress?: stri
 export function useClaimRevenue(tokenAddress?: string | null) {
   const { address } = useAccount();
   const { writeContract, data: hash, isPending, error } = useWriteContract();
-  const { data: receipt, isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
 
   let validated: string | null = null;
   try {

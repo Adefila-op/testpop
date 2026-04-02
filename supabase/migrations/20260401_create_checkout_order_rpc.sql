@@ -11,7 +11,8 @@ CREATE OR REPLACE FUNCTION create_checkout_order(
   p_shipping_eth NUMERIC DEFAULT 0,
   p_tax_eth NUMERIC DEFAULT 0,
   p_currency TEXT DEFAULT 'ETH',
-  p_tracking_code TEXT DEFAULT NULL
+  p_tracking_code TEXT DEFAULT NULL,
+  p_tx_hash TEXT DEFAULT NULL
 )
 RETURNS UUID AS $$
 DECLARE
@@ -26,6 +27,7 @@ DECLARE
   v_total_price_eth NUMERIC := 0;
   v_currency TEXT := COALESCE(NULLIF(BTRIM(p_currency), ''), 'ETH');
   v_tracking_code TEXT := COALESCE(NULLIF(BTRIM(p_tracking_code), ''), 'TRK-' || UPPER(SUBSTRING(REPLACE(gen_random_uuid()::TEXT, '-', '') FROM 1 FOR 12)));
+  v_tx_hash TEXT := NULLIF(BTRIM(p_tx_hash), '');
   v_shipping_address_jsonb JSONB := COALESCE(p_shipping_address_jsonb, '{}'::jsonb);
   v_shipping_address TEXT := '';
   v_single_product_id UUID := NULL;
@@ -232,6 +234,8 @@ BEGIN
     shipping_address,
     shipping_address_jsonb,
     tracking_code,
+    tx_hash,
+    paid_at,
     created_at,
     updated_at
   )
@@ -245,10 +249,12 @@ BEGIN
     v_shipping_eth,
     v_tax_eth,
     v_total_price_eth,
-    'pending',
+    'paid',
     v_shipping_address,
     v_shipping_address_jsonb,
     v_tracking_code,
+    v_tx_hash,
+    v_now,
     v_now,
     v_now
   );
@@ -291,7 +297,7 @@ BEGIN
       WHEN product_type IN ('digital', 'hybrid') THEN 'digital'
       ELSE 'physical'
     END,
-    'pending',
+    'paid',
     v_now,
     v_now
   FROM locked_products;

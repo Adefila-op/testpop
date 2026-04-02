@@ -267,14 +267,20 @@ export function useCampaignStatus() {
 
   if (!data) return null;
 
-  const [targetAmount, raised, pricePerShare, endTime, active] = data as any[];
+  const [targetAmount, raised, pricePerShare, endTime, active] = data as [
+    bigint,
+    bigint,
+    bigint,
+    bigint,
+    boolean,
+  ];
   return {
     targetAmount,
     raised,
     pricePerShare,
     endTime,
     active,
-    progressPercent: (Number(raised) / Number(targetAmount)) * 100,
+    progressPercent: Number(targetAmount) > 0 ? (Number(raised) / Number(targetAmount)) * 100 : 0,
   };
 }
 
@@ -344,7 +350,7 @@ export function usePendingRefund(userAddress: string | undefined) {
   const { data } = useReadContract({
     address: ARTIST_SHARES_TOKEN_ADDRESS,
     abi: ARTIST_SHARES_TOKEN_ABI,
-    functionName: "pendingWithdrawals",
+    functionName: "investmentAmount",
     args: userAddress ? [getAddress(userAddress)] : undefined,
     query: { enabled: !!userAddress },
   });

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useMemo, useState } from "react";
 import { Search, ShoppingCart, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";

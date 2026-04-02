@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { recordArtistView } from "@/lib/analyticsStore";
 import { useSupabaseArtistById, useSupabaseDropsByArtist } from "@/hooks/useSupabase";
 import { resolveMediaUrl } from "@/lib/pinata";
+import { resolvePortfolioImage } from "@/lib/portfolio";
 
 const ArtistProfilePage = () => {
   const { id } = useParams();
@@ -324,10 +325,21 @@ const ArtistProfilePage = () => {
                 {transformedArtist.portfolio.map((piece, idx) => (
                   <button
                     key={piece.id}
-                    onClick={() => setLightboxImage(piece)}
+                    onClick={() =>
+                      setLightboxImage({
+                        image: resolvePortfolioImage(piece),
+                        title: piece.title,
+                        medium: piece.medium,
+                        year: piece.year,
+                      })
+                    }
                     className={`group relative overflow-hidden rounded-xl ${idx === 0 ? "col-span-2 aspect-[2/1]" : "aspect-square"}`}
                   >
-                    <img src={piece.image} alt={piece.title} className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" />
+                    <img
+                      src={resolvePortfolioImage(piece)}
+                      alt={piece.title}
+                      className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                    />
                     <div className="absolute inset-0 bg-gradient-to-t from-card/80 via-transparent to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
                     <div className="absolute bottom-0 left-0 right-0 p-2.5 opacity-0 transition-opacity group-hover:opacity-100">
                       <p className="truncate text-xs font-semibold text-card-foreground">{piece.title}</p>

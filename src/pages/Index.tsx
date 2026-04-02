@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState, useRef, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ArrowRight, Clock, Gavel, Heart, Loader2, ShoppingCart, Sparkles, User, X } from "lucide-react";
@@ -13,6 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { parseEther } from "viem";
 import { useCollectionStore } from "@/stores/collectionStore";
 import { resolveMediaUrl } from "@/lib/pinata";
+import { resolvePortfolioImage } from "@/lib/portfolio";
 
 const SubscribeButtonWrapper = ({ artist, isConnected, connectWallet, address, toast }: any) => {
   const effectiveContractAddress = useResolvedArtistContract(artist?.wallet, artist?.contractAddress);
@@ -154,8 +156,7 @@ const Index = () => {
         supabaseArtists
           .map((artist: any) => {
             const portfolio = Array.isArray(artist.portfolio) ? artist.portfolio : [];
-            const featuredPortfolioImage =
-              resolveMediaUrl(portfolio[0]?.image, portfolio[0]?.image, portfolio[0]?.imageUri) || "";
+            const featuredPortfolioImage = resolvePortfolioImage(portfolio[0]) || "";
 
             return {
               id: artist.id,
@@ -166,7 +167,7 @@ const Index = () => {
               avatar: artist.avatar_url || artist.banner_url || featuredPortfolioImage || "",
               tag: artist.tag || "artist",
               bio: artist.bio || "This artist has not published a public bio yet.",
-              cover: artist.banner_url || artist.avatar_url || featuredPortfolioImage || "",
+              cover: featuredPortfolioImage || artist.banner_url || artist.avatar_url || "",
               portfolio,
             };
           })
@@ -497,8 +498,7 @@ const Index = () => {
   const visibleCards = getVisibleCards();
   const visibleDropCards = getVisibleDropCards();
   const desktopLiveDrops = liveDrops.slice(0, 3);
-  const getPortfolioImage = (piece: any) =>
-    resolveMediaUrl(piece?.image, piece?.image, piece?.imageUri) || "";
+  const getPortfolioImage = (piece: any) => resolvePortfolioImage(piece) || "";
   const getArtistFeaturedPiece = (artist: any) => {
     const featuredPiece = Array.isArray(artist?.portfolio) ? artist.portfolio[0] : null;
     return {

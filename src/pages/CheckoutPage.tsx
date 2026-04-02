@@ -23,7 +23,7 @@ import {
 export function CheckoutPage() {
   const navigate = useNavigate();
   const { address } = useAccount();
-  const { items, getTotalPrice, clearCart, removeItem } = useCartStore();
+  const { items, getTotalPrice, clearCart } = useCartStore();
 
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -136,13 +136,11 @@ export function CheckoutPage() {
         }
       }
 
-      completedPurchases.forEach(({ productId }) => removeItem(productId));
       clearCart();
       setOrderPlaced(true);
       setCheckoutProgress("");
       toast.success("Onchain purchase completed successfully!");
     } catch (error) {
-      completedPurchases.forEach(({ productId }) => removeItem(productId));
       if (error instanceof Error) {
         console.error("Checkout error:", error);
       }

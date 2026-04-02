@@ -43,11 +43,11 @@ contract ArtDrop is ERC721, ERC721URIStorage, ReentrancyGuard {
     // ──────────────────────────────────────────────
     //  State - Subscriptions (scoped to this artist)
     // ──────────────────────────────────────────────
-    mapping(address => bool) public hasSubscribed;        // subscriber → bool (one per wallet)
+    mapping(address => bool) public hasSubscribed;        // subscriber → has ever subscribed
     mapping(address => uint256) public subscriptionAmount; // subscriber → subscription amount
     mapping(address => uint256) public subscriptionExpiry; // subscriber → expiry timestamp
     uint256 public minSubscriptionFee = 0.001 ether;      // Minimum fee required
-    uint256 public subscriberCount;                        // unique count
+    uint256 public subscriberCount;                        // lifetime unique subscriber count
     uint256 public totalSubscriptionRevenue;
     uint256 public constant SUBSCRIPTION_DURATION = 30 days;
 
@@ -146,7 +146,7 @@ contract ArtDrop is ERC721, ERC721URIStorage, ReentrancyGuard {
     /**
      * @notice Subscribe to this artist's work
      *         Splits: 70% to artist, 30% to founder
-     *         Each wallet can only subscribe once (call cancelSubscription to renew)
+     *         Each wallet can renew after expiry without changing unique subscriber count
      */
     function subscribe() external payable nonReentrant {
         require(msg.value >= minSubscriptionFee, "Below minimum subscription fee");
@@ -189,15 +189,14 @@ contract ArtDrop is ERC721, ERC721URIStorage, ReentrancyGuard {
     }
 
     /**
-     * @notice Allow artist to cancel a subscriber's subscription for renewal
+     * @notice Allow artist to revoke active access without mutating lifetime unique subscriber count
      */
     function cancelSubscription(address _subscriber) external onlyArtist {
         require(_subscriber != address(0), "Invalid subscriber");
         require(hasSubscribed[_subscriber], "Not subscribed");
 
-        hasSubscribed[_subscriber] = false;
         subscriptionAmount[_subscriber] = 0;
-        subscriberCount -= 1;
+        subscriptionExpiry[_subscriber] = block.timestamp;
 
         emit SubscriptionCancelled(_subscriber);
     }
