@@ -3,9 +3,7 @@ import {
   Award,
   BookOpen,
   BarChart3,
-  Check,
   ChevronRight,
-  Copy,
   ExternalLink,
   Gift,
   LogOut,
@@ -15,7 +13,7 @@ import {
   Sparkles,
   Wallet,
 } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import WalletConnect from "@/components/WalletConnect";
@@ -37,6 +35,7 @@ import { fetchResolvedArtistContractAddress } from "@/hooks/useContractIntegrati
 import { useCampaignV2State } from "@/hooks/useCampaignV2";
 import { resolveMediaUrl } from "@/lib/pinata";
 import { resolvePortfolioImage } from "@/lib/portfolio";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 type CollectorWorkspace = "overview" | "collection" | "poaps" | "subscriptions" | "studio";
 
@@ -126,8 +125,8 @@ function getInitials(address?: string) {
 }
 
 const ProfilePage = () => {
+  const navigate = useNavigate();
   const { address, isConnected, chain, balance, disconnect } = useWallet();
-  const [copied, setCopied] = useState(false);
   const [activeWorkspace, setActiveWorkspace] = useState<CollectorWorkspace>("collection");
   const [activeSubscriptionCount, setActiveSubscriptionCount] = useState(0);
   const [activeSubscriptionArtists, setActiveSubscriptionArtists] = useState<SubscriptionArtist[]>([]);
@@ -326,52 +325,45 @@ const ProfilePage = () => {
         label: "My Collection",
         desc: "Open the collectibles and ebooks you own",
         workspace: "collection" as const,
+        mobilePath: "/collection",
       },
       {
         icon: Award,
         label: "My POAPs",
         desc: "Campaign badges, access passes, and drops",
         workspace: "poaps" as const,
+        mobilePath: "/poaps",
       },
       {
         icon: Wallet,
         label: "Subscriptions",
         desc: "Artists and memberships you actively support",
         workspace: "subscriptions" as const,
+        mobilePath: "/subscriptions",
       },
       {
         icon: Shield,
         label: "Artist Studio",
         desc: "Manage drops, profile, and portfolio if approved",
         workspace: "studio" as const,
+        mobilePath: "/studio",
       },
     ],
     []
   );
 
-  const quickStats = [
-    {
-      label: "Wallet Status",
-      value: isConnected ? "Connected" : "Offline",
-      tone: "bg-[#e8f2ff] text-[#0f4fa8]",
-    },
-    {
-      label: "Network",
-      value: chain?.name || "Not connected",
-      tone: "bg-[#dcebff] text-[#15458f]",
-    },
-    {
-      label: "Balance",
-      value: balance ? `${parseFloat(formatEther(balance.value)).toFixed(4)} ETH` : "Waiting",
-      tone: "bg-[#f3f8ff] text-[#2a5fa8]",
-    },
-  ];
+  const isMobile = useIsMobile();
 
-  const copyAddress = async () => {
-    if (!address) return;
-    await navigator.clipboard.writeText(address);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
+  const openWorkspace = (workspace: CollectorWorkspace) => {
+    if (isMobile) {
+      const mobilePath = menuItems.find((item) => item.workspace === workspace)?.mobilePath;
+      if (mobilePath) {
+        navigate(mobilePath);
+        return;
+      }
+    }
+
+    setActiveWorkspace(workspace);
   };
 
   const handleDisconnect = () => {
@@ -399,7 +391,7 @@ const ProfilePage = () => {
                 <button
                   key={item.label}
                   type="button"
-                  onClick={() => setActiveWorkspace(item.workspace)}
+                  onClick={() => openWorkspace(item.workspace)}
                   className={`flex items-center gap-3 rounded-2xl px-4 py-3 text-left transition-colors ${
                     activeWorkspace === item.workspace
                       ? "bg-[#dbeafe] text-foreground shadow-sm"
@@ -480,7 +472,7 @@ const ProfilePage = () => {
                 </div>
 
                 <div className="mt-5 flex flex-wrap gap-3 text-sm">
-                  {[
+                  {[ 
                     { label: "Collection", value: "collection" },
                     { label: "POAPs", value: "poaps" },
                     { label: "Subscriptions", value: "subscriptions" },
@@ -489,7 +481,7 @@ const ProfilePage = () => {
                     <button
                       key={tab.value}
                       type="button"
-                      onClick={() => setActiveWorkspace(tab.value as CollectorWorkspace)}
+                      onClick={() => openWorkspace(tab.value as CollectorWorkspace)}
                       className={activeWorkspace === tab.value ? "font-semibold text-foreground" : "text-muted-foreground"}
                     >
                       {tab.label}

@@ -21,6 +21,21 @@ import { decodeEventLog, parseEther, getAddress } from "viem";
 import { ACTIVE_CHAIN } from "@/lib/wagmi";
 import { ARTIST_DROP_ABI } from "@/lib/contracts/artDropArtist";
 
+// Helper to validate decoded events
+interface DecodedEvent {
+  eventName: string;
+  args: Record<string, unknown>;
+}
+
+function isDecodedEvent(value: unknown): value is DecodedEvent {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "eventName" in value &&
+    "args" in value
+  );
+}
+
 /**
  * Create a drop on the artist's contract
  * @param artistContractAddress - The artist's deployed contract address
@@ -115,7 +130,7 @@ export function useCreateDropArtist(artistContractAddress?: string | null) {
             data: log.data,
             topics: log.topics,
           });
-          if (decoded.eventName !== "DropCreated") return null;
+          if (!isDecodedEvent(decoded) || decoded.eventName !== "DropCreated") return null;
           console.log("✅ Drop created with ID:", decoded.args.dropId);
           return Number(decoded.args.dropId);
         } catch {
@@ -197,7 +212,7 @@ export function useMintArtist(artistContractAddress?: string | null) {
             data: log.data,
             topics: log.topics,
           });
-          if (decoded.eventName !== "ArtMinted") return null;
+          if (!isDecodedEvent(decoded) || decoded.eventName !== "ArtMinted") return null;
           console.log("✅ NFT minted with token ID:", decoded.args.tokenId);
           return Number(decoded.args.tokenId);
         } catch {
@@ -274,7 +289,7 @@ export function useSubscribeToArtistContract(artistContractAddress?: string | nu
             data: log.data,
             topics: log.topics,
           });
-          if (decoded.eventName !== "NewSubscription") return null;
+          if (!isDecodedEvent(decoded) || decoded.eventName !== "NewSubscription") return null;
           console.log("✅ Subscription confirmed:", decoded.args);
           return receipt.transactionHash;
         } catch {
@@ -315,7 +330,7 @@ export function useIsSubscribedToArtistContract(
     abi: ARTIST_DROP_ABI,
     functionName: "isSubscriptionActive",
     args: normalizedUser ? [normalizedUser as `0x${string}`] : undefined,
-    enabled: Boolean(normalizedArtist && normalizedUser),
+    query: { enabled: Boolean(normalizedArtist && normalizedUser) },
   });
 
   return {
@@ -346,7 +361,7 @@ export function useGetSubscriberCount(artistContractAddress?: string | null) {
     abi: ARTIST_DROP_ABI,
     functionName: "getSubscriberCount",
     args: [],
-    enabled: Boolean(normalized),
+    query: { enabled: Boolean(normalized) },
   });
 
   return {
@@ -382,7 +397,7 @@ export function useArtistDropDetails(
     abi: ARTIST_DROP_ABI,
     functionName: "getDrop",
     args: dropId !== null && dropId !== undefined ? [BigInt(dropId)] : undefined,
-    enabled: enabled && Boolean(normalized) && dropId !== null && dropId !== undefined,
+    query: { enabled: enabled && Boolean(normalized) && dropId !== null && dropId !== undefined },
   });
 
   return { data, isLoading, error, refetch };

@@ -7,16 +7,16 @@
 
 -- Composite index for subscription lookups
 CREATE INDEX IF NOT EXISTS idx_subscriptions_artist_subscriber 
-ON subscriptions(artist_wallet, subscriber_wallet);
+ON subscriptions(artist_id, subscriber_wallet);
 
 -- Index for expiry checks (used in renewal and active status queries)
 CREATE INDEX IF NOT EXISTS idx_subscriptions_expiry 
-ON subscriptions(artist_wallet, expiry_time DESC)
+ON subscriptions(artist_id, expiry_time DESC)
 WHERE expiry_time > EXTRACT(EPOCH FROM NOW());
 
 -- Index for subscriber analytics
 CREATE INDEX IF NOT EXISTS idx_subscriptions_artist_expiry
-ON subscriptions(artist_wallet, expiry_time DESC);
+ON subscriptions(artist_id, expiry_time DESC);
 
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- DROPS TABLE INDICES - Already has some, adding critical ones
