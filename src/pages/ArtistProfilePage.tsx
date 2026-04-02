@@ -225,7 +225,7 @@ const ArtistProfilePage = () => {
           </button>
         </div>
 
-        <div className="grid gap-5 lg:grid-cols-[340px_minmax(0,1fr)]">
+        <div className="grid gap-5 lg:grid-cols-[320px_minmax(0,1fr)] xl:grid-cols-[340px_minmax(0,1fr)]">
           <aside className="rounded-[1.8rem] bg-[linear-gradient(180deg,#8f8de8_0%,#7c78d4_100%)] p-5 text-white shadow-[0_24px_60px_rgba(124,120,212,0.3)]">
             <div className="flex items-center gap-2 text-sm font-medium text-white/90">
               <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-white/18">+</span>
@@ -244,7 +244,7 @@ const ArtistProfilePage = () => {
 
             <div className="mt-6">
               <p className="text-2xl font-light leading-none text-white/90">I&apos;m,</p>
-              <h1 className="mt-2 text-5xl font-black leading-[0.95] tracking-tight">{transformedArtist.name}</h1>
+              <h1 className="mt-2 text-4xl font-black leading-[0.95] tracking-tight md:text-5xl">{transformedArtist.name}</h1>
               <p className="mt-4 text-sm text-white/78">
                 {transformedArtist.handle ? `@${transformedArtist.handle}` : transformedArtist.tag}
               </p>
@@ -288,13 +288,13 @@ const ArtistProfilePage = () => {
                   <span className="text-sm text-muted-foreground">Portfolio</span>
                 </div>
 
-                <h2 className="mt-3 text-6xl font-black tracking-[-0.04em] text-foreground md:text-7xl">Portfolio</h2>
+                <h2 className="mt-3 text-4xl font-black tracking-[-0.04em] text-foreground sm:text-5xl md:text-6xl xl:text-7xl">Portfolio</h2>
 
                 <div className="mt-5 overflow-hidden rounded-[1.8rem] bg-[#daf0f2] p-2 shadow-[0_22px_45px_rgba(15,23,42,0.06)]">
                   <button
                     type="button"
                     onClick={() => setLightboxImage(featuredPortfolio)}
-                    className="group relative block h-[250px] w-full overflow-hidden rounded-[1.4rem]"
+                    className="group relative block h-[220px] w-full overflow-hidden rounded-[1.4rem] sm:h-[250px]"
                   >
                     <img src={featuredPortfolio.image} alt={featuredPortfolio.title} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
@@ -307,7 +307,7 @@ const ArtistProfilePage = () => {
 
               <div className="grid gap-3">
                 <div className="rounded-[1.5rem] bg-[#c9eef1] p-4">
-                  <p className="text-4xl font-black text-foreground">{portfolioPieces.length || 1}</p>
+                  <p className="text-4xl font-black text-foreground">{portfolioPieces.length}</p>
                   <p className="mt-1 text-foreground/80">Portfolio Pieces</p>
                 </div>
                 <div className="rounded-[1.5rem] bg-[#a985db] p-4 text-white">
@@ -327,7 +327,7 @@ const ArtistProfilePage = () => {
                       onClick={() => setLightboxImage(piece)}
                       className={`overflow-hidden rounded-[1.5rem] ${index === 0 ? "bg-[#6d6d6d]" : "bg-black"} p-2 text-left shadow-[0_18px_40px_rgba(15,23,42,0.06)]`}
                     >
-                      <img src={piece.image} alt={piece.title} className="h-36 w-full rounded-[1.15rem] object-cover" />
+                      <img src={piece.image} alt={piece.title} className="h-32 w-full rounded-[1.15rem] object-cover sm:h-36" />
                       <div className="px-2 pb-1 pt-3">
                         <p className="text-sm font-semibold text-white">{piece.title}</p>
                         <p className="mt-1 text-xs text-white/70">{piece.medium} · {piece.year}</p>
@@ -343,20 +343,20 @@ const ArtistProfilePage = () => {
               </div>
 
               <div className="rounded-[1.5rem] bg-[#ffc862] p-5 text-foreground shadow-[0_18px_40px_rgba(15,23,42,0.06)]">
-                <p className="text-4xl font-black">{drops.length * 12 + 172}</p>
-                <p className="mt-2 text-2xl leading-tight">Global Design Awards.</p>
+                <p className="text-4xl font-black">{drops.length}</p>
+                <p className="mt-2 text-2xl leading-tight">Live Drops</p>
                 <p className="mt-4 text-sm text-foreground/70">
-                  Portfolio-led artist profile with direct subscription and collectible drop access.
+                  Public profile is rendering live drop inventory from Supabase and live subscription status from the artist contract.
                 </p>
               </div>
             </div>
 
             <div className="rounded-[1.75rem] bg-[#fcfbf8] p-4 shadow-[inset_0_0_0_1px_rgba(15,23,42,0.04)]">
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
                 <Button
                   onClick={handleSubscribe}
                   disabled={isSubscribing || isSubscribePending || isSubscribeConfirming || isSubscribed || isSubscribedLoading}
-                  className="rounded-full gradient-primary text-primary-foreground"
+                  className="w-full rounded-full gradient-primary text-primary-foreground sm:w-auto"
                 >
                   {isConnected
                     ? isSubscribed
@@ -374,12 +374,12 @@ const ArtistProfilePage = () => {
                   onClick={() => setBuySharesOpen(true)}
                   disabled={onchainSubscribers < 100}
                   variant={onchainSubscribers < 100 ? "secondary" : "outline"}
-                  className="rounded-full"
+                  className="w-full rounded-full sm:w-auto"
                   title={onchainSubscribers < 100 ? "Artist needs 100+ subscribers to sell shares" : ""}
                 >
                   {onchainSubscribers < 100 ? `Buy Shares (${onchainSubscribers}/100)` : "Buy Shares"}
                 </Button>
-                <Button variant="outline" size="icon" className="rounded-full">
+                <Button variant="outline" size="icon" className="rounded-full self-start">
                   <Heart className="h-4 w-4" />
                 </Button>
               </div>
@@ -428,7 +428,7 @@ const ArtistProfilePage = () => {
                     ) : drops.length === 0 ? (
                       <p className="py-8 text-center text-xs text-muted-foreground">No drops yet.</p>
                     ) : (
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                         {drops.map((drop) => (
                           <Link key={drop.id} to={`/drops/${drop.id}`} className="overflow-hidden rounded-2xl bg-card shadow-card">
                             <div className="aspect-square overflow-hidden">

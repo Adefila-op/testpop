@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Award,
   BarChart3,
@@ -16,8 +16,14 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import WalletConnect from "@/components/WalletConnect";
 import { useWallet } from "@/hooks/useContracts";
-import { formatEther } from "viem";
+import { formatEther, createPublicClient, getAddress, http } from "viem";
 import { toast } from "sonner";
+import { useSupabaseArtists, useSupabaseOrdersByBuyer } from "@/hooks/useSupabase";
+import { useCollectionStore } from "@/stores/collectionStore";
+import { ACTIVE_CHAIN } from "@/lib/wagmi";
+import { ARTIST_DROP_ABI } from "@/lib/contracts/artDropArtist";
+import type { OrderWithItems } from "@/lib/db";
+import { fetchResolvedArtistContractAddress } from "@/hooks/useContractIntegrations";
 
 function getAvatarColor(address?: string): string {
   if (!address) return "#8884d8";
@@ -36,6 +42,103 @@ function getInitials(address?: string) {
 const ProfilePage = () => {
   const { address, isConnected, chain, balance, disconnect } = useWallet();
   const [copied, setCopied] = useState(false);
+  const [activeSubscriptionCount, setActiveSubscriptionCount] = useState(0);
+  const [subscriptionsLoading, setSubscriptionsLoading] = useState(false);
+  const { data: artists } = useSupabaseArtists();
+  const { data: orders } = useSupabaseOrdersByBuyer(address?.toLowerCase());
+  const collection = useCollectionStore((state) => state.items);
+
+  useEffect(() => {
+    if (!isConnected || !address || !artists.length) {
+      setActiveSubscriptionCount(0);
+      setSubscriptionsLoading(false);
+      return;
+    }
+
+    let active = true;
+    const loadSubscriptions = async () => {
+      setSubscriptionsLoading(true);
+      try {
+        const publicClient = createPublicClient({ chain: ACTIVE_CHAIN, transport: http() });
+        const userAddress = getAddress(address);
+
+        const results = await Promise.all(
+          artists.map(async (artist) => {
+            try {
+              const contractAddress = await fetchResolvedArtistContractAddress(
+                publicClient,
+                artist.wallet,
+                artist.contract_address
+              );
+
+              if (!contractAddress) {
+                return false;
+              }
+
+              return await publicClient.readContract({
+                address: getAddress(contractAddress),
+                abi: ARTIST_DROP_ABI,
+                functionName: "isSubscriptionActive",
+                args: [userAddress],
+              });
+            } catch {
+              return false;
+            }
+          })
+        );
+
+        if (!active) return;
+        setActiveSubscriptionCount(results.filter(Boolean).length);
+      } finally {
+        if (active) {
+          setSubscriptionsLoading(false);
+        }
+      }
+    };
+
+    void loadSubscriptions();
+
+    return () => {
+      active = false;
+    };
+  }, [address, artists, isConnected]);
+
+  const ownedCollectionCount = useMemo(() => {
+    if (!address) return 0;
+
+    const normalizedAddress = address.toLowerCase();
+    const localCount = collection.filter((item) => item.ownerWallet.toLowerCase() === normalizedAddress).length;
+    const orderCount = (orders || []).reduce((total, order) => {
+      const typedOrder = order as OrderWithItems;
+      if (typedOrder.order_items?.length) {
+        return total + typedOrder.order_items.reduce((sum, item) => sum + Math.max(1, Number(item.quantity) || 1), 0);
+      }
+      return total + Math.max(1, Number(typedOrder.quantity) || 1);
+    }, 0);
+
+    return Math.max(localCount, orderCount);
+  }, [address, collection, orders]);
+
+  const liveStats = useMemo(
+    () => [
+      {
+        label: "Collection",
+        value: String(ownedCollectionCount),
+        tone: "bg-[#fff4d6] text-[#9a6200]",
+      },
+      {
+        label: "Subscriptions",
+        value: subscriptionsLoading ? "..." : String(activeSubscriptionCount),
+        tone: "bg-[#efe8ff] text-[#5f43b2]",
+      },
+      {
+        label: "Orders",
+        value: String(orders?.length || 0),
+        tone: "bg-[#e9f5ff] text-[#0f5fa8]",
+      },
+    ],
+    [activeSubscriptionCount, orders?.length, ownedCollectionCount, subscriptionsLoading]
+  );
 
   const menuItems = useMemo(
     () => [
@@ -100,7 +203,7 @@ const ProfilePage = () => {
   return (
     <div className="min-h-[calc(100vh-88px)] bg-[radial-gradient(circle_at_top,rgba(255,220,190,0.28),transparent_32%),linear-gradient(180deg,#fbfaf8_0%,#f5f3ef_100%)] px-4 py-4 md:px-6 md:py-6">
       <div className="mx-auto max-w-7xl rounded-[2rem] border border-white/70 bg-white/85 p-3 shadow-[0_35px_120px_rgba(15,23,42,0.08)] backdrop-blur md:p-5">
-        <div className="grid gap-4 md:grid-cols-[260px_minmax(0,1fr)]">
+        <div className="grid gap-4 lg:grid-cols-[260px_minmax(0,1fr)]">
           <aside className="rounded-[1.8rem] border border-black/5 bg-[#fcfbf8] p-5 shadow-[inset_-1px_0_0_rgba(15,23,42,0.04)]">
             <div className="flex items-center gap-3 md:block">
               <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#ffb13b_0%,#ff7a00_100%)] text-white shadow-lg">
@@ -151,13 +254,18 @@ const ProfilePage = () => {
 
           <section className="rounded-[1.8rem] bg-[linear-gradient(180deg,#fffefd_0%,#f7f5f2_100%)] p-4 md:p-6">
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-              <div className="relative max-w-md flex-1">
-                <div className="flex h-11 items-center rounded-full border border-black/6 bg-white px-4 text-sm text-muted-foreground shadow-sm">
-                  Search here...
+              <div className="max-w-xl flex-1 rounded-[1.4rem] border border-black/6 bg-white px-4 py-3 shadow-sm">
+                <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Live Summary</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {liveStats.map((stat) => (
+                    <span key={stat.label} className={`rounded-full px-3 py-1 text-xs font-semibold ${stat.tone}`}>
+                      {stat.label}: {stat.value}
+                    </span>
+                  ))}
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 self-end rounded-full bg-white px-3 py-2 shadow-sm">
+              <div className="flex items-center gap-3 self-start rounded-full bg-white px-3 py-2 shadow-sm md:self-end">
                 <div
                   className="flex h-11 w-11 items-center justify-center rounded-full text-sm font-bold text-white"
                   style={{ backgroundColor: getAvatarColor(address) }}
@@ -221,7 +329,7 @@ const ProfilePage = () => {
                           </p>
                         </div>
                         <div className="rounded-full bg-[#fff4d6] px-3 py-1 text-xs font-semibold text-[#9a6200]">
-                          {isConnected ? "Active" : "Waiting"}
+                          {isConnected ? "Active" : "Offline"}
                         </div>
                       </div>
 
@@ -277,7 +385,7 @@ const ProfilePage = () => {
                         <ChevronRight className="h-4 w-4 text-muted-foreground" />
                       </div>
                       <p className="mt-4 text-lg font-semibold text-foreground">Collection Library</p>
-                      <p className="mt-1 text-sm text-muted-foreground">Open purchased drops, digital assets, and in-app ebook reading.</p>
+                      <p className="mt-1 text-sm text-muted-foreground">{ownedCollectionCount} owned item{ownedCollectionCount === 1 ? "" : "s"} available across your collection and order history.</p>
                     </Link>
 
                     <Link to="/subscriptions" className="rounded-[1.6rem] bg-white p-4 shadow-[0_18px_40px_rgba(15,23,42,0.05)] transition-transform hover:-translate-y-1">
@@ -288,7 +396,9 @@ const ProfilePage = () => {
                         <ChevronRight className="h-4 w-4 text-muted-foreground" />
                       </div>
                       <p className="mt-4 text-lg font-semibold text-foreground">Support Dashboard</p>
-                      <p className="mt-1 text-sm text-muted-foreground">Track artists you back, ongoing memberships, and collectible access perks.</p>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {subscriptionsLoading ? "Checking active artist memberships..." : `Tracking ${activeSubscriptionCount} active subscription${activeSubscriptionCount === 1 ? "" : "s"}.`}
+                      </p>
                     </Link>
                   </div>
                 </div>
