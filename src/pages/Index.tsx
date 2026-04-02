@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowRight, Heart, User, Loader2, Sparkles, ShoppingCart, Gavel, Clock } from "lucide-react";
+import { ArrowRight, Clock, Gavel, Heart, Loader2, MoreHorizontal, Search, ShoppingCart, Sparkles, User, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useWallet, useSubscribeToArtistContract, useIsSubscribedToArtistContract } from "@/hooks/useContracts";
@@ -131,6 +131,7 @@ const Index = () => {
   const [collectingDrop, setCollectingDrop] = useState<any | null>(null);
   const [flippingDropId, setFlippingDropId] = useState<string | null>(null);
   const [biddingDropId, setBiddingDropId] = useState<string | null>(null);
+  const [selectedDesktopArtist, setSelectedDesktopArtist] = useState<any | null>(null);
   
   // Mint state for per-artist contracts
   const { mint: mintArtist, mintedTokenId: mintedArtistTokenId, isPending: isMintingArtist, error: mintErrorArtist, isSuccess: isMintSuccessArtist } = useMintArtist();
@@ -486,203 +487,314 @@ const Index = () => {
   const visibleCards = getVisibleCards();
   const visibleDropCards = getVisibleDropCards();
   const desktopHeroArtist = visibleCards[0] ?? null;
-  const desktopSupportingArtists = visibleCards.slice(1);
   const desktopLiveDrops = liveDrops.slice(0, 3);
   const getPortfolioImage = (piece: any) =>
     resolveMediaUrl(piece?.image, piece?.image, piece?.imageUri) || "";
-  const getArtistHeroFrame = (artist: any) =>
-    getPortfolioImage(artist?.portfolio?.[0]) || artist?.cover || artist?.avatar || "";
-  const getArtistDeckFrames = (artist: any) => {
-    const portfolioFrames = Array.isArray(artist?.portfolio)
-      ? artist.portfolio
-          .slice(1, 3)
-          .map((piece: any) => getPortfolioImage(piece))
-          .filter(Boolean)
-      : [];
+  const getArtistFeaturedPiece = (artist: any) => {
+    const featuredPiece = Array.isArray(artist?.portfolio) ? artist.portfolio[0] : null;
+    return {
+      image: getPortfolioImage(featuredPiece) || artist?.cover || artist?.avatar || "",
+      title: featuredPiece?.title || `${artist?.name || "Artist"} feature`,
+      medium: featuredPiece?.medium || "Digital artwork",
+      year: featuredPiece?.year || "Now",
+    };
+  };
+  const getArtistPreviewPieces = (artist: any) => {
+    const portfolioPieces = Array.isArray(artist?.portfolio) ? artist.portfolio.slice(0, 3) : [];
+    const resolvedPieces = portfolioPieces
+      .map((piece: any, index: number) => ({
+        id: piece?.id || `${artist?.id || "artist"}-${index}`,
+        image: getPortfolioImage(piece),
+        title: piece?.title || `Portfolio ${index + 1}`,
+        medium: piece?.medium || "Digital artwork",
+        year: piece?.year || "Now",
+      }))
+      .filter((piece: any) => Boolean(piece.image));
 
-    if (portfolioFrames.length >= 2) {
-      return portfolioFrames;
+    if (resolvedPieces.length > 0) {
+      return resolvedPieces;
     }
 
-    return [artist?.cover, artist?.avatar].filter(Boolean).slice(0, 2);
+    const fallbacks = [artist?.cover, artist?.avatar].filter(Boolean);
+    return fallbacks.map((image: string, index: number) => ({
+      id: `${artist?.id || "artist"}-fallback-${index}`,
+      image,
+      title: index === 0 ? `${artist?.name || "Artist"} feature` : `${artist?.name || "Artist"} portrait`,
+      medium: "Digital artwork",
+      year: "Now",
+    }));
   };
+  const getDesktopDeckCards = () => {
+    if (!featuredArtists.length) return [];
+
+    return [-1, 0, 1, 2].map((offset) => {
+      const index = (currentCard + offset + featuredArtists.length) % featuredArtists.length;
+      return {
+        ...featuredArtists[index],
+        deckOffset: offset,
+        deckIndex: index,
+      };
+    });
+  };
+
+  const desktopDeckCards = getDesktopDeckCards();
 
   return (
     <div className="flex flex-col min-h-[calc(100vh-88px)] px-4 overflow-y-auto md:px-0">
       <div className="hidden md:block">
-        <section className="rounded-[2rem] border border-border/70 bg-card/90 p-8 shadow-[0_30px_90px_rgba(15,23,42,0.08)] backdrop-blur lg:p-10">
-          <div className="grid gap-8 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
-            <div className="space-y-6">
-              <div className="flex items-center gap-3">
-                <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-amber-100 text-amber-600">
-                  <Sparkles className="h-5 w-5" />
-                </span>
-                <Badge className="rounded-full bg-secondary px-4 py-1 text-[11px] uppercase tracking-[0.24em] text-secondary-foreground">
-                  Featured Artists
-                </Badge>
-              </div>
+        <section className="relative overflow-hidden rounded-[2.2rem] border border-border/70 bg-[linear-gradient(180deg,#fefefe_0%,#f7f3ea_100%)] p-8 shadow-[0_35px_100px_rgba(15,23,42,0.1)]">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,207,84,0.2),transparent_26%),radial-gradient(circle_at_bottom_right,rgba(59,130,246,0.16),transparent_24%)]" />
 
-              <div className="space-y-4">
-                <h1 className="max-w-3xl text-4xl font-bold tracking-tight text-foreground lg:text-6xl lg:leading-[1.02]">
+          <div className="relative flex items-center justify-between gap-6 border-b border-black/6 pb-5">
+            <div className="flex items-center gap-3">
+              <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-foreground text-background">
+                <Sparkles className="h-5 w-5" />
+              </span>
+              <div>
+                <p className="text-lg font-semibold text-foreground">POPUP Artists</p>
+                <p className="text-xs uppercase tracking-[0.28em] text-muted-foreground">Desktop Deck</p>
+              </div>
+            </div>
+
+            <div className="flex h-11 w-full max-w-xs items-center gap-2 rounded-full border border-black/8 bg-white/80 px-4 text-sm text-muted-foreground shadow-sm">
+              <Search className="h-4 w-4" />
+              <span>Search artists...</span>
+            </div>
+
+            <button
+              type="button"
+              className="inline-flex items-center gap-2 rounded-full border border-black/8 bg-white/80 px-4 py-2 text-sm font-medium text-foreground shadow-sm"
+            >
+              Menu <MoreHorizontal className="h-4 w-4" />
+            </button>
+          </div>
+
+          <div className="relative pt-8">
+            <div className="flex items-start justify-between gap-6">
+              <div>
+                <p className="text-xs uppercase tracking-[0.32em] text-muted-foreground">Featured Deck</p>
+                <h1 className="mt-3 max-w-2xl text-5xl font-bold tracking-tight text-foreground">
                   Collect your favorite digital creative products
                 </h1>
-                <p className="max-w-2xl text-base leading-7 text-muted-foreground lg:text-lg">
-                  Discover collectible work, support standout creators, and explore live pieces with a desktop experience shaped around artists and drops.
+                <p className="mt-4 max-w-xl text-base leading-7 text-muted-foreground">
+                  Slide through artist decks, preview a featured portfolio piece, and open a POPUP artist panel without leaving the desktop flow.
                 </p>
               </div>
 
               {desktopHeroArtist && (
-                <div className="grid gap-4 sm:grid-cols-[1.2fr_0.8fr]">
-                  <div className="rounded-[1.75rem] border border-border bg-background/70 p-5">
-                    <div className="mb-4 flex items-center justify-between">
-                      <div>
-                        <p className="text-xs uppercase tracking-[0.25em] text-muted-foreground">Artist Carousel</p>
-                        <p className="mt-1 text-2xl font-semibold text-foreground">{desktopHeroArtist.name}</p>
-                      </div>
-                      <Badge className="rounded-full bg-background px-3 py-1 text-[10px] uppercase tracking-[0.22em] text-foreground">
-                        {desktopHeroArtist.tag}
-                      </Badge>
+                <div className="min-w-[220px] rounded-[1.6rem] border border-black/6 bg-white/80 p-4 shadow-sm">
+                  <p className="text-xs uppercase tracking-[0.28em] text-muted-foreground">Now Centered</p>
+                  <div className="mt-4 flex items-center gap-3">
+                    <img
+                      src={desktopHeroArtist.avatar}
+                      alt={desktopHeroArtist.name}
+                      className="h-14 w-14 rounded-2xl object-cover ring-2 ring-white"
+                    />
+                    <div className="min-w-0">
+                      <p className="truncate text-lg font-semibold text-foreground">{desktopHeroArtist.name}</p>
+                      <p className="truncate text-xs uppercase tracking-[0.24em] text-muted-foreground">{desktopHeroArtist.tag}</p>
                     </div>
-                    <p className="line-clamp-3 text-sm leading-6 text-muted-foreground">{desktopHeroArtist.bio}</p>
-                    <div className="mt-5 flex flex-wrap items-center gap-3">
-                      <SubscribeButtonWrapper artist={desktopHeroArtist} isConnected={isConnected} connectWallet={connectWallet} address={address} toast={toast} />
-                      <Button variant="outline" className="h-11 rounded-full px-5 font-semibold" asChild>
-                        <Link to={`/artists/${desktopHeroArtist.id}`}>
-                          <User className="mr-2 h-4 w-4" /> View profile
-                        </Link>
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div className="grid gap-3">
-                    {desktopSupportingArtists.map((artist: any) => {
-                      const nextIndex = featuredArtists.findIndex((entry: any) => entry.id === artist.id);
-                      return (
-                        <button
-                          key={artist.id}
-                          type="button"
-                          onClick={() => setCurrentCard(nextIndex >= 0 ? nextIndex : 0)}
-                          className="flex items-center gap-3 rounded-[1.5rem] border border-border bg-background/70 p-3 text-left transition-colors hover:bg-secondary/70"
-                        >
-                          <img src={artist.avatar} alt={artist.name} className="h-16 w-16 rounded-2xl object-cover" />
-                          <div className="min-w-0">
-                            <p className="truncate text-sm font-semibold text-foreground">{artist.name}</p>
-                            <p className="truncate text-xs text-muted-foreground">{artist.tag}</p>
-                          </div>
-                        </button>
-                      );
-                    })}
                   </div>
                 </div>
               )}
+            </div>
 
-              {featuredArtists.length > 0 && (
-                <div className="flex items-center gap-4 pt-2">
-                  <button
-                    onClick={prevCard}
-                    className="flex h-11 w-11 items-center justify-center rounded-full border border-border bg-background text-foreground transition-colors hover:bg-secondary"
-                  >
-                    <ArrowRight className="h-4 w-4 rotate-180" />
-                  </button>
+            {loading && (
+              <div className="flex h-[420px] items-center justify-center">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              </div>
+            )}
+
+            {error && (
+              <div className="flex h-[420px] items-center justify-center">
+                <p className="text-sm text-red-500">{error.message}</p>
+              </div>
+            )}
+
+            {!loading && !error && featuredArtists.length === 0 && (
+              <div className="flex h-[420px] items-center justify-center rounded-[2rem] border border-dashed border-border bg-white/65">
+                <div className="text-center">
+                  <Sparkles className="mx-auto h-10 w-10 text-primary" />
+                  <p className="mt-3 text-lg font-semibold text-foreground">No featured artists yet</p>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Whitelisted artist profiles will appear here once creators publish work.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {!loading && !error && featuredArtists.length > 0 && (
+              <>
+                <div className="relative mt-10 h-[430px] overflow-hidden">
+                  {desktopDeckCards.map((artist: any) => {
+                    const featuredPiece = getArtistFeaturedPiece(artist);
+                    const offset = artist.deckOffset;
+                    const isActive = offset === 0;
+                    const translateXMap: Record<string, string> = {
+                      "-1": "8%",
+                      "0": "50%",
+                      "1": "72%",
+                      "2": "92%",
+                    };
+                    const rotateMap: Record<string, string> = {
+                      "-1": "-8deg",
+                      "0": "0deg",
+                      "1": "7deg",
+                      "2": "9deg",
+                    };
+                    const scaleMap: Record<string, string> = {
+                      "-1": "0.9",
+                      "0": "1",
+                      "1": "0.92",
+                      "2": "0.86",
+                    };
+                    const opacityMap: Record<string, string> = {
+                      "-1": "0.86",
+                      "0": "1",
+                      "1": "0.9",
+                      "2": "0.72",
+                    };
+
+                    return (
+                      <button
+                        key={`${artist.id}-${artist.deckOffset}`}
+                        type="button"
+                        onClick={() => {
+                          if (isActive) {
+                            setSelectedDesktopArtist(artist);
+                            return;
+                          }
+                          setCurrentCard(artist.deckIndex);
+                        }}
+                        className="group absolute top-10 h-[320px] w-[240px] rounded-[2rem] text-left transition-all duration-500 ease-out"
+                        style={{
+                          left: translateXMap[String(offset)],
+                          zIndex: isActive ? 20 : 10 - offset,
+                          opacity: Number(opacityMap[String(offset)]),
+                          transform: `translateX(-50%) translateY(${isActive ? "0" : offset < 0 ? "36px" : "26px"}) scale(${scaleMap[String(offset)]}) rotate(${rotateMap[String(offset)]})`,
+                        }}
+                      >
+                        <div className="relative h-full overflow-hidden rounded-[2rem] bg-white shadow-[0_30px_60px_rgba(15,23,42,0.18)] ring-1 ring-black/5">
+                          <div
+                            className={`absolute inset-0 ${
+                              isActive
+                                ? "bg-[linear-gradient(180deg,#4a8ef4_0%,#1d4ed8_100%)]"
+                                : offset < 0
+                                ? "bg-[linear-gradient(180deg,#ff7b79_0%,#ef4444_100%)]"
+                                : "bg-[linear-gradient(180deg,#72ca74_0%,#3b9b45_100%)]"
+                            }`}
+                          />
+                          <img
+                            src={artist.avatar}
+                            alt={artist.name}
+                            className={`absolute left-1/2 top-[-48px] z-10 object-cover drop-shadow-[0_18px_24px_rgba(15,23,42,0.25)] ${
+                              isActive ? "h-44 w-44" : "h-36 w-36"
+                            } -translate-x-1/2 rounded-[2rem]`}
+                          />
+                          <div className="absolute inset-x-0 bottom-0 p-5 text-white">
+                            <div className="overflow-hidden rounded-[1.4rem] bg-white/14 p-2 backdrop-blur-[2px]">
+                              <img
+                                src={featuredPiece.image}
+                                alt={featuredPiece.title}
+                                className="mb-4 h-28 w-full rounded-[1rem] object-cover"
+                              />
+                              <p className="text-2xl font-semibold leading-none">{artist.name}</p>
+                              <p className="mt-2 text-xs uppercase tracking-[0.24em] text-white/78">{featuredPiece.medium}</p>
+                            </div>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="mt-8 flex items-center justify-between">
                   <div className="flex gap-2">
                     {featuredArtists.map((_: any, i: number) => (
                       <button
                         type="button"
                         key={i}
                         onClick={() => setCurrentCard(i)}
-                        className={`h-2.5 rounded-full transition-all duration-300 ${
-                          i === currentCard ? "w-10 bg-foreground" : "w-2.5 bg-border"
+                        className={`h-2 rounded-full transition-all duration-300 ${
+                          i === currentCard ? "w-10 bg-foreground" : "w-2 bg-black/15"
                         }`}
                       />
                     ))}
                   </div>
-                  <button
-                    onClick={nextCard}
-                    className="flex h-11 w-11 items-center justify-center rounded-full border border-border bg-background text-foreground transition-colors hover:bg-secondary"
-                  >
-                    <ArrowRight className="h-4 w-4" />
-                  </button>
+
+                  <div className="flex items-center gap-3 text-sm font-medium text-foreground">
+                    <button type="button" onClick={prevCard} className="rounded-full px-3 py-2 transition-colors hover:bg-black/5">
+                      Prev
+                    </button>
+                    <button type="button" onClick={nextCard} className="rounded-full px-3 py-2 transition-colors hover:bg-black/5">
+                      Next
+                    </button>
+                  </div>
                 </div>
-              )}
-            </div>
+              </>
+            )}
 
-            <div className="grid gap-4 lg:grid-cols-[0.72fr_1fr_0.72fr]">
-              <div className="flex flex-col gap-4 pt-8">
-                {desktopSupportingArtists.map((artist: any, index: number) => (
-                  <button
-                    key={`${artist.id}-hero-art-${index}`}
-                    type="button"
-                    onClick={() => {
-                      const nextIndex = featuredArtists.findIndex((entry: any) => entry.id === artist.id);
-                      setCurrentCard(nextIndex >= 0 ? nextIndex : 0);
-                    }}
-                    className="overflow-hidden rounded-[1.75rem] border border-border bg-secondary/40 text-left transition-transform duration-300 hover:-translate-y-1"
-                  >
+            {selectedDesktopArtist && (
+              <div className="absolute inset-0 z-30 flex items-center justify-center bg-[#f6f1e7]/95 p-6 backdrop-blur-sm">
+                <div className="relative grid min-h-[440px] w-full max-w-6xl grid-cols-[0.95fr_1.05fr] overflow-hidden rounded-[2.2rem] border border-black/6 bg-white shadow-[0_40px_100px_rgba(15,23,42,0.18)]">
+                  <div className="relative overflow-hidden bg-[linear-gradient(180deg,#3b82f6_0%,#1e3a8a_100%)] p-8 text-white">
                     <img
-                      src={getArtistDeckFrames(artist)[0] || artist.cover || artist.avatar}
-                      alt={artist.name}
-                      className="h-44 w-full object-cover"
+                      src={selectedDesktopArtist.avatar}
+                      alt={selectedDesktopArtist.name}
+                      className="absolute left-10 top-10 h-[340px] w-[340px] rounded-[2.8rem] object-cover drop-shadow-[0_25px_40px_rgba(15,23,42,0.35)]"
                     />
-                  </button>
-                ))}
-              </div>
-
-              {desktopHeroArtist ? (
-                <Link
-                  to={`/artists/${desktopHeroArtist.id}`}
-                  className="group block overflow-hidden rounded-[2rem] border border-border bg-secondary/30"
-                >
-                  <div className="relative min-h-[460px] overflow-hidden bg-gradient-to-b from-black/10 via-transparent to-black/25">
-                    <img
-                      src={getArtistHeroFrame(desktopHeroArtist)}
-                      alt={desktopHeroArtist.name}
-                      className="h-full min-h-[460px] w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
-                    />
-                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent p-6 text-white">
-                      <p className="text-xs uppercase tracking-[0.26em] text-white/70">POPUP Artist Deck</p>
-                      <p className="mt-3 text-2xl font-semibold">{desktopHeroArtist.name}</p>
-                      <p className="mt-2 max-w-xs text-sm leading-6 text-white/80">
-                        Open the artist profile to explore the full portfolio, current drops, and subscription access.
-                      </p>
+                    <div className="absolute bottom-8 left-8">
+                      <p className="text-xs uppercase tracking-[0.3em] text-white/70">POPUP Preview</p>
                     </div>
                   </div>
-                </Link>
-              ) : (
-                <div className="flex min-h-[460px] items-center justify-center rounded-[2rem] border border-dashed border-border bg-secondary/20 text-muted-foreground">
-                  Featured artist coming soon
-                </div>
-              )}
 
-              <div className="space-y-4 pt-4">
-                <div className="rounded-[1.75rem] border border-border bg-background/80 p-5">
-                  <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">Portfolio Showcase</p>
-                  <h2 className="mt-3 text-2xl font-semibold text-foreground">Featured Art In Frame</h2>
-                  <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                    The main frame highlights featured work from the selected artist. Supporting frames rotate with the deck so desktop feels closer to a curated gallery.
-                  </p>
-                </div>
+                  <div className="relative p-8">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedDesktopArtist(null)}
+                      className="absolute right-6 top-6 inline-flex items-center gap-2 text-sm text-foreground/80 transition-colors hover:text-foreground"
+                    >
+                      <X className="h-4 w-4" /> Close
+                    </button>
 
-                {getArtistDeckFrames(desktopHeroArtist).map((frame, index: number) => (
-                  <div key={`desktop-hero-frame-${index}`} className="overflow-hidden rounded-[1.5rem] border border-border bg-secondary/40">
-                    <img
-                      src={frame}
-                      alt={`${desktopHeroArtist.name} portfolio frame ${index + 2}`}
-                      className={`w-full object-cover ${index === 0 ? "h-48" : "h-36"}`}
-                    />
+                    <div className="max-w-xl pt-8">
+                      <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">Artist Profile</p>
+                      <h2 className="mt-3 text-4xl font-semibold tracking-tight text-foreground">{selectedDesktopArtist.name}</h2>
+                      <p className="mt-2 text-sm uppercase tracking-[0.24em] text-primary">{selectedDesktopArtist.tag}</p>
+                      <p className="mt-5 text-sm leading-7 text-muted-foreground">
+                        {selectedDesktopArtist.bio}
+                      </p>
+
+                      <div className="mt-8">
+                        <p className="text-sm font-semibold text-foreground">Clips</p>
+                        <div className="mt-3 grid grid-cols-3 gap-3">
+                          {getArtistPreviewPieces(selectedDesktopArtist).map((piece: any) => (
+                            <div key={piece.id} className="overflow-hidden rounded-[1.1rem] bg-secondary/70">
+                              <img src={piece.image} alt={piece.title} className="h-24 w-full object-cover" />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="mt-8 flex items-center gap-3">
+                        <SubscribeButtonWrapper
+                          artist={selectedDesktopArtist}
+                          isConnected={isConnected}
+                          connectWallet={connectWallet}
+                          address={address}
+                          toast={toast}
+                        />
+                        <Button variant="outline" className="h-11 rounded-full px-5 font-semibold" asChild>
+                          <Link to={`/artists/${selectedDesktopArtist.id}`}>
+                            <User className="mr-2 h-4 w-4" /> Open profile
+                          </Link>
+                        </Button>
+                      </div>
+                    </div>
                   </div>
-                ))}
-
-                <div className="rounded-[1.5rem] border border-border bg-background/80 p-4">
-                  <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">Live Drops</p>
-                  <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                    Live drops stay below the hero so the page opens with artists first, then active pieces ready to collect.
-                  </p>
-                  <Button variant="outline" className="mt-4 h-10 rounded-full px-4 font-semibold" asChild>
-                    <Link to="/drops">Browse live drops</Link>
-                  </Button>
                 </div>
               </div>
-            </div>
+            )}
           </div>
         </section>
 
