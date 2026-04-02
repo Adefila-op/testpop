@@ -484,9 +484,240 @@ const Index = () => {
 
   const visibleCards = getVisibleCards();
   const visibleDropCards = getVisibleDropCards();
+  const desktopHeroArtist = visibleCards[0] ?? null;
+  const desktopSupportingArtists = visibleCards.slice(1);
+  const desktopLiveDrops = liveDrops.slice(0, 3);
 
   return (
-    <div className="flex flex-col h-[calc(100vh-88px)] px-4 overflow-y-auto">  {/* topbar+bottomnav approx 88px */}
+    <div className="flex flex-col min-h-[calc(100vh-88px)] px-4 overflow-y-auto md:px-0">
+      <div className="hidden md:block">
+        <section className="rounded-[2rem] border border-border/70 bg-card/90 p-8 shadow-[0_30px_90px_rgba(15,23,42,0.08)] backdrop-blur lg:p-10">
+          <div className="grid gap-8 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
+            <div className="space-y-6">
+              <div className="flex items-center gap-3">
+                <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-amber-100 text-amber-600">
+                  <Sparkles className="h-5 w-5" />
+                </span>
+                <Badge className="rounded-full bg-secondary px-4 py-1 text-[11px] uppercase tracking-[0.24em] text-secondary-foreground">
+                  Featured Artists
+                </Badge>
+              </div>
+
+              <div className="space-y-4">
+                <h1 className="max-w-3xl text-4xl font-bold tracking-tight text-foreground lg:text-6xl lg:leading-[1.02]">
+                  Collect your favorite digital creative products
+                </h1>
+                <p className="max-w-2xl text-base leading-7 text-muted-foreground lg:text-lg">
+                  Discover collectible work, support standout creators, and explore live pieces with a desktop experience shaped around artists and drops.
+                </p>
+              </div>
+
+              {desktopHeroArtist && (
+                <div className="grid gap-4 sm:grid-cols-[1.2fr_0.8fr]">
+                  <div className="rounded-[1.75rem] border border-border bg-background/70 p-5">
+                    <div className="mb-4 flex items-center justify-between">
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.25em] text-muted-foreground">Artist Carousel</p>
+                        <p className="mt-1 text-2xl font-semibold text-foreground">{desktopHeroArtist.name}</p>
+                      </div>
+                      <Badge className="rounded-full bg-background px-3 py-1 text-[10px] uppercase tracking-[0.22em] text-foreground">
+                        {desktopHeroArtist.tag}
+                      </Badge>
+                    </div>
+                    <p className="line-clamp-3 text-sm leading-6 text-muted-foreground">{desktopHeroArtist.bio}</p>
+                    <div className="mt-5 flex flex-wrap items-center gap-3">
+                      <SubscribeButtonWrapper artist={desktopHeroArtist} isConnected={isConnected} connectWallet={connectWallet} address={address} toast={toast} />
+                      <Button variant="outline" className="h-11 rounded-full px-5 font-semibold" asChild>
+                        <Link to={`/artists/${desktopHeroArtist.id}`}>
+                          <User className="mr-2 h-4 w-4" /> View profile
+                        </Link>
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3">
+                    {desktopSupportingArtists.map((artist: any) => {
+                      const nextIndex = featuredArtists.findIndex((entry: any) => entry.id === artist.id);
+                      return (
+                        <button
+                          key={artist.id}
+                          type="button"
+                          onClick={() => setCurrentCard(nextIndex >= 0 ? nextIndex : 0)}
+                          className="flex items-center gap-3 rounded-[1.5rem] border border-border bg-background/70 p-3 text-left transition-colors hover:bg-secondary/70"
+                        >
+                          <img src={artist.avatar} alt={artist.name} className="h-16 w-16 rounded-2xl object-cover" />
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-foreground">{artist.name}</p>
+                            <p className="truncate text-xs text-muted-foreground">{artist.tag}</p>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {featuredArtists.length > 0 && (
+                <div className="flex items-center gap-4 pt-2">
+                  <button
+                    onClick={prevCard}
+                    className="flex h-11 w-11 items-center justify-center rounded-full border border-border bg-background text-foreground transition-colors hover:bg-secondary"
+                  >
+                    <ArrowRight className="h-4 w-4 rotate-180" />
+                  </button>
+                  <div className="flex gap-2">
+                    {featuredArtists.map((_: any, i: number) => (
+                      <button
+                        type="button"
+                        key={i}
+                        onClick={() => setCurrentCard(i)}
+                        className={`h-2.5 rounded-full transition-all duration-300 ${
+                          i === currentCard ? "w-10 bg-foreground" : "w-2.5 bg-border"
+                        }`}
+                      />
+                    ))}
+                  </div>
+                  <button
+                    onClick={nextCard}
+                    className="flex h-11 w-11 items-center justify-center rounded-full border border-border bg-background text-foreground transition-colors hover:bg-secondary"
+                  >
+                    <ArrowRight className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-[0.72fr_1fr_0.72fr]">
+              <div className="flex flex-col gap-4 pt-8">
+                {desktopSupportingArtists.map((artist: any, index: number) => (
+                  <div key={`${artist.id}-hero-art-${index}`} className="overflow-hidden rounded-[1.75rem] border border-border bg-secondary/40">
+                    <img src={artist.cover || artist.avatar} alt={artist.name} className="h-44 w-full object-cover" />
+                  </div>
+                ))}
+              </div>
+
+              {desktopHeroArtist ? (
+                <div className="overflow-hidden rounded-[2rem] border border-border bg-secondary/30">
+                  <img src={desktopHeroArtist.cover || desktopHeroArtist.avatar} alt={desktopHeroArtist.name} className="h-full min-h-[460px] w-full object-cover" />
+                </div>
+              ) : (
+                <div className="flex min-h-[460px] items-center justify-center rounded-[2rem] border border-dashed border-border bg-secondary/20 text-muted-foreground">
+                  Featured artist coming soon
+                </div>
+              )}
+
+              <div className="space-y-4 pt-4">
+                <div className="rounded-[1.75rem] border border-border bg-background/80 p-5">
+                  <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">Live Drops</p>
+                  <h2 className="mt-3 text-2xl font-semibold text-foreground">Live Drops</h2>
+                  <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                    Fresh collectible moments are live right now. Browse what is active, what is dropping, and what is ready to collect.
+                  </p>
+                </div>
+
+                {desktopLiveDrops.slice(0, 2).map((drop: any) => (
+                  <button
+                    key={`hero-drop-${drop.id}`}
+                    type="button"
+                    onClick={() => navigate(`/drops/${drop.id}`)}
+                    className="flex w-full items-center gap-3 rounded-[1.5rem] border border-border bg-background/80 p-3 text-left transition-colors hover:bg-secondary/70"
+                  >
+                    <div className="h-20 w-20 overflow-hidden rounded-2xl bg-secondary">
+                      {drop.image ? (
+                        <img src={drop.image} alt={drop.title} className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+                          {drop.assetType || "drop"}
+                        </div>
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-foreground">{drop.title}</p>
+                      <p className="truncate text-xs text-muted-foreground">{drop.artist}</p>
+                      <p className="mt-1 text-xs font-semibold text-primary">{drop.priceEth} ETH</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {!dropsLoading && !dropsError && desktopLiveDrops.length > 0 && (
+          <section className="py-10">
+            <div className="mb-5 flex items-end justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">Live Drops</p>
+                <h2 className="mt-2 text-3xl font-semibold text-foreground">Live Drops</h2>
+              </div>
+              <Link to="/drops" className="text-sm font-medium text-primary">See all live drops</Link>
+            </div>
+
+            <div className="grid gap-5 lg:grid-cols-3">
+              {desktopLiveDrops.map((drop: any) => (
+                <div key={drop.id} className="overflow-hidden rounded-[1.75rem] border border-border bg-card shadow-card">
+                  <div className="relative aspect-[1.08] overflow-hidden bg-secondary/30">
+                    {drop.image ? (
+                      <img src={drop.image} alt={drop.title} className="h-full w-full object-cover" />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-slate-900 via-slate-700 to-slate-500 text-xs font-semibold uppercase tracking-[0.24em] text-white">
+                        {drop.assetType || "digital"}
+                      </div>
+                    )}
+                    <Badge className="absolute left-4 top-4 rounded-full bg-background/80 px-3 py-1 text-[10px] uppercase tracking-[0.24em] text-foreground backdrop-blur-sm">
+                      {drop.type === "drop" ? "collect" : drop.type}
+                    </Badge>
+                  </div>
+                  <div className="space-y-4 p-5">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-lg font-semibold text-card-foreground">{drop.title}</p>
+                        <p className="truncate text-sm text-muted-foreground">{drop.artist}</p>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <p className="text-sm font-semibold text-primary">{drop.priceEth} ETH</p>
+                        <p className="mt-1 text-xs text-muted-foreground">{drop.endsIn}</p>
+                      </div>
+                    </div>
+
+                    {drop.type === "auction" ? (
+                      <Button
+                        onClick={() => handleBidOnDrop(drop)}
+                        disabled={isBidding || biddingDropId === drop.id}
+                        className="h-11 w-full rounded-full gradient-primary text-primary-foreground font-semibold"
+                      >
+                        {biddingDropId === drop.id ? (
+                          <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Bidding...</>
+                        ) : (
+                          <><Gavel className="mr-2 h-4 w-4" /> Place Bid</>
+                        )}
+                      </Button>
+                    ) : drop.type === "campaign" ? (
+                      <Button onClick={() => navigate(`/drops/${drop.id}`)} className="h-11 w-full rounded-full gradient-primary text-primary-foreground font-semibold">
+                        View Campaign
+                      </Button>
+                    ) : (
+                      <Button
+                        onClick={() => handleCollectDrop(drop)}
+                        disabled={isMintingArtist || mintingDropId === drop.id}
+                        className="h-11 w-full rounded-full gradient-primary text-primary-foreground font-semibold"
+                      >
+                        {mintingDropId === drop.id ? (
+                          <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Collecting...</>
+                        ) : (
+                          <><ShoppingCart className="mr-2 h-4 w-4" /> Collect Drop</>
+                        )}
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+      </div>
+
+      <div className="md:hidden">
       {/* Hero */}
       <section className="py-4">
         <h1 className="text-3xl font-bold text-foreground">Collect. Support. Own.</h1>
@@ -790,6 +1021,7 @@ const Index = () => {
 
       {/* Spacer */}
       <div className="h-8" />
+      </div>
     </div>
   );
 };
