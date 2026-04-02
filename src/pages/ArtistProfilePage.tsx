@@ -214,26 +214,26 @@ const ArtistProfilePage = () => {
   };
 
   return (
-    <div className="min-h-[calc(100vh-88px)] bg-[radial-gradient(circle_at_top,rgba(219,215,255,0.4),transparent_28%),linear-gradient(180deg,#f4f4f2_0%,#eceae6_100%)] px-4 py-4 md:px-6 md:py-6">
-      <div className="mx-auto max-w-6xl rounded-[2rem] border border-white/70 bg-white/92 p-4 shadow-[0_38px_120px_rgba(15,23,42,0.1)] md:p-6">
+    <div className="min-h-[calc(100vh-88px)] bg-[radial-gradient(circle_at_top,rgba(96,165,250,0.20),transparent_30%),linear-gradient(180deg,#f7fbff_0%,#edf5ff_100%)] px-4 py-4 md:px-6 md:py-6">
+      <div className="mx-auto max-w-6xl rounded-[2rem] border border-white/80 bg-white/94 p-4 shadow-[0_38px_120px_rgba(37,99,235,0.10)] md:p-6">
         <div className="mb-4 flex items-center justify-between">
-          <button onClick={() => navigate(-1)} className="rounded-full bg-secondary/70 p-2.5 text-foreground transition-colors hover:bg-secondary">
+          <button onClick={() => navigate(-1)} className="rounded-full border border-[#dbe7ff] bg-white p-2.5 text-foreground transition-colors hover:bg-[#eef5ff]">
             <ArrowLeft className="h-4 w-4" />
           </button>
-          <button onClick={handleShare} className="rounded-full bg-secondary/70 p-2.5 text-foreground transition-colors hover:bg-secondary">
+          <button onClick={handleShare} className="rounded-full border border-[#dbe7ff] bg-white p-2.5 text-foreground transition-colors hover:bg-[#eef5ff]">
             <Share2 className="h-4 w-4" />
           </button>
         </div>
 
         <div className="grid gap-5 lg:grid-cols-[320px_minmax(0,1fr)] xl:grid-cols-[340px_minmax(0,1fr)]">
-          <aside className="rounded-[1.8rem] bg-[linear-gradient(180deg,#8f8de8_0%,#7c78d4_100%)] p-5 text-white shadow-[0_24px_60px_rgba(124,120,212,0.3)]">
+          <aside className="rounded-[1.8rem] bg-[linear-gradient(180deg,#60a5fa_0%,#1d4ed8_100%)] p-5 text-white shadow-[0_24px_60px_rgba(37,99,235,0.28)]">
             <div className="flex items-center gap-2 text-sm font-medium text-white/90">
               <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-white/18">+</span>
               About Me
             </div>
 
             <div className="mt-5 flex justify-center">
-              <div className="relative flex h-52 w-52 items-center justify-center rounded-full border-[8px] border-white/80 bg-[radial-gradient(circle_at_center,#f4a9ff_0%,#b47fff_62%,transparent_63%)]">
+              <div className="relative flex h-52 w-52 items-center justify-center rounded-full border-[8px] border-white/80 bg-[radial-gradient(circle_at_center,#dbeafe_0%,#93c5fd_62%,transparent_63%)]">
                 <img
                   src={transformedArtist.avatar}
                   alt={transformedArtist.name}
@@ -282,7 +282,7 @@ const ArtistProfilePage = () => {
             <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_180px]">
               <div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <Badge className="rounded-full bg-[#ece8ff] px-3 py-1 text-[10px] uppercase tracking-[0.24em] text-[#5645b8] hover:bg-[#ece8ff]">
+                  <Badge className="rounded-full bg-[#dbeafe] px-3 py-1 text-[10px] uppercase tracking-[0.24em] text-[#1d4ed8] hover:bg-[#dbeafe]">
                     {transformedArtist.tag}
                   </Badge>
                   <span className="text-sm text-muted-foreground">Portfolio</span>
@@ -290,7 +290,7 @@ const ArtistProfilePage = () => {
 
                 <h2 className="mt-3 text-4xl font-black tracking-[-0.04em] text-foreground sm:text-5xl md:text-6xl xl:text-7xl">Portfolio</h2>
 
-                <div className="mt-5 overflow-hidden rounded-[1.8rem] bg-[#daf0f2] p-2 shadow-[0_22px_45px_rgba(15,23,42,0.06)]">
+                <div className="mt-5 overflow-hidden rounded-[1.8rem] bg-[#eaf3ff] p-2 shadow-[0_22px_45px_rgba(37,99,235,0.08)]">
                   <button
                     type="button"
                     onClick={() => setLightboxImage(featuredPortfolio)}
@@ -306,11 +306,11 @@ const ArtistProfilePage = () => {
               </div>
 
               <div className="grid gap-3">
-                <div className="rounded-[1.5rem] bg-[#c9eef1] p-4">
+                <div className="rounded-[1.5rem] bg-[#eff6ff] p-4">
                   <p className="text-4xl font-black text-foreground">{portfolioPieces.length}</p>
                   <p className="mt-1 text-foreground/80">Portfolio Pieces</p>
                 </div>
-                <div className="rounded-[1.5rem] bg-[#a985db] p-4 text-white">
+                <div className="rounded-[1.5rem] bg-[#1d4ed8] p-4 text-white">
                   <p className="text-4xl font-black">{onchainSubscribers}</p>
                   <p className="mt-1 text-white/90">Collectors</p>
                 </div>
@@ -325,24 +325,24 @@ const ArtistProfilePage = () => {
                       key={piece.id}
                       type="button"
                       onClick={() => setLightboxImage(piece)}
-                      className={`overflow-hidden rounded-[1.5rem] ${index === 0 ? "bg-[#6d6d6d]" : "bg-black"} p-2 text-left shadow-[0_18px_40px_rgba(15,23,42,0.06)]`}
+                      className={`overflow-hidden rounded-[1.5rem] ${index === 0 ? "bg-[#365b9d]" : "bg-[#102a56]"} p-2 text-left shadow-[0_18px_40px_rgba(37,99,235,0.10)]`}
                     >
                       <img src={piece.image} alt={piece.title} className="h-32 w-full rounded-[1.15rem] object-cover sm:h-36" />
                       <div className="px-2 pb-1 pt-3">
                         <p className="text-sm font-semibold text-white">{piece.title}</p>
-                        <p className="mt-1 text-xs text-white/70">{piece.medium} · {piece.year}</p>
+                        <p className="mt-1 text-xs text-white/70">{`${piece.medium} - ${piece.year}`}</p>
                       </div>
                     </button>
                   ))
                 ) : (
-                  <div className="rounded-[1.5rem] bg-[#6d6d6d] p-5 text-white shadow-[0_18px_40px_rgba(15,23,42,0.06)]">
+                  <div className="rounded-[1.5rem] bg-[#365b9d] p-5 text-white shadow-[0_18px_40px_rgba(37,99,235,0.10)]">
                     <p className="text-lg font-semibold">Artist Preview</p>
                     <p className="mt-2 text-sm text-white/70">Portfolio art will appear here as soon as new pieces are published.</p>
                   </div>
                 )}
               </div>
 
-              <div className="rounded-[1.5rem] bg-[#ffc862] p-5 text-foreground shadow-[0_18px_40px_rgba(15,23,42,0.06)]">
+              <div className="rounded-[1.5rem] bg-[linear-gradient(135deg,#eff6ff_0%,#dbeafe_100%)] p-5 text-foreground shadow-[0_18px_40px_rgba(37,99,235,0.08)]">
                 <p className="text-4xl font-black">{drops.length}</p>
                 <p className="mt-2 text-2xl leading-tight">Live Drops</p>
                 <p className="mt-4 text-sm text-foreground/70">
@@ -351,7 +351,7 @@ const ArtistProfilePage = () => {
               </div>
             </div>
 
-            <div className="rounded-[1.75rem] bg-[#fcfbf8] p-4 shadow-[inset_0_0_0_1px_rgba(15,23,42,0.04)]">
+            <div className="rounded-[1.75rem] bg-[linear-gradient(180deg,#ffffff_0%,#f4f8ff_100%)] p-4 shadow-[inset_0_0_0_1px_rgba(37,99,235,0.08)]">
               <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
                 <Button
                   onClick={handleSubscribe}
@@ -386,7 +386,7 @@ const ArtistProfilePage = () => {
 
               <div className="mt-5">
                 <Tabs defaultValue="portfolio">
-                  <TabsList className="w-full rounded-xl bg-secondary md:w-auto">
+                  <TabsList className="w-full rounded-xl bg-[#eaf3ff] md:w-auto">
                     <TabsTrigger value="portfolio" className="flex-1 rounded-lg text-xs md:min-w-28">
                       Portfolio
                     </TabsTrigger>
@@ -410,7 +410,7 @@ const ArtistProfilePage = () => {
                             <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
                             <div className="absolute bottom-0 left-0 right-0 p-3 text-left">
                               <p className="truncate text-sm font-semibold text-white">{piece.title}</p>
-                              <p className="text-[11px] text-white/75">{piece.medium} · {piece.year}</p>
+                              <p className="text-[11px] text-white/75">{`${piece.medium} - ${piece.year}`}</p>
                             </div>
                           </button>
                         ))}
@@ -540,7 +540,7 @@ const ArtistProfilePage = () => {
               <div className="p-4">
                 <p className="font-bold text-foreground">{lightboxImage.title}</p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  {lightboxImage.medium} · {lightboxImage.year}
+                  {`${lightboxImage.medium} - ${lightboxImage.year}`}
                 </p>
               </div>
             </>

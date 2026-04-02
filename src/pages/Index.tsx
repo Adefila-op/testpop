@@ -562,8 +562,8 @@ const Index = () => {
   return (
     <div className="flex flex-col min-h-[calc(100vh-88px)] px-4 overflow-y-auto md:px-0">
       <div className="hidden md:block">
-        <section className="relative overflow-hidden rounded-[2.2rem] border border-border/70 bg-[linear-gradient(180deg,#fefefe_0%,#f7f3ea_100%)] p-8 shadow-[0_35px_100px_rgba(15,23,42,0.1)]">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,207,84,0.2),transparent_26%),radial-gradient(circle_at_bottom_right,rgba(59,130,246,0.16),transparent_24%)]" />
+        <section className="relative overflow-hidden rounded-[2.2rem] border border-[#dbe7ff] bg-[linear-gradient(180deg,#fbfdff_0%,#eef5ff_100%)] p-8 shadow-[0_35px_100px_rgba(37,99,235,0.10)]">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(96,165,250,0.18),transparent_24%),radial-gradient(circle_at_bottom_right,rgba(29,78,216,0.12),transparent_24%)]" />
 
           <div className="relative pt-2">
             <div>
@@ -589,7 +589,7 @@ const Index = () => {
             )}
 
             {!loading && !error && featuredArtists.length === 0 && (
-              <div className="flex h-[420px] items-center justify-center rounded-[2rem] border border-dashed border-border bg-white/65">
+              <div className="flex h-[420px] items-center justify-center rounded-[2rem] border border-dashed border-[#bfd5ff] bg-white/75">
                 <div className="text-center">
                   <Sparkles className="mx-auto h-10 w-10 text-primary" />
                   <p className="mt-3 text-lg font-semibold text-foreground">No featured artists yet</p>
@@ -655,10 +655,10 @@ const Index = () => {
                           <div
                             className={`absolute inset-0 ${
                               isActive
-                                ? "bg-[linear-gradient(180deg,#4a8ef4_0%,#1d4ed8_100%)]"
+                                ? "bg-[linear-gradient(180deg,#60a5fa_0%,#1d4ed8_100%)]"
                                 : offset < 0
-                                ? "bg-[linear-gradient(180deg,#ff7b79_0%,#ef4444_100%)]"
-                                : "bg-[linear-gradient(180deg,#72ca74_0%,#3b9b45_100%)]"
+                                ? "bg-[linear-gradient(180deg,#93c5fd_0%,#3b82f6_100%)]"
+                                : "bg-[linear-gradient(180deg,#bfdbfe_0%,#2563eb_100%)]"
                             }`}
                           />
                           <img
@@ -693,17 +693,17 @@ const Index = () => {
                         key={i}
                         onClick={() => setCurrentCard(i)}
                         className={`h-2 rounded-full transition-all duration-300 ${
-                          i === currentCard ? "w-10 bg-foreground" : "w-2 bg-black/15"
+                          i === currentCard ? "w-10 bg-[#1d4ed8]" : "w-2 bg-[#bfd5ff]"
                         }`}
                       />
                     ))}
                   </div>
 
                   <div className="flex items-center gap-3 text-sm font-medium text-foreground">
-                    <button type="button" onClick={prevCard} className="rounded-full px-3 py-2 transition-colors hover:bg-black/5">
+                    <button type="button" onClick={prevCard} className="rounded-full px-3 py-2 transition-colors hover:bg-[#eaf3ff]">
                       Prev
                     </button>
-                    <button type="button" onClick={nextCard} className="rounded-full px-3 py-2 transition-colors hover:bg-black/5">
+                    <button type="button" onClick={nextCard} className="rounded-full px-3 py-2 transition-colors hover:bg-[#eaf3ff]">
                       Next
                     </button>
                   </div>
@@ -712,8 +712,8 @@ const Index = () => {
             )}
 
             {selectedDesktopArtist && (
-              <div className="absolute inset-0 z-30 flex items-center justify-center bg-[#f6f1e7]/95 p-6 backdrop-blur-sm">
-                <div className="relative grid min-h-[440px] w-full max-w-6xl grid-cols-[0.95fr_1.05fr] overflow-hidden rounded-[2.2rem] border border-black/6 bg-white shadow-[0_40px_100px_rgba(15,23,42,0.18)]">
+              <div className="absolute inset-0 z-30 flex items-center justify-center bg-[#edf5ff]/95 p-6 backdrop-blur-sm">
+                <div className="relative grid min-h-[440px] w-full max-w-6xl grid-cols-[0.95fr_1.05fr] overflow-hidden rounded-[2.2rem] border border-[#dbe7ff] bg-white shadow-[0_40px_100px_rgba(37,99,235,0.16)]">
                   <div className="relative overflow-hidden bg-[linear-gradient(180deg,#3b82f6_0%,#1e3a8a_100%)] p-8 text-white">
                     <img
                       src={getArtistAvatarImage(selectedDesktopArtist)}
@@ -746,7 +746,7 @@ const Index = () => {
                         <p className="text-sm font-semibold text-foreground">Clips</p>
                         <div className="mt-3 grid grid-cols-3 gap-3">
                           {getArtistPreviewPieces(selectedDesktopArtist).map((piece: any) => (
-                            <div key={piece.id} className="overflow-hidden rounded-[1.1rem] bg-secondary/70">
+                            <div key={piece.id} className="overflow-hidden rounded-[1.1rem] bg-[#eaf3ff]">
                               <img src={piece.image} alt={piece.title} className="h-24 w-full object-cover" />
                             </div>
                           ))}
@@ -787,8 +787,8 @@ const Index = () => {
 
             <div className="grid gap-5 lg:grid-cols-3">
               {desktopLiveDrops.map((drop: any) => (
-                <div key={drop.id} className="overflow-hidden rounded-[1.75rem] border border-border bg-card shadow-card">
-                  <div className="relative aspect-[1.08] overflow-hidden bg-secondary/30">
+                <div key={drop.id} className="overflow-hidden rounded-[1.75rem] border border-[#dbe7ff] bg-white shadow-[0_24px_50px_rgba(37,99,235,0.08)]">
+                  <div className="relative aspect-[1.08] overflow-hidden bg-[#eff6ff]">
                     {drop.image ? (
                       <img src={drop.image} alt={drop.title} className="h-full w-full object-cover" />
                     ) : (
@@ -796,7 +796,7 @@ const Index = () => {
                         {drop.assetType || "digital"}
                       </div>
                     )}
-                    <Badge className="absolute left-4 top-4 rounded-full bg-background/80 px-3 py-1 text-[10px] uppercase tracking-[0.24em] text-foreground backdrop-blur-sm">
+                    <Badge className="absolute left-4 top-4 rounded-full bg-white/90 px-3 py-1 text-[10px] uppercase tracking-[0.24em] text-foreground backdrop-blur-sm">
                       {drop.type === "drop" ? "collect" : drop.type}
                     </Badge>
                   </div>
