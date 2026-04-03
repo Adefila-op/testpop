@@ -622,7 +622,7 @@ const Index = () => {
 
           <div className="relative pt-2">
             <div>
-              <p className="text-xs uppercase tracking-[0.32em] text-muted-foreground">Featured Deck</p>
+              <p className="text-xs uppercase tracking-[0.32em] text-muted-foreground">Discover creators</p>
               <h1 className="mt-3 max-w-2xl text-5xl font-bold tracking-tight text-foreground">
                 Discover your favorite creative
               </h1>
@@ -990,6 +990,12 @@ const Index = () => {
       </div>
 
       <div className="md:hidden pb-8 pt-3">
+        <div className="mb-4">
+          <div className="inline-flex items-center gap-2 rounded-full border border-border bg-white/80 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.28em] text-foreground/70 shadow-sm">
+            <Sparkles className="h-3 w-3 text-primary" />
+            Discover creators
+          </div>
+        </div>
         {loading ? (
           <div className="flex min-h-[60vh] items-center justify-center">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
