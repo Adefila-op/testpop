@@ -35,6 +35,7 @@ import {
 import { detectAssetTypeFromFile, getAssetTypeLabel, type AssetType } from "@/lib/assetTypes";
 import { POAP_CAMPAIGN_ADDRESS } from "@/lib/contracts/poapCampaign";
 import { POAP_CAMPAIGN_V2_ADDRESS } from "@/lib/contracts/poapCampaignV2";
+import { resolvePortfolioImage } from "@/lib/portfolio";
 import {
   deleteArtistDrop,
   getArtistDrops,
@@ -1154,7 +1155,40 @@ const ArtistStudioPage = ({ embedded = false }: ArtistStudioPageProps) => {
           twitterUrl: artistProfileRecord.twitter_url || "",
           instagramUrl: artistProfileRecord.instagram_url || "",
           websiteUrl: artistProfileRecord.website_url || "",
-          portfolio: Array.isArray(artistProfileRecord.portfolio) ? artistProfileRecord.portfolio as ArtistPortfolioItem[] : [],
+          portfolio: Array.isArray(artistProfileRecord.portfolio)
+            ? artistProfileRecord.portfolio
+                .map((piece, index) => {
+                  const image = resolvePortfolioImage(piece as Record<string, unknown> | string | null);
+                  if (!image) return null;
+
+                  if (typeof piece === "string") {
+                    return {
+                      id: `portfolio-${index}`,
+                      image,
+                      imageUri: piece.startsWith("ipfs://") ? piece : undefined,
+                      title: `Portfolio ${index + 1}`,
+                      medium: "Digital",
+                      year: String(new Date().getFullYear()),
+                    } satisfies ArtistPortfolioItem;
+                  }
+
+                  return {
+                    id: String(piece?.id || `portfolio-${index}`),
+                    image,
+                    imageUri: typeof piece?.imageUri === "string" ? piece.imageUri : typeof piece?.image_uri === "string" ? piece.image_uri : undefined,
+                    metadataUri:
+                      typeof piece?.metadataUri === "string"
+                        ? piece.metadataUri
+                        : typeof piece?.metadata_uri === "string"
+                          ? piece.metadata_uri
+                          : undefined,
+                    title: typeof piece?.title === "string" && piece.title.trim() ? piece.title : `Portfolio ${index + 1}`,
+                    medium: typeof piece?.medium === "string" && piece.medium.trim() ? piece.medium : "Digital",
+                    year: typeof piece?.year === "string" && piece.year.trim() ? piece.year : String(new Date().getFullYear()),
+                  } satisfies ArtistPortfolioItem;
+                })
+                .filter((piece): piece is ArtistPortfolioItem => Boolean(piece))
+            : [],
           defaultPoapAllocation: (artistProfileRecord.poap_allocation as StudioArtistProfile["defaultPoapAllocation"]) || fallbackArtist.defaultPoapAllocation,
           contractAddress: artistProfileRecord.contract_address || null,
         }
@@ -2189,7 +2223,7 @@ const ArtistStudioPage = ({ embedded = false }: ArtistStudioPageProps) => {
                 <div className="grid grid-cols-3 gap-2">
                   {profile.portfolio.slice(0, 6).map((piece) => (
                     <div key={piece.id} className="rounded-xl overflow-hidden bg-card border border-border">
-                      <img src={piece.image} alt={piece.title} className="h-24 w-full object-cover" />
+                      <img src={resolvePortfolioImage(piece) || piece.image} alt={piece.title} className="h-24 w-full object-cover" />
                       <div className="p-2">
                         <p className="text-[10px] font-semibold truncate text-foreground">{piece.title}</p>
                         <p className="text-[9px] text-muted-foreground">{piece.year}</p>

@@ -9,9 +9,13 @@ type PortfolioImageLike = {
   previewUri?: string | null;
 };
 
-export function resolvePortfolioImage(piece?: PortfolioImageLike | null): string {
+export function resolvePortfolioImage(piece?: PortfolioImageLike | string | null): string {
   if (!piece) {
     return "";
+  }
+
+  if (typeof piece === "string") {
+    return resolveMediaUrl(piece);
   }
 
   return resolveMediaUrl(
