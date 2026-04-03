@@ -110,7 +110,11 @@ function CampaignCreditCard({
   );
 }
 
-const MyPOAPsPage = () => {
+type MyPOAPsPageProps = {
+  embedded?: boolean;
+};
+
+const MyPOAPsPage = ({ embedded = false }: MyPOAPsPageProps) => {
   const navigate = useNavigate();
   const { address, isConnected } = useWallet();
   const { data: allDrops } = useSupabaseAllDrops(Boolean(address));
@@ -137,26 +141,30 @@ const MyPOAPsPage = () => {
       <div className="px-4 py-10 text-center space-y-4">
         <p className="text-lg font-semibold text-foreground">Connect Your Wallet</p>
         <p className="text-sm text-muted-foreground">Connect to see your POAP rewards</p>
-        <Button onClick={() => navigate(-1)} className="rounded-full gradient-primary text-primary-foreground">
-          Back
-        </Button>
+        {!embedded && (
+          <Button onClick={() => navigate(-1)} className="rounded-full gradient-primary text-primary-foreground">
+            Back
+          </Button>
+        )}
       </div>
     );
   }
 
   return (
-    <div className="space-y-4 pb-20">
-      <div className="sticky top-0 z-10 bg-background px-4 pt-3 pb-2 flex items-center gap-3 border-b">
-        <button onClick={() => navigate(-1)} className="p-2 rounded-full bg-secondary/50">
-          <ArrowLeft className="h-4 w-4" />
-        </button>
-        <div className="flex-1">
-          <h1 className="text-lg font-bold">My POAP Rewards</h1>
-          <p className="text-xs text-muted-foreground">
-            Live onchain campaign credits and delayed redemptions
-          </p>
+    <div className={`space-y-4 ${embedded ? "pb-6" : "pb-20"}`}>
+      {!embedded && (
+        <div className="sticky top-0 z-10 bg-background px-4 pt-3 pb-2 flex items-center gap-3 border-b">
+          <button onClick={() => navigate(-1)} className="p-2 rounded-full bg-secondary/50">
+            <ArrowLeft className="h-4 w-4" />
+          </button>
+          <div className="flex-1">
+            <h1 className="text-lg font-bold">My POAP Rewards</h1>
+            <p className="text-xs text-muted-foreground">
+              Live onchain campaign credits and delayed redemptions
+            </p>
+          </div>
         </div>
-      </div>
+      )}
 
       {campaignDrops.length === 0 ? (
         <div className="px-4 py-12 text-center">

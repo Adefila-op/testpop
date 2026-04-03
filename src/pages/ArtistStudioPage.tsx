@@ -24,7 +24,11 @@ import { ipfsToHttp, resolveMediaUrl, uploadFileToPinata, uploadMetadataToPinata
 import { formatEther } from "viem";
 import { toast } from "sonner";
 import { CampaignManagementPanel } from "@/components/campaign/CampaignManagementPanel";
-import { CampaignArchitectureCard } from "@/components/campaign/CampaignArchitectureCard";
+import {
+  CampaignArchitectureCard,
+  DEFAULT_CAMPAIGN_DETAILS,
+  type CampaignDetailContent,
+} from "@/components/campaign/CampaignArchitectureCard";
 import { detectAssetTypeFromFile, type AssetType } from "@/lib/assetTypes";
 import { POAP_CAMPAIGN_ADDRESS } from "@/lib/contracts/poapCampaign";
 import { POAP_CAMPAIGN_V2_ADDRESS } from "@/lib/contracts/poapCampaignV2";
@@ -35,7 +39,6 @@ import {
   saveArtistPortfolio,
   syncArtistDropCache,
   updateArtistProfile,
-  updateDrop as dbUpdateDrop,
   updateArtistDropContractId,
   type ArtistPortfolioItem,
 } from "@/lib/artistStore";
@@ -44,6 +47,7 @@ import {
   getArtistProfile as dbGetArtistProfile,
   getIPCampaigns,
   createIPCampaign,
+  updateDrop as dbUpdateDrop,
   type IPCampaign,
 } from "@/lib/db";
 import { useSupabaseArtistByWallet, useSupabaseDropsByArtist } from "@/hooks/useSupabase";
@@ -88,6 +92,7 @@ type Drop = {
   contractAddress?: string | null;
   contractDropId?: number | null;
   contractKind?: "artDrop" | "poapCampaign" | "poapCampaignV2" | null;
+  metadata?: Record<string, unknown>;
 };
 
 type DropMode = Drop["type"];
@@ -132,6 +137,45 @@ function getRaiseReviewLabel(campaign: IPCampaign) {
   if (reviewStatus === "approved" || campaign.status === "active") return "Approved";
   if (campaign.status === "review") return "Awaiting admin approval";
   return String(campaign.status || "draft").replace(/_/g, " ");
+}
+
+type CampaignDetailForm = Required<CampaignDetailContent>;
+
+function normalizeCampaignDetailItems(value: unknown, fallback: string[]) {
+  if (!Array.isArray(value)) return fallback;
+  const normalized = value
+    .map((item) => (typeof item === "string" ? item.trim() : ""))
+    .filter(Boolean);
+  return normalized.length > 0 ? normalized : fallback;
+}
+
+function extractCampaignDetails(metadata?: Record<string, unknown> | null): CampaignDetailForm {
+  const raw =
+    metadata && typeof metadata === "object" && metadata.campaign_details && typeof metadata.campaign_details === "object"
+      ? metadata.campaign_details as CampaignDetailContent
+      : {};
+
+  return {
+    title: raw.title?.trim() || DEFAULT_CAMPAIGN_DETAILS.title,
+    intro: raw.intro?.trim() || DEFAULT_CAMPAIGN_DETAILS.intro,
+    primaryLabel: raw.primaryLabel?.trim() || DEFAULT_CAMPAIGN_DETAILS.primaryLabel,
+    primaryItems: normalizeCampaignDetailItems(raw.primaryItems, DEFAULT_CAMPAIGN_DETAILS.primaryItems),
+    secondaryLabel: raw.secondaryLabel?.trim() || DEFAULT_CAMPAIGN_DETAILS.secondaryLabel,
+    secondaryItems: normalizeCampaignDetailItems(raw.secondaryItems, DEFAULT_CAMPAIGN_DETAILS.secondaryItems),
+  };
+}
+
+function campaignDetailItemsToTextarea(items: string[]) {
+  return items.join("\n");
+}
+
+function campaignDetailItemsFromTextarea(value: string, fallback: string[]) {
+  const items = value
+    .split("\n")
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  return items.length > 0 ? items : fallback;
 }
 
 // â”€â”€â”€ Small helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -532,6 +576,10 @@ const CreateDropSheet = ({
           contract_drop_id: publishedId,
           contract_kind: contractKind,
           ends_at: endsAt,
+          metadata:
+            pendingResult.mode === "campaign"
+              ? { campaign_details: DEFAULT_CAMPAIGN_DETAILS }
+              : {},
         });
 
         if (savedDrop) {
@@ -559,6 +607,10 @@ const CreateDropSheet = ({
             contractAddress: contractAddress ?? null,
             contractDropId: publishedId,
             contractKind: contractKind ?? undefined,
+            metadata:
+              pendingResult.mode === "campaign"
+                ? { campaign_details: DEFAULT_CAMPAIGN_DETAILS }
+                : {},
           });
           toast.success(
             pendingResult.mode === "campaign"
@@ -816,7 +868,7 @@ const CreateDropSheet = ({
               )}
               <div className="rounded-xl border border-border bg-secondary/20 p-3 text-xs text-muted-foreground">
                 {form.type === "campaign"
-                  ? "Campaign rewards are credit-based: each approved content entry and each ETH purchase becomes one redeemable POAP after the campaign closes plus a 24-hour cooldown."
+                  ? "Campaign rewards are credit-based: each approved content entry and each ETH purchase writes one redeemable credit into the V2 campaign flow."
                   : contentKind === "artwork"
                   ? "Artwork drops use the same media for preview and collector access."
                   : contentKind === "ebook"
@@ -858,7 +910,7 @@ const CreateDropSheet = ({
                 ))}
               </div>
               {uploadErr && <div className="flex gap-2 p-3 rounded-xl bg-destructive/10 text-destructive text-xs"><AlertTriangle className="h-4 w-4 shrink-0" />{uploadErr}</div>}
-              {form.type === "campaign" && <div className="flex gap-2 p-3 rounded-xl bg-primary/5 text-foreground text-xs"><AlertTriangle className="h-4 w-4 shrink-0 text-primary" />Campaign entries are saved in-app right now: ETH purchases add credits immediately, content submissions add credits after artist approval, and collectors redeem POAPs 24 hours after the campaign closes.</div>}
+              {form.type === "campaign" && <div className="flex gap-2 p-3 rounded-xl bg-primary/5 text-foreground text-xs"><AlertTriangle className="h-4 w-4 shrink-0 text-primary" />Campaign timing, ETH entry credits, artist-approved content credits, and redemption all run through the V2 campaign contract. App-side editing only changes the collector-facing detail card.</div>}
               {activePublishError && <p className="text-xs text-destructive">{(activePublishError as Web3Error).shortMessage ?? (activePublishError as Web3Error).message}</p>}
               <Button onClick={handlePublish} disabled={busy} className="w-full rounded-xl gradient-primary text-primary-foreground font-bold h-11">
                 {isUploading ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Uploading to IPFSâ€¦</>
@@ -884,7 +936,11 @@ const CreateDropSheet = ({
 };
 
 // â”€â”€â”€ Main Studio Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-const ArtistStudioPage = () => {
+type ArtistStudioPageProps = {
+  embedded?: boolean;
+};
+
+const ArtistStudioPage = ({ embedded = false }: ArtistStudioPageProps) => {
   const { address, balance, disconnect } = useWallet();
   const [tab, setTab] = useState("home");
   const [drops, setDrops] = useState<Drop[]>(seedDrops);
@@ -914,6 +970,9 @@ const ArtistStudioPage = () => {
   const [profileComplete, setProfileComplete] = useState(false);
   const [publicArtistId, setPublicArtistId] = useState("1");
   const [dropDeletingId, setDropDeletingId] = useState<string | null>(null);
+  const [editingCampaignDrop, setEditingCampaignDrop] = useState<Drop | null>(null);
+  const [campaignEditSaving, setCampaignEditSaving] = useState(false);
+  const [campaignEditForm, setCampaignEditForm] = useState<CampaignDetailForm>(DEFAULT_CAMPAIGN_DETAILS);
   const [raiseRequests, setRaiseRequests] = useState<IPCampaign[]>([]);
   const [raiseRequestsLoading, setRaiseRequestsLoading] = useState(false);
   const [raiseDialogOpen, setRaiseDialogOpen] = useState(false);
@@ -988,6 +1047,7 @@ const ArtistStudioPage = () => {
           contractAddress: drop.contract_address || null,
           contractDropId: drop.contract_drop_id ?? null,
           contractKind: (drop.contract_kind as "artDrop" | "poapCampaign" | "poapCampaignV2" | null) || null,
+          metadata: (drop.metadata as Record<string, unknown> | undefined) || {},
         }))
       : getArtistDrops(artist.id).map((drop) => ({
           id: drop.id,
@@ -1009,6 +1069,7 @@ const ArtistStudioPage = () => {
           contractAddress: drop.contractAddress,
           contractDropId: drop.contractDropId,
           contractKind: drop.contractKind,
+          metadata: drop.metadata || {},
         }));
 
     setPublicArtistId(artist.id);
@@ -1332,6 +1393,56 @@ const ArtistStudioPage = () => {
     }
   };
 
+  const openCampaignEditor = (drop: Drop) => {
+    setEditingCampaignDrop(drop);
+    setCampaignEditForm(extractCampaignDetails(drop.metadata));
+  };
+
+  const saveCampaignEditor = async () => {
+    if (!editingCampaignDrop) return;
+
+    setCampaignEditSaving(true);
+    try {
+      const nextDetails: CampaignDetailContent = {
+        title: campaignEditForm.title.trim(),
+        intro: campaignEditForm.intro.trim(),
+        primaryLabel: campaignEditForm.primaryLabel.trim(),
+        primaryItems: campaignEditForm.primaryItems,
+        secondaryLabel: campaignEditForm.secondaryLabel.trim(),
+        secondaryItems: campaignEditForm.secondaryItems,
+      };
+
+      const nextMetadata = {
+        ...(editingCampaignDrop.metadata || {}),
+        campaign_details: nextDetails,
+      };
+
+      const updated = await dbUpdateDrop(editingCampaignDrop.id, {
+        metadata: nextMetadata,
+      });
+
+      if (!updated) {
+        throw new Error("Campaign details were not saved.");
+      }
+
+      setDrops((current) =>
+        current.map((drop) =>
+          drop.id === editingCampaignDrop.id
+            ? { ...drop, metadata: nextMetadata }
+            : drop
+        )
+      );
+      setEditingCampaignDrop(null);
+      toast.success("Campaign details updated.");
+      await refetchArtistDrops();
+    } catch (error) {
+      console.error("Failed to update campaign details:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to update campaign details");
+    } finally {
+      setCampaignEditSaving(false);
+    }
+  };
+
   // â”€â”€ NAV ITEMS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const navItems = [
     { id: "home", icon: Home, label: "Home" },
@@ -1342,7 +1453,7 @@ const ArtistStudioPage = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-background max-w-lg mx-auto relative">
+    <div className={`${embedded ? "min-h-full bg-background relative" : "min-h-screen bg-background max-w-lg mx-auto relative"}`}>
 
       {/* â”€â”€ Studio Top Bar â”€â”€ */}
       <header className="sticky top-0 z-40 bg-background/90 backdrop-blur-xl border-b border-border">
@@ -1573,6 +1684,14 @@ const ArtistStudioPage = () => {
                     <Clock className="h-3 w-3" /> {d.endsIn}
                   </div>
                   <div className="flex gap-3">
+                    {d.type === "campaign" && (
+                      <button
+                        onClick={() => openCampaignEditor(d)}
+                        className="text-[10px] text-primary flex items-center gap-0.5"
+                      >
+                        <Edit3 className="h-3 w-3" /> Edit Campaign
+                      </button>
+                    )}
                     {d.contractAddress && (
                       <a href={`https://sepolia.basescan.org/address/${d.contractAddress}`} target="_blank" rel="noreferrer"
                         className="text-[10px] text-primary flex items-center gap-0.5">
@@ -1947,7 +2066,7 @@ const ArtistStudioPage = () => {
             {/* Legacy auction defaults */}
             <div className="space-y-3">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Legacy Auction Allocation</p>
-              <p className="text-xs text-muted-foreground">These percentages only apply to the older auction campaign flow. The new campaign flow uses direct ETH credits and content approvals instead.</p>
+              <p className="text-xs text-muted-foreground">These percentages only apply to the older auction campaign flow. V2 campaigns now use direct onchain ETH credits plus artist-approved content credits.</p>
               {([
                 ["subscribers", "Subscribers"],
                 ["bidders", "Bidders"],
@@ -1994,7 +2113,7 @@ const ArtistStudioPage = () => {
       </main>
 
       {/* â”€â”€ Bottom Nav â”€â”€ */}
-      <nav className="fixed bottom-0 left-0 right-0 z-50 bg-background/90 backdrop-blur-xl border-t border-border max-w-lg mx-auto">
+      <nav className={`${embedded ? "sticky bottom-0 z-50 bg-background/90 backdrop-blur-xl border-t border-border" : "fixed bottom-0 left-0 right-0 z-50 bg-background/90 backdrop-blur-xl border-t border-border max-w-lg mx-auto"}`}>
         <div className="flex items-center justify-around h-16 px-2">
           {navItems.map(item => (
             <button key={item.id} onClick={() => setTab(item.id)}
@@ -2080,6 +2199,91 @@ const ArtistStudioPage = () => {
         </DialogContent>
       </Dialog>
 
+      <Dialog open={Boolean(editingCampaignDrop)} onOpenChange={(open) => !open && setEditingCampaignDrop(null)}>
+        <DialogContent className="max-w-lg rounded-2xl">
+          <DialogHeader>
+            <DialogTitle>Edit Campaign Details</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="rounded-xl bg-secondary/60 p-3 text-xs text-muted-foreground">
+              These details are editable in the app experience only. The campaign timing and credit rules still come from the V2 contract.
+            </div>
+            <div>
+              <Label className="text-xs">Card title</Label>
+              <Input
+                value={campaignEditForm.title}
+                onChange={(e) => setCampaignEditForm((prev) => ({ ...prev, title: e.target.value }))}
+                className="mt-1 h-10 rounded-xl"
+              />
+            </div>
+            <div>
+              <Label className="text-xs">Intro</Label>
+              <textarea
+                value={campaignEditForm.intro}
+                onChange={(e) => setCampaignEditForm((prev) => ({ ...prev, intro: e.target.value }))}
+                className="mt-1 min-h-[90px] w-full rounded-xl border border-border bg-background px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <Label className="text-xs">Primary section label</Label>
+              <Input
+                value={campaignEditForm.primaryLabel}
+                onChange={(e) => setCampaignEditForm((prev) => ({ ...prev, primaryLabel: e.target.value }))}
+                className="mt-1 h-10 rounded-xl"
+              />
+            </div>
+            <div>
+              <Label className="text-xs">Primary items</Label>
+              <textarea
+                value={campaignDetailItemsToTextarea(campaignEditForm.primaryItems)}
+                onChange={(e) =>
+                  setCampaignEditForm((prev) => ({
+                    ...prev,
+                    primaryItems: campaignDetailItemsFromTextarea(e.target.value, DEFAULT_CAMPAIGN_DETAILS.primaryItems),
+                  }))
+                }
+                className="mt-1 min-h-[120px] w-full rounded-xl border border-border bg-background px-3 py-2 text-sm"
+                placeholder="One line per item"
+              />
+            </div>
+            <div>
+              <Label className="text-xs">Secondary section label</Label>
+              <Input
+                value={campaignEditForm.secondaryLabel}
+                onChange={(e) => setCampaignEditForm((prev) => ({ ...prev, secondaryLabel: e.target.value }))}
+                className="mt-1 h-10 rounded-xl"
+              />
+            </div>
+            <div>
+              <Label className="text-xs">Secondary items</Label>
+              <textarea
+                value={campaignDetailItemsToTextarea(campaignEditForm.secondaryItems)}
+                onChange={(e) =>
+                  setCampaignEditForm((prev) => ({
+                    ...prev,
+                    secondaryItems: campaignDetailItemsFromTextarea(e.target.value, DEFAULT_CAMPAIGN_DETAILS.secondaryItems),
+                  }))
+                }
+                className="mt-1 min-h-[120px] w-full rounded-xl border border-border bg-background px-3 py-2 text-sm"
+                placeholder="One line per item"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingCampaignDrop(null)}>
+              Cancel
+            </Button>
+            <Button
+              className="gradient-primary text-primary-foreground"
+              disabled={campaignEditSaving}
+              onClick={saveCampaignEditor}
+            >
+              {campaignEditSaving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving...</> : "Save Details"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* â”€â”€ Notification Drawer â”€â”€ */}
       <Dialog open={showNotifications} onOpenChange={setShowNotifications}>
         <DialogContent className="max-w-sm rounded-2xl">
@@ -2142,7 +2346,7 @@ const ArtistStudioPage = () => {
             edition: `1 of ${d.supply}`,
             bids: 0,
             poap: d.type !== "buy",
-            poapNote: d.type === "campaign" ? "Campaign credits come from ETH entries and approved content submissions, then redeem 24 hours after close." : undefined,
+            poapNote: d.type === "campaign" ? "Campaign credits come from onchain ETH entries and artist-approved content credits, then redeem 24 hours after close." : undefined,
             contractAddress: d.contractAddress ?? null,
             contractDropId: d.contractDropId ?? null,
             contractKind: d.contractKind ?? null,

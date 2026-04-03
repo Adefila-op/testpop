@@ -27,7 +27,7 @@ export const DownloadPanel: FC<DownloadPanelProps> = ({
   onDownload,
   accessNote,
   actionLabel = "Download",
-  showCopyLink = true,
+  showCopyLink = false,
 }) => {
   const [copied, setCopied] = useState(false);
 
@@ -85,7 +85,7 @@ export const DownloadPanel: FC<DownloadPanelProps> = ({
               <Download className="h-4 w-4" />
               {actionLabel}
             </Button>
-            {showCopyLink && (
+            {showCopyLink && !isGated && (
               <Button
                 variant="outline"
                 size="icon"

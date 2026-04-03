@@ -13,7 +13,11 @@ import { ACTIVE_CHAIN } from "@/lib/wagmi";
 import { useSupabaseArtists } from "@/hooks/useSupabase";
 import { fetchResolvedArtistContractAddress } from "@/hooks/useContractIntegrations";
 
-const MySubscriptionsPage = () => {
+type MySubscriptionsPageProps = {
+  embedded?: boolean;
+};
+
+const MySubscriptionsPage = ({ embedded = false }: MySubscriptionsPageProps) => {
   const navigate = useNavigate();
   const { address, isConnected } = useWallet();
   const { data: artists } = useSupabaseArtists();
@@ -157,22 +161,25 @@ const MySubscriptionsPage = () => {
       <div className="px-4 py-10 text-center space-y-4">
         <p className="text-lg font-semibold text-foreground">Connect Your Wallet</p>
         <p className="text-sm text-muted-foreground">Connect to see your subscriptions</p>
-        <Button onClick={() => navigate(-1)} className="rounded-full gradient-primary text-primary-foreground">
-          Back
-        </Button>
+        {!embedded && (
+          <Button onClick={() => navigate(-1)} className="rounded-full gradient-primary text-primary-foreground">
+            Back
+          </Button>
+        )}
       </div>
     );
   }
 
   return (
-    <div className="space-y-4 pb-20">
-      {/* Header */}
-      <div className="sticky top-0 z-10 bg-background px-4 pt-3 pb-2 flex items-center gap-3">
-        <button onClick={() => navigate(-1)} className="p-2 rounded-full bg-secondary/50">
-          <ArrowLeft className="h-4 w-4" />
-        </button>
-        <h1 className="text-lg font-bold">Subscriptions</h1>
-      </div>
+    <div className={`space-y-4 ${embedded ? "pb-6" : "pb-20"}`}>
+      {!embedded && (
+        <div className="sticky top-0 z-10 bg-background px-4 pt-3 pb-2 flex items-center gap-3">
+          <button onClick={() => navigate(-1)} className="p-2 rounded-full bg-secondary/50">
+            <ArrowLeft className="h-4 w-4" />
+          </button>
+          <h1 className="text-lg font-bold">Subscriptions</h1>
+        </div>
+      )}
 
       {/* Sort tabs */}
       <div className="px-4 flex gap-2">

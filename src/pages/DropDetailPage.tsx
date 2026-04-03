@@ -66,7 +66,8 @@ const DropDetailPage = () => {
       previewUri: dropRecord.preview_uri || undefined,
       contractAddress: dropRecord.contract_address || null,
       contractDropId: dropRecord.contract_drop_id !== null && dropRecord.contract_drop_id !== undefined ? Number(dropRecord.contract_drop_id) : null,
-      contractKind: normalizedContractKind as "artDrop" | "poapCampaign" | null,
+      contractKind: normalizedContractKind as "artDrop" | "poapCampaign" | "poapCampaignV2" | null,
+      metadata: (dropRecord.metadata as Record<string, unknown> | undefined) || {},
       poap: false,
       poapNote: "",
       assetType: (dropRecord.asset_type || "image") as AssetType,
@@ -208,7 +209,22 @@ const DropDetailPage = () => {
         </div>
 
         {drop.type === "campaign" ? (
-          <CampaignArchitectureCard />
+          <CampaignArchitectureCard
+            details={
+              drop.metadata &&
+              typeof drop.metadata.campaign_details === "object" &&
+              drop.metadata.campaign_details !== null
+                ? (drop.metadata.campaign_details as {
+                    title?: string;
+                    intro?: string;
+                    primaryLabel?: string;
+                    primaryItems?: string[];
+                    secondaryLabel?: string;
+                    secondaryItems?: string[];
+                  })
+                : undefined
+            }
+          />
         ) : !hasContractAddress ? (
           <div className="rounded-xl border border-warning/60 bg-warning/10 p-3 text-warning text-xs flex items-center gap-2">
             <AlertTriangle className="h-4 w-4" />

@@ -48,6 +48,28 @@ const LEGACY_DROP_COLUMNS = new Set([
   "updated_at",
 ]);
 
+const DROP_UPDATE_COLUMNS = new Set([
+  "title",
+  "description",
+  "price_eth",
+  "supply",
+  "image_url",
+  "image_ipfs_uri",
+  "metadata_ipfs_uri",
+  "asset_type",
+  "preview_uri",
+  "delivery_uri",
+  "is_gated",
+  "status",
+  "type",
+  "contract_address",
+  "contract_drop_id",
+  "contract_kind",
+  "revenue",
+  "ends_at",
+  "metadata",
+]);
+
 const ARTIST_SUBSCRIPTION_ABI = [
   "function getSubscriberCount() view returns (uint256)",
 ];
@@ -56,6 +78,30 @@ function stripUnsupportedDropColumns(drop = {}) {
   return Object.fromEntries(
     Object.entries(drop).filter(([key, value]) => LEGACY_DROP_COLUMNS.has(key) && value !== undefined)
   );
+}
+
+function normalizeDropMetadata(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+
+  return value;
+}
+
+function sanitizeDropPayload(drop = {}, { includeArtistId = false } = {}) {
+  const allowedColumns = includeArtistId
+    ? new Set([...DROP_UPDATE_COLUMNS, "artist_id"])
+    : DROP_UPDATE_COLUMNS;
+
+  const sanitized = Object.fromEntries(
+    Object.entries(drop).filter(([key, value]) => allowedColumns.has(key) && value !== undefined)
+  );
+
+  if (Object.prototype.hasOwnProperty.call(sanitized, "metadata")) {
+    sanitized.metadata = normalizeDropMetadata(sanitized.metadata);
+  }
+
+  return sanitized;
 }
 
 function isMissingDropColumnError(message = "") {
@@ -126,6 +172,11 @@ const ART_DROP_FACTORY_ADDRESS = rawArtDropFactoryAddress.trim();
 const POAP_CAMPAIGN_V2_ADDRESS = rawPoapCampaignV2Address.trim();
 const PRODUCT_STORE_ADDRESS = rawProductStoreAddress.trim();
 const DEPLOYER_PRIVATE_KEY = rawDeployerPrivateKey?.trim();
+const EXPIRED_DROP_RETENTION_HOURS = Math.max(24, Number(process.env.EXPIRED_DROP_RETENTION_HOURS || 24 * 30));
+const DROP_MAINTENANCE_INTERVAL_MS = Math.max(
+  5 * 60 * 1000,
+  Number(process.env.DROP_MAINTENANCE_INTERVAL_MS || 30 * 60 * 1000),
+);
 
 const appJwtSecret = APP_JWT_SECRET || JWT_SECRET;
 
@@ -515,6 +566,102 @@ async function getCampaignWindow(drop) {
     endTime: endsAt,
     redeemStartTime: endsAt ? endsAt + 24 * 60 * 60 : null,
   };
+}
+
+let expiredDropMaintenancePromise = null;
+let lastExpiredDropMaintenanceAt = 0;
+
+async function cleanupExpiredDropsAndCampaigns() {
+  const now = new Date();
+  const nowIso = now.toISOString();
+  const cutoffIso = new Date(
+    now.getTime() - EXPIRED_DROP_RETENTION_HOURS * 60 * 60 * 1000,
+  ).toISOString();
+
+  const summary = {
+    ended: 0,
+    removed: 0,
+  };
+
+  const { data: endedRows, error: endedError } = await supabase
+    .from("drops")
+    .update({
+      status: "ended",
+      updated_at: nowIso,
+    })
+    .eq("status", "live")
+    .not("ends_at", "is", null)
+    .lt("ends_at", nowIso)
+    .select("id");
+
+  if (endedError) {
+    throw new Error(`Failed to end expired drops: ${endedError.message}`);
+  }
+
+  summary.ended = endedRows?.length || 0;
+
+  const { data: staleDrops, error: staleError } = await supabase
+    .from("drops")
+    .select("id")
+    .in("status", ["ended", "draft"])
+    .not("ends_at", "is", null)
+    .lt("ends_at", cutoffIso);
+
+  if (staleError) {
+    throw new Error(`Failed to find stale drops: ${staleError.message}`);
+  }
+
+  const staleDropIds = (staleDrops || []).map((drop) => drop.id).filter(Boolean);
+  if (staleDropIds.length === 0) {
+    return summary;
+  }
+
+  const campaignSubmissionReady = await ensureCampaignSubmissionsTableReady().catch(() => false);
+  if (campaignSubmissionReady) {
+    const { error: submissionsError } = await supabase
+      .from("campaign_submissions")
+      .delete()
+      .in("drop_id", staleDropIds);
+
+    if (submissionsError) {
+      throw new Error(`Failed to remove stale campaign submissions: ${submissionsError.message}`);
+    }
+  }
+
+  const { error: deleteError } = await supabase
+    .from("drops")
+    .delete()
+    .in("id", staleDropIds);
+
+  if (deleteError) {
+    throw new Error(`Failed to remove stale drops: ${deleteError.message}`);
+  }
+
+  summary.removed = staleDropIds.length;
+  return summary;
+}
+
+async function runExpiredDropMaintenanceIfDue(force = false) {
+  const now = Date.now();
+  if (!force && now - lastExpiredDropMaintenanceAt < DROP_MAINTENANCE_INTERVAL_MS) {
+    return null;
+  }
+
+  if (expiredDropMaintenancePromise) {
+    return expiredDropMaintenancePromise;
+  }
+
+  lastExpiredDropMaintenanceAt = now;
+  expiredDropMaintenancePromise = cleanupExpiredDropsAndCampaigns()
+    .catch((error) => {
+      console.error("Expired drop maintenance failed:", error);
+      throw error;
+    })
+    .finally(() => {
+      expiredDropMaintenancePromise = null;
+    });
+
+  return expiredDropMaintenancePromise;
 }
 
 function getContractDeploymentReadiness() {
@@ -1202,6 +1349,15 @@ app.use((req, res, next) => {
   next();
 });
 
+app.use((req, _res, next) => {
+  if (!req.url.startsWith("/auth/")) {
+    void runExpiredDropMaintenanceIfDue().catch((error) => {
+      console.warn("Background drop maintenance warning:", error?.message || error);
+    });
+  }
+  next();
+});
+
 app.get("/health", (_req, res) => {
   console.log("✅ /health endpoint called");
   res.json({ ok: true, service: "popup-api", env: NODE_ENV });
@@ -1404,8 +1560,25 @@ app.post("/artists/contract-address", authRequired, async (req, res) => {
   return res.json(data);
 });
 
+app.post("/maintenance/cleanup-drops", authRequired, async (req, res) => {
+  if (req.auth.role !== "admin") {
+    return res.status(403).json({ error: "Admin access required" });
+  }
+
+  try {
+    const result = await runExpiredDropMaintenanceIfDue(true);
+    return res.json({
+      ok: true,
+      retentionHours: EXPIRED_DROP_RETENTION_HOURS,
+      ...(result || { ended: 0, removed: 0 }),
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error.message || "Cleanup failed" });
+  }
+});
+
 app.post("/drops", authRequired, async (req, res) => {
-  const drop = req.body || {};
+  const drop = sanitizeDropPayload(req.body || {}, { includeArtistId: true });
   const artistId = drop.artist_id;
   if (!artistId) return res.status(400).json({ error: "artist_id is required" });
 
@@ -1454,12 +1627,30 @@ app.patch("/drops/:id", authRequired, async (req, res) => {
     return res.status(403).json({ error: "Cannot update another artist drop" });
   }
 
-  const { data, error } = await supabase
+  const updates = {
+    ...sanitizeDropPayload(req.body || {}),
+    updated_at: new Date().toISOString(),
+  };
+
+  if (Object.keys(updates).length === 1 && updates.updated_at) {
+    return res.status(400).json({ error: "No supported drop fields were provided" });
+  }
+
+  let { data, error } = await supabase
     .from("drops")
-    .update({ ...req.body, updated_at: new Date().toISOString() })
+    .update(updates)
     .eq("id", id)
     .select("*")
     .single();
+
+  if (error && isMissingDropColumnError(error.message)) {
+    ({ data, error } = await supabase
+      .from("drops")
+      .update(stripUnsupportedDropColumns(updates))
+      .eq("id", id)
+      .select("*")
+      .single());
+  }
 
   if (error) return res.status(400).json({ error: error.message });
   return res.json(data);

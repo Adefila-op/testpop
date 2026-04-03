@@ -39,7 +39,7 @@ export const EpubReader: FC<EpubReaderProps> = ({ src, title, onClose }) => {
       flow: "paginated",
       manager: "default",
       spread: "none",
-      allowScriptedContent: true,
+      allowScriptedContent: false,
     });
 
     bookRef.current = book;

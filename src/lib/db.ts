@@ -50,6 +50,7 @@ export interface Drop {
   contract_kind?: string;
   revenue?: number;
   ends_at?: string;
+  metadata?: Record<string, unknown>;
   created_at?: string;
   updated_at?: string;
 }

@@ -65,6 +65,16 @@ function withDropDefaults<T extends Record<string, any> | null>(drop: T): T {
   };
 }
 
+function filterNonExpiredLiveDrops<T extends Record<string, any>>(drops: T[]) {
+  const now = Date.now();
+  return (drops || []).filter((drop) => {
+    if (!drop?.ends_at) return true;
+    const endsAt = new Date(drop.ends_at).getTime();
+    if (!Number.isFinite(endsAt)) return true;
+    return endsAt > now;
+  });
+}
+
 async function fetchArtistsByIdsFromSupabase(artistIds: Array<string | null | undefined>) {
   const uniqueArtistIds = Array.from(
     new Set(artistIds.filter((artistId): artistId is string => Boolean(artistId)))
@@ -129,6 +139,7 @@ function getLiveDropsSelectClause() {
     "sold",
     "contract_address",
     "contract_drop_id",
+    "metadata",
   ];
 
   if (shouldUseFullDropColumns()) {
@@ -166,6 +177,7 @@ function getDropDetailSelectClause() {
     "ends_at",
     "contract_address",
     "contract_drop_id",
+    "metadata",
   ];
 
   if (shouldUseFullDropColumns()) {
@@ -412,8 +424,9 @@ export async function fetchLiveDropsFromSupabase() {
       throw error;
     }
 
-    console.log(`✅ Fetched ${data?.length || 0} live drops from Supabase`);
-    return data || [];
+    const filtered = filterNonExpiredLiveDrops(data || []);
+    console.log(`✅ Fetched ${filtered.length || 0} live drops from Supabase`);
+    return filtered;
   } catch (error: any) {
     console.error("❌ fetchLiveDropsFromSupabase failed:", error.message);
     throw error;

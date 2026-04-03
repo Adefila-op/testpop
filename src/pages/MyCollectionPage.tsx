@@ -155,7 +155,11 @@ const CollectionPlaceholder = ({
   </div>
 );
 
-const MyCollectionPage = () => {
+type MyCollectionPageProps = {
+  embedded?: boolean;
+};
+
+const MyCollectionPage = ({ embedded = false }: MyCollectionPageProps) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { address, isConnected } = useWallet();
@@ -325,15 +329,17 @@ const MyCollectionPage = () => {
       <div className="px-4 py-10 text-center space-y-4">
         <p className="text-lg font-semibold text-foreground">Connect Your Wallet</p>
         <p className="text-sm text-muted-foreground">Connect to see your NFT collection</p>
-        <Button onClick={() => navigate(-1)} className="rounded-full gradient-primary text-primary-foreground">
-          Back
-        </Button>
+        {!embedded && (
+          <Button onClick={() => navigate(-1)} className="rounded-full gradient-primary text-primary-foreground">
+            Back
+          </Button>
+        )}
       </div>
     );
   }
 
   return (
-    <div className="space-y-4 pb-20">
+    <div className={`space-y-4 ${embedded ? "pb-6" : "pb-20"}`}>
       {selectedItem && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 overflow-y-auto">
           <div className="relative w-full max-w-2xl my-8">
@@ -398,12 +404,14 @@ const MyCollectionPage = () => {
         </div>
       )}
 
-      <div className="sticky top-0 z-10 bg-background px-4 pt-3 pb-2 flex items-center gap-3">
-        <button onClick={() => navigate(-1)} className="p-2 rounded-full bg-secondary/50">
-          <ArrowLeft className="h-4 w-4" />
-        </button>
-        <h1 className="text-lg font-bold">My Collection</h1>
-      </div>
+      {!embedded && (
+        <div className="sticky top-0 z-10 bg-background px-4 pt-3 pb-2 flex items-center gap-3">
+          <button onClick={() => navigate(-1)} className="p-2 rounded-full bg-secondary/50">
+            <ArrowLeft className="h-4 w-4" />
+          </button>
+          <h1 className="text-lg font-bold">My Collection</h1>
+        </div>
+      )}
 
       <div className="px-4 flex gap-2">
         {["all", "owned"].map((entry) => (
