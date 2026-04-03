@@ -16,6 +16,7 @@ import { useSupabaseArtistById, useSupabaseDropsByArtist } from "@/hooks/useSupa
 import { resolveMediaUrl } from "@/lib/pinata";
 import { resolvePortfolioImage } from "@/lib/portfolio";
 import { getRuntimeApiToken } from "@/lib/runtimeSession";
+import { normalizePublicDropStatus } from "@/lib/catalogVisibility";
 import {
   createIPInvestment,
   getIPCampaigns,
@@ -25,6 +26,12 @@ import {
 
 const artistFallbackArt =
   "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 640 640'><defs><linearGradient id='g' x1='0' x2='1' y1='0' y2='1'><stop stop-color='%238988ea'/><stop offset='1' stop-color='%23c18cff'/></linearGradient></defs><rect width='640' height='640' rx='36' fill='url(%23g)'/><circle cx='320' cy='220' r='120' fill='%23f3d0ff' opacity='.88'/><path d='M188 484c34-78 82-126 132-126 56 0 104 46 132 126' fill='%232b2235' opacity='.78'/><circle cx='320' cy='238' r='92' fill='%233a313f'/></svg>";
+
+const truncateAddress = (value?: string | null) => {
+  if (!value) return "";
+  if (value.length <= 12) return value;
+  return `${value.slice(0, 6)}...${value.slice(-4)}`;
+};
 
 const ArtistProfilePage = () => {
   const { id } = useParams();
@@ -46,6 +53,7 @@ const ArtistProfilePage = () => {
   const [investingCampaignId, setInvestingCampaignId] = useState<string | null>(null);
   const [selectedCampaign, setSelectedCampaign] = useState<IPCampaign | null>(null);
   const [activeContentTab, setActiveContentTab] = useState<"portfolio" | "drops">("portfolio");
+  const [isShortlisted, setIsShortlisted] = useState(false);
   const [investmentForm, setInvestmentForm] = useState({
     amountEth: "",
     units: "",
@@ -83,7 +91,7 @@ const ArtistProfilePage = () => {
     };
   }, [artist]);
 
-  const drops = useMemo(() => {
+  const artistDrops = useMemo(() => {
     if (!supabaseDrops || !Array.isArray(supabaseDrops)) return [];
     return supabaseDrops.map((drop) => ({
       id: drop.id,
@@ -92,8 +100,9 @@ const ArtistProfilePage = () => {
       priceEth: String(drop.price_eth || 0),
       maxBuy: drop.supply || 1,
       bought: drop.sold || 0,
-      status: drop.status || "draft",
+      status: normalizePublicDropStatus(drop.status),
       type: drop.type || "drop",
+      endsAt: drop.ends_at || null,
       image: resolveMediaUrl(drop.preview_uri, drop.image_url, drop.image_ipfs_uri) || transformedArtist?.banner || artistFallbackArt,
     }));
   }, [supabaseDrops, transformedArtist?.banner]);
@@ -241,17 +250,39 @@ const ArtistProfilePage = () => {
     [transformedArtist]
   );
   const isArtistOwner = !!address && !!transformedArtist?.wallet && address.toLowerCase() === transformedArtist.wallet.toLowerCase();
-  const featuredDrop = drops[0] ?? null;
+  const liveDrops = useMemo(
+    () =>
+      artistDrops.filter((drop) => {
+        if (drop.status !== "live") return false;
+        if (!drop.endsAt) return true;
+        const endsAt = new Date(drop.endsAt).getTime();
+        if (!Number.isFinite(endsAt)) return true;
+        return endsAt > Date.now();
+      }),
+    [artistDrops]
+  );
+  const featuredDrop = liveDrops[0] ?? null;
+  const primaryRaiseCampaign = visibleRaiseCampaigns[0] ?? null;
+  const mobileIdentity = transformedArtist?.handle
+    ? `@${transformedArtist.handle}`
+    : truncateAddress(transformedArtist?.wallet);
+  const subscriberCount = Number(onchainSubscribers || 0);
+  const secondaryActionDisabled = isArtistOwner ? subscriberCount < 100 : !primaryRaiseCampaign;
+  const secondaryActionLabel = isArtistOwner
+    ? subscriberCount < 100
+      ? `Request Raise (${subscriberCount}/100)`
+      : "Request Raise"
+    : "Invest";
 
   useEffect(() => {
     setActiveContentTab((current) => {
       if (current === "portfolio" && portfolioPieces.length > 0) return current;
-      if (current === "drops" && drops.length > 0) return current;
+      if (current === "drops" && liveDrops.length > 0) return current;
       if (portfolioPieces.length > 0) return "portfolio";
-      if (drops.length > 0) return "drops";
+      if (liveDrops.length > 0) return "drops";
       return "portfolio";
     });
-  }, [drops.length, portfolioPieces.length]);
+  }, [liveDrops.length, portfolioPieces.length]);
 
   if (invalidArtistId) {
     return (
@@ -323,8 +354,44 @@ const ArtistProfilePage = () => {
   };
 
   const handleShare = async () => {
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: transformedArtist.name,
+          text: `Check out ${transformedArtist.name} on POPUP`,
+          url: window.location.href,
+        });
+        return;
+      } catch {
+        // Fallback to clipboard when the share sheet is dismissed or unavailable.
+      }
+    }
+
     await navigator.clipboard.writeText(window.location.href);
     toast.success("Profile link copied");
+  };
+
+  const handleSecondaryAction = () => {
+    if (isArtistOwner) {
+      setBuySharesOpen(true);
+      return;
+    }
+
+    if (!primaryRaiseCampaign) {
+      toast.message("No live raises available to invest in yet.");
+      return;
+    }
+
+    setSelectedCampaign(primaryRaiseCampaign);
+    setInvestOpen(true);
+  };
+
+  const handleShortlistToggle = () => {
+    setIsShortlisted((current) => {
+      const next = !current;
+      toast.success(next ? "Artist saved to your shortlist." : "Removed from your shortlist.");
+      return next;
+    });
   };
 
   const handleInvest = async () => {
@@ -387,7 +454,189 @@ const ArtistProfilePage = () => {
 
   return (
     <div className="min-h-[calc(100vh-88px)] bg-[radial-gradient(circle_at_top,rgba(96,165,250,0.20),transparent_30%),linear-gradient(180deg,#f7fbff_0%,#edf5ff_100%)] px-4 py-4 md:px-6 md:py-6">
-      <div className="mx-auto max-w-6xl rounded-[2rem] border border-white/80 bg-white/94 p-4 shadow-[0_38px_120px_rgba(37,99,235,0.10)] md:p-6">
+      <div className="mx-auto max-w-6xl">
+        <div className="md:hidden">
+          <div className="overflow-hidden rounded-[2rem] border border-white/80 bg-white/94 shadow-[0_38px_120px_rgba(37,99,235,0.10)]">
+            <div className="relative h-56 overflow-hidden">
+              <img src={transformedArtist.banner} alt={transformedArtist.name} className="h-full w-full object-cover" />
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.08)_0%,rgba(15,23,42,0.18)_100%)]" />
+              <div className="absolute inset-x-4 top-4 flex items-center justify-between">
+                <button onClick={() => navigate(-1)} className="rounded-full bg-white/92 p-2.5 text-foreground shadow-sm backdrop-blur-sm">
+                  <ArrowLeft className="h-4 w-4" />
+                </button>
+                <button onClick={handleShare} className="rounded-full bg-white/92 p-2.5 text-foreground shadow-sm backdrop-blur-sm">
+                  <Share2 className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+
+            <div className="-mt-10 px-4 pb-5">
+              <div className="rounded-[2rem] bg-white/96 p-4 shadow-[0_16px_40px_rgba(15,23,42,0.10)] backdrop-blur-sm">
+                <div className="flex items-end gap-3">
+                  <div className="h-20 w-20 overflow-hidden rounded-[1.6rem] border-4 border-white bg-[#63ece5] shadow-[0_10px_24px_rgba(15,23,42,0.10)]">
+                    <img src={transformedArtist.avatar} alt={transformedArtist.name} className="h-full w-full object-cover" />
+                  </div>
+                  <div className="min-w-0 flex-1 pb-1">
+                    <h1 className="truncate text-[1.9rem] font-black leading-none tracking-[-0.05em] text-foreground">{transformedArtist.name}</h1>
+                    <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                      <Badge className="rounded-full bg-[#eefaf7] px-2.5 py-1 text-[10px] uppercase tracking-[0.22em] text-[#0f766e] hover:bg-[#eefaf7]">
+                        {transformedArtist.tag}
+                      </Badge>
+                      <span className="truncate text-xs font-medium">{mobileIdentity}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <p className="mt-4 text-[15px] leading-6 text-foreground/72">{transformedArtist.bio}</p>
+
+                <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-muted-foreground">
+                  <span className="inline-flex items-center gap-1.5">
+                    <Users className="h-4 w-4 text-[#0f9d74]" />
+                    {isSubscribersLoading ? "..." : subscriberCount} subscribers
+                  </span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <Flame className="h-4 w-4 text-[#0f9d74]" />
+                    {liveDrops.length} drops
+                  </span>
+                </div>
+
+                {publicLinks.length > 0 && (
+                  <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-sm text-[#0f9d74]">
+                    {publicLinks.map((link) => (
+                      <a key={link.label} href={link.href} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 font-medium">
+                        <Globe className="h-3.5 w-3.5" />
+                        {link.label}
+                      </a>
+                    ))}
+                  </div>
+                )}
+
+                <div className="mt-5 grid grid-cols-[minmax(0,1fr)_minmax(0,0.72fr)_48px] gap-2">
+                  <Button
+                    onClick={handleSubscribe}
+                    disabled={isSubscribing || isSubscribePending || isSubscribeConfirming || isSubscribed || isSubscribedLoading}
+                    className="h-12 rounded-full bg-[linear-gradient(135deg,#32d77b_0%,#13b569_100%)] text-sm font-bold text-white shadow-[0_14px_28px_rgba(19,181,105,0.28)] hover:opacity-95"
+                  >
+                    {isConnected
+                      ? isSubscribed
+                        ? "Subscribed"
+                        : isSubscribedLoading
+                          ? "Checking..."
+                          : isSubscribing || isSubscribePending
+                            ? "Processing..."
+                            : isSubscribeConfirming
+                              ? "Confirming..."
+                              : `Subscribe · ${transformedArtist.subscriptionPrice} ETH/mo`
+                      : "Connect Wallet"}
+                  </Button>
+                  <Button
+                    onClick={handleSecondaryAction}
+                    disabled={secondaryActionDisabled}
+                    variant="outline"
+                    className="h-12 rounded-full border-[#e5ecf4] bg-white text-sm font-semibold text-foreground shadow-[0_8px_20px_rgba(15,23,42,0.05)] hover:bg-[#f8fafc]"
+                  >
+                    {secondaryActionLabel}
+                  </Button>
+                  <button
+                    type="button"
+                    onClick={handleShortlistToggle}
+                    className="flex h-12 w-12 items-center justify-center rounded-full border border-[#e5ecf4] bg-white text-foreground shadow-[0_8px_20px_rgba(15,23,42,0.05)]"
+                    aria-label={isShortlisted ? "Remove artist from shortlist" : "Save artist to shortlist"}
+                  >
+                    <Heart className={`h-5 w-5 ${isShortlisted ? "fill-[#ff6b8b] text-[#ff6b8b]" : "text-foreground/70"}`} />
+                  </button>
+                </div>
+
+                <Tabs value={activeContentTab} onValueChange={(value) => setActiveContentTab(value as "portfolio" | "drops")} className="mt-5 space-y-4">
+                  <TabsList className="grid h-auto w-full grid-cols-2 rounded-full bg-[#eef2f5] p-1">
+                    <TabsTrigger value="portfolio" className="rounded-full py-2.5 text-sm font-semibold">
+                      Portfolio
+                    </TabsTrigger>
+                    <TabsTrigger value="drops" className="rounded-full py-2.5 text-sm font-semibold">
+                      Drops
+                    </TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent value="portfolio" className="mt-0 space-y-3">
+                    <button type="button" onClick={() => setLightboxImage(featuredPortfolio)} className="group block w-full overflow-hidden rounded-[1.7rem] bg-[#edf7ff]">
+                      <div className="relative h-60 overflow-hidden">
+                        <img src={featuredPortfolio.image} alt={featuredPortfolio.title} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/55 via-slate-950/10 to-transparent" />
+                        <div className="absolute inset-x-4 bottom-4 flex items-end justify-between gap-3">
+                          <div className="rounded-[1.2rem] bg-white/88 px-4 py-3 text-left text-foreground backdrop-blur-sm">
+                            <p className="text-base font-semibold">{featuredPortfolio.title}</p>
+                            <p className="text-xs text-muted-foreground">{`${featuredPortfolio.medium} · ${featuredPortfolio.year}`}</p>
+                          </div>
+                          <span className="rounded-full bg-white/88 px-3 py-1 text-xs font-semibold text-foreground backdrop-blur-sm">Open</span>
+                        </div>
+                      </div>
+                    </button>
+
+                    {portfolioPieces.length > 0 ? (
+                      <div className="grid grid-cols-2 gap-3">
+                        {portfolioPieces.slice(0, 4).map((piece) => (
+                          <button key={piece.id} onClick={() => setLightboxImage(piece)} className="group relative overflow-hidden rounded-[1.3rem]">
+                            <img src={piece.image} alt={piece.title} className="aspect-square h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+                            <div className="absolute inset-x-3 bottom-3 text-left text-white">
+                              <p className="truncate text-sm font-semibold">{piece.title}</p>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="rounded-[1.4rem] border border-dashed border-[#dbe7ff] bg-[#f8fbff] py-10 text-center text-sm text-muted-foreground">
+                        No portfolio pieces yet.
+                      </div>
+                    )}
+                  </TabsContent>
+
+                  <TabsContent value="drops" className="mt-0 space-y-3">
+                    {dropsLoading ? (
+                      <div className="rounded-[1.4rem] bg-[#f8fbff] py-10 text-center text-sm text-muted-foreground">Loading drops...</div>
+                    ) : liveDrops.length === 0 ? (
+                      <div className="rounded-[1.4rem] border border-dashed border-[#dbe7ff] bg-[#f8fbff] py-10 text-center text-sm text-muted-foreground">No live drops yet.</div>
+                    ) : (
+                      <div className="space-y-3">
+                        {liveDrops.map((drop, index) => (
+                          <Link key={drop.id} to={`/drops/${drop.id}`} className={`overflow-hidden rounded-[1.4rem] border border-[#edf2f7] bg-white shadow-[0_10px_24px_rgba(15,23,42,0.05)] ${index === 0 ? "block" : "flex items-center gap-3 p-3"}`}>
+                            {index === 0 ? (
+                              <div className="relative h-60 overflow-hidden">
+                                <img src={drop.image} alt={drop.title} className="h-full w-full object-cover" />
+                                <div className="absolute inset-0 bg-gradient-to-t from-slate-950/55 via-slate-950/10 to-transparent" />
+                                <div className="absolute inset-x-4 bottom-4 rounded-[1.2rem] bg-white/88 px-4 py-3 text-foreground backdrop-blur-sm">
+                                  <p className="text-[10px] uppercase tracking-[0.22em] text-[#0f9d74]">{drop.type}</p>
+                                  <p className="mt-2 text-lg font-semibold">{drop.title}</p>
+                                  <p className="mt-1 text-xs text-muted-foreground">{drop.priceEth} ETH · {drop.bought}/{drop.maxBuy} collected</p>
+                                </div>
+                              </div>
+                            ) : (
+                              <>
+                                <div className="h-24 w-24 flex-shrink-0 overflow-hidden rounded-[1.1rem] bg-secondary">
+                                  <img src={drop.image} alt={drop.title} className="h-full w-full object-cover" />
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <p className="truncate text-sm font-semibold text-foreground">{drop.title}</p>
+                                  <p className="mt-1 text-[11px] uppercase tracking-[0.22em] text-muted-foreground">{drop.type}</p>
+                                  <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                                    <span className="inline-flex items-center gap-1"><Flame className="h-3 w-3 text-[#0f9d74]" /> {drop.priceEth} ETH</span>
+                                    <span className="inline-flex items-center gap-1"><Users className="h-3 w-3 text-[#0f9d74]" /> {drop.bought}/{drop.maxBuy}</span>
+                                  </div>
+                                </div>
+                              </>
+                            )}
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+                  </TabsContent>
+                </Tabs>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      <div className="hidden rounded-[2rem] border border-white/80 bg-white/94 p-4 shadow-[0_38px_120px_rgba(37,99,235,0.10)] md:block md:p-6">
         <div className="mb-4 flex items-center justify-between">
           <button onClick={() => navigate(-1)} className="rounded-full border border-[#dbe7ff] bg-white p-2.5 text-foreground transition-colors hover:bg-[#eef5ff]">
             <ArrowLeft className="h-4 w-4" />
@@ -425,11 +674,11 @@ const ArtistProfilePage = () => {
 
             <div className="mt-6 grid grid-cols-2 gap-3">
               <div className="rounded-[1.3rem] bg-white/14 p-3 backdrop-blur-sm">
-                <p className="text-2xl font-black">{isSubscribersLoading ? "..." : onchainSubscribers}</p>
+                <p className="text-2xl font-black">{isSubscribersLoading ? "..." : subscriberCount}</p>
                 <p className="mt-1 text-xs uppercase tracking-[0.22em] text-white/74">Subscribers</p>
               </div>
               <div className="rounded-[1.3rem] bg-white/14 p-3 backdrop-blur-sm">
-                <p className="text-2xl font-black">{drops.length}</p>
+                <p className="text-2xl font-black">{liveDrops.length}</p>
                 <p className="mt-1 text-xs uppercase tracking-[0.22em] text-white/74">Projects</p>
               </div>
             </div>
@@ -454,18 +703,18 @@ const ArtistProfilePage = () => {
               </Button>
                 <Button
                   onClick={() => setBuySharesOpen(true)}
-                  disabled={!isArtistOwner || onchainSubscribers < 100}
+                  disabled={!isArtistOwner || subscriberCount < 100}
                   variant="outline"
                   className="w-full rounded-full border-white/40 bg-white/10 text-white hover:bg-white/20"
                   title={
                     !isArtistOwner
                       ? "Only the artist can request an IP raise from their own profile"
-                      : onchainSubscribers < 100
+                      : subscriberCount < 100
                         ? "Artist needs 100+ subscribers to request an IP raise"
                         : ""
                   }
                 >
-                  {!isArtistOwner ? "IP Raise Locked" : onchainSubscribers < 100 ? `Request Raise (${onchainSubscribers}/100)` : "Request IP Raise"}
+                  {!isArtistOwner ? "IP Raise Locked" : subscriberCount < 100 ? `Request Raise (${subscriberCount}/100)` : "Request IP Raise"}
                 </Button>
             </div>
 
@@ -649,9 +898,9 @@ const ArtistProfilePage = () => {
                       <div className="rounded-[1.5rem] bg-white/80 py-12 text-center text-sm text-muted-foreground">
                         Loading drops...
                       </div>
-                    ) : drops.length === 0 ? (
+                    ) : liveDrops.length === 0 ? (
                       <div className="rounded-[1.5rem] border border-dashed border-[#dbe7ff] bg-white/80 py-12 text-center text-sm text-muted-foreground">
-                        No drops yet.
+                        No live drops yet.
                       </div>
                     ) : (
                       <>
@@ -677,7 +926,7 @@ const ArtistProfilePage = () => {
                         )}
 
                         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                          {drops.map((drop) => (
+                          {liveDrops.map((drop) => (
                             <Link key={drop.id} to={`/drops/${drop.id}`} className="overflow-hidden rounded-2xl bg-card shadow-card">
                               <div className="aspect-square overflow-hidden">
                                 <img src={drop.image} alt={drop.title} className="h-full w-full object-cover" />
@@ -704,14 +953,14 @@ const ArtistProfilePage = () => {
               <div className="grid gap-3">
                 <div className="rounded-[1.5rem] bg-[#eff6ff] p-4">
                   <p className="text-4xl font-black text-foreground">
-                    {activeContentTab === "portfolio" ? portfolioPieces.length : drops.length}
+                    {activeContentTab === "portfolio" ? portfolioPieces.length : liveDrops.length}
                   </p>
                   <p className="mt-1 text-foreground/80">
                     {activeContentTab === "portfolio" ? "Portfolio Pieces" : "Live Drops"}
                   </p>
                 </div>
                 <div className="rounded-[1.5rem] bg-[#1d4ed8] p-4 text-white">
-                  <p className="text-4xl font-black">{onchainSubscribers}</p>
+                  <p className="text-4xl font-black">{subscriberCount}</p>
                   <p className="mt-1 text-white/90">Collectors</p>
                 </div>
                 <div className="rounded-[1.5rem] bg-white/80 p-4 shadow-[inset_0_0_0_1px_rgba(37,99,235,0.08)]">
@@ -722,6 +971,7 @@ const ArtistProfilePage = () => {
             </div>
           </Tabs>
         </div>
+      </div>
       </div>
 
       <Dialog open={investOpen} onOpenChange={setInvestOpen}>

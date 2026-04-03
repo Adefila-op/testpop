@@ -120,6 +120,22 @@ async function fetchArtistsByIdsFromSupabase(artistIds: Array<string | null | un
   return new Map((data || []).map((artist) => [artist.id, artist]));
 }
 
+async function attachArtistsToDrops<T extends Record<string, any>>(drops: T[]) {
+  try {
+    const artistMap = await fetchArtistsByIdsFromSupabase((drops || []).map((drop) => drop.artist_id));
+    return (drops || []).map((drop) => ({
+      ...withDropDefaults(drop),
+      artists: artistMap.get(drop.artist_id) || null,
+    }));
+  } catch (error: any) {
+    console.warn("Failed to attach artist records to drops:", error?.message || error);
+    return (drops || []).map((drop) => ({
+      ...withDropDefaults(drop),
+      artists: null,
+    }));
+  }
+}
+
 async function fetchApprovedArtistWalletsFromSupabase() {
   const { data, error } = await supabase
     .from("whitelist")
@@ -479,6 +495,10 @@ export async function fetchLiveDropsFromSupabase() {
       .order("created_at", { ascending: false });
 
     updateDropSchemaModes(error);
+    if (error && shouldUseEmbeddedArtistRelation()) {
+      dropsArtistRelationMode = "detached";
+    }
+
     const needsFallback = Boolean(error && (dropsColumnsMode === "legacy" || dropsArtistRelationMode === "detached"));
 
     if (needsFallback) {
@@ -488,14 +508,8 @@ export async function fetchLiveDropsFromSupabase() {
         .in("status", [...LIVE_DROP_STATUSES])
         .order("created_at", { ascending: false }));
 
-      if (!error) {
-        if (dropsArtistRelationMode === "detached") {
-          const artistMap = await fetchArtistsByIdsFromSupabase((data || []).map((drop) => drop.artist_id));
-          data = (data || []).map((drop) => ({
-            ...withDropDefaults(drop),
-            artists: artistMap.get(drop.artist_id) || null,
-          }));
-        }
+      if (!error && dropsArtistRelationMode === "detached") {
+        data = await attachArtistsToDrops(data || []);
       }
     } else {
       dropsColumnsMode = shouldUseFullDropColumns() ? "full" : "legacy";
@@ -526,6 +540,10 @@ export async function fetchDropByIdFromSupabase(dropId: string) {
       .maybeSingle();
 
     updateDropSchemaModes(error);
+    if (error && shouldUseEmbeddedArtistRelation()) {
+      dropsArtistRelationMode = "detached";
+    }
+
     const needsFallback = Boolean(error && (dropsColumnsMode === "legacy" || dropsArtistRelationMode === "detached"));
 
     if (needsFallback) {
@@ -535,16 +553,9 @@ export async function fetchDropByIdFromSupabase(dropId: string) {
         .eq("id", dropId)
         .maybeSingle());
 
-      if (!error) {
-        if (dropsArtistRelationMode === "detached") {
-          const artistMap = await fetchArtistsByIdsFromSupabase([data?.artist_id]);
-          data = data
-            ? {
-                ...withDropDefaults(data),
-                artists: artistMap.get(data.artist_id) || null,
-              }
-            : null;
-        }
+      if (!error && dropsArtistRelationMode === "detached") {
+        const dropsWithArtists = await attachArtistsToDrops(data ? [data] : []);
+        data = dropsWithArtists[0] || null;
       }
     } else {
       dropsColumnsMode = shouldUseFullDropColumns() ? "full" : "legacy";
