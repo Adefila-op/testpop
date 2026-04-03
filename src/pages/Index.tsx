@@ -144,7 +144,7 @@ const Index = () => {
     loading: dropsLoading,
     error: dropsError,
     refetch: refetchDrops,
-  } = useSupabaseLiveDrops(isDesktopViewport);
+  } = useSupabaseLiveDrops();
   const { placeBid, isPending: isBidding, error: bidError } = usePlaceBid();
   const { toast } = useToast();
   const addCollectedDrop = useCollectionStore((state) => state.addCollectedDrop);

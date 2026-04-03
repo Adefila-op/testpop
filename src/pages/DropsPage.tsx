@@ -104,6 +104,13 @@ const DropsPage = () => {
     () => mobileSourceDrops.filter((drop) => drop.id !== mobileHeroDrop?.id),
     [mobileHeroDrop?.id, mobileSourceDrops]
   );
+  const mobileVisibleDrops = useMemo(() => {
+    if (!mobileHeroDrop) {
+      return mobileCollectionDrops;
+    }
+
+    return [mobileHeroDrop, ...mobileCollectionDrops];
+  }, [mobileCollectionDrops, mobileHeroDrop]);
   const mobileSectionTitle = deferredQuery
     ? "Search results"
     : active === "all"
@@ -537,7 +544,7 @@ const DropsPage = () => {
                 </div>
               ))}
             </div>
-          ) : mobileCollectionDrops.length === 0 ? (
+          ) : mobileVisibleDrops.length === 0 ? (
             <div className="mt-5 rounded-[1.8rem] border border-dashed border-[#93c5fd] bg-white/80 p-8 text-center dark:border-white/10 dark:bg-slate-950/65">
               <Sparkles className="mx-auto mb-3 h-10 w-10 text-primary" />
               <p className="text-lg font-semibold text-foreground">
@@ -551,7 +558,7 @@ const DropsPage = () => {
             </div>
           ) : (
             <div className="mt-5 -mr-4 flex gap-4 overflow-x-auto pb-2 pr-4 no-scrollbar">
-              {mobileCollectionDrops.map((drop, index) => (
+              {mobileVisibleDrops.map((drop, index) => (
                 <Link
                   key={drop.id}
                   to={`/drops/${drop.id}`}

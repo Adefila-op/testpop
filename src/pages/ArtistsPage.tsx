@@ -18,6 +18,7 @@ import { useResolvedArtistContract } from "@/hooks/useContractIntegrations";
 import { recordPageVisit } from "@/lib/analyticsStore";
 import { useSupabaseArtists } from "@/hooks/useSupabase";
 import { resolveMediaUrl } from "@/lib/pinata";
+import { resolvePortfolioImage } from "@/lib/portfolio";
 import { toast } from "sonner";
 
 type ShowcaseArtist = {
@@ -148,8 +149,10 @@ const ArtistsPage = () => {
     () =>
       (supabaseArtists || [])
         .map((artist: any) => {
-          const avatar = resolveMediaUrl(artist.avatar_url, artist.banner_url) || artistFallbackArt;
-          const banner = resolveMediaUrl(artist.banner_url, artist.avatar_url) || avatar;
+          const portfolio = Array.isArray(artist.portfolio) ? artist.portfolio : [];
+          const portfolioImage = resolvePortfolioImage(portfolio[0]) || "";
+          const avatar = resolveMediaUrl(artist.avatar_url, artist.banner_url) || portfolioImage || artistFallbackArt;
+          const banner = resolveMediaUrl(artist.banner_url, artist.avatar_url) || portfolioImage || avatar;
           return {
             id: artist.id,
             wallet: artist.wallet,

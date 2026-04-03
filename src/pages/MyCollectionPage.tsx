@@ -175,6 +175,7 @@ const MyCollectionPage = ({ embedded = false }: MyCollectionPageProps) => {
   const addCollectedDrop = useCollectionStore((state) => state.addCollectedDrop);
   const [purchasedCollection, setPurchasedCollection] = useState<CollectedDropItem[]>([]);
   const [purchasedCollectionLoading, setPurchasedCollectionLoading] = useState(false);
+  const isReaderItem = selectedItem?.assetType === "pdf" || selectedItem?.assetType === "epub";
 
   useEffect(() => {
     if (isConnected && address) {
@@ -341,65 +342,73 @@ const MyCollectionPage = ({ embedded = false }: MyCollectionPageProps) => {
   return (
     <div className={`space-y-4 ${embedded ? "pb-6" : "pb-20"}`}>
       {selectedItem && (
-        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 overflow-y-auto">
-          <div className="relative w-full max-w-2xl my-8">
-            <div className="bg-black/90 rounded-xl overflow-hidden">
-              <div className="max-h-96 overflow-hidden">{renderViewer()}</div>
-              {(() => {
-                const isOwned =
-                  (selectedItem.orderStatus ? ACCESSIBLE_ORDER_STATUSES.has(selectedItem.orderStatus) : false) ||
-                  selectedItem.mintedTokenId != null ||
-                  Boolean(selectedItem.contractAddress) ||
-                  !selectedItem.isGated;
+        <div
+          className={`fixed inset-0 z-50 bg-black/90 ${isReaderItem ? "overflow-hidden p-0" : "flex items-center justify-center overflow-y-auto p-4"}`}
+        >
+          <div className={isReaderItem ? "h-full w-full" : "relative my-8 w-full max-w-2xl"}>
+            {isReaderItem ? (
+              renderViewer()
+            ) : (
+              <>
+                <div className="overflow-hidden rounded-xl bg-black/90">
+                  <div className="max-h-96 overflow-hidden">{renderViewer()}</div>
+                  {(() => {
+                    const isOwned =
+                      (selectedItem.orderStatus ? ACCESSIBLE_ORDER_STATUSES.has(selectedItem.orderStatus) : false) ||
+                      selectedItem.mintedTokenId != null ||
+                      Boolean(selectedItem.contractAddress) ||
+                      !selectedItem.isGated;
 
-                return (
-              <div className="p-6 border-t border-gray-700 space-y-4">
-                <div>
-                  <h3 className="text-lg font-semibold text-white">{selectedItem.title}</h3>
-                  <p className="text-sm text-gray-400 mt-1">{selectedItem.artist}</p>
+                    return (
+                      <div className="space-y-4 border-t border-gray-700 p-6">
+                        <div>
+                          <h3 className="text-lg font-semibold text-white">{selectedItem.title}</h3>
+                          <p className="mt-1 text-sm text-gray-400">{selectedItem.artist}</p>
+                        </div>
+
+                        <DownloadPanel
+                          fileName={selectedItem.title}
+                          fileType={selectedItem.assetType}
+                          isGated={selectedItem.isGated || false}
+                          isOwned={isOwned}
+                          downloadUrl={
+                            selectedItem.assetType === "pdf" || selectedItem.assetType === "epub"
+                              ? undefined
+                              : ipfsToHttp(selectedItem.deliveryUri || selectedItem.previewUri || "")
+                          }
+                          accessNote={
+                            selectedItem.assetType === "pdf" || selectedItem.assetType === "epub"
+                              ? "This eBook opens in the in-app reader above. If the file fails to render, the reader includes a direct open fallback."
+                              : selectedItem.isGated
+                                ? "You own this item. Delivery files are available."
+                                : undefined
+                          }
+                          actionLabel="Download"
+                          showCopyLink={selectedItem.assetType !== "pdf" && selectedItem.assetType !== "epub"}
+                          onDownload={() => {
+                            if (selectedItem.deliveryUri && selectedItem.assetType !== "pdf" && selectedItem.assetType !== "epub") {
+                              const downloadLink = document.createElement("a");
+                              downloadLink.href = ipfsToHttp(selectedItem.deliveryUri);
+                              downloadLink.target = "_blank";
+                              downloadLink.rel = "noreferrer";
+                              downloadLink.download = selectedItem.title;
+                              downloadLink.click();
+                            }
+                          }}
+                        />
+                      </div>
+                    );
+                  })()}
                 </div>
 
-                <DownloadPanel
-                  fileName={selectedItem.title}
-                  fileType={selectedItem.assetType}
-                  isGated={selectedItem.isGated || false}
-                  isOwned={isOwned}
-                  downloadUrl={
-                    selectedItem.assetType === "pdf" || selectedItem.assetType === "epub"
-                      ? undefined
-                      : ipfsToHttp(selectedItem.deliveryUri || selectedItem.previewUri || "")
-                  }
-                  accessNote={
-                    selectedItem.assetType === "pdf" || selectedItem.assetType === "epub"
-                      ? "This eBook opens in the in-app reader above. If the file fails to render, the reader includes a direct open fallback."
-                      : selectedItem.isGated
-                      ? "You own this item. Delivery files are available."
-                      : undefined
-                  }
-                  actionLabel="Download"
-                  showCopyLink={selectedItem.assetType !== "pdf" && selectedItem.assetType !== "epub"}
-                  onDownload={() => {
-                    if (selectedItem.deliveryUri && selectedItem.assetType !== "pdf" && selectedItem.assetType !== "epub") {
-                      const downloadLink = document.createElement("a");
-                      downloadLink.href = ipfsToHttp(selectedItem.deliveryUri);
-                      downloadLink.target = "_blank";
-                      downloadLink.rel = "noreferrer";
-                      downloadLink.download = selectedItem.title;
-                      downloadLink.click();
-                    }
-                  }}
-                />
-              </div>
-                );
-              })()}
-            </div>
-
-            <button
-              onClick={() => setSelectedItem(null)}
-              className="absolute -top-10 right-0 p-2 text-white hover:text-gray-300"
-            >
-              <X className="h-6 w-6" />
-            </button>
+                <button
+                  onClick={() => setSelectedItem(null)}
+                  className="absolute -top-10 right-0 p-2 text-white hover:text-gray-300"
+                >
+                  <X className="h-6 w-6" />
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}

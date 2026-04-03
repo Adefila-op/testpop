@@ -33,7 +33,7 @@ const DropDetailPage = () => {
     const now = Date.now();
     const endsAt = dropRecord.ends_at ? new Date(dropRecord.ends_at).getTime() : now + 24 * 60 * 60 * 1000;
     const endsInHours = Math.max(0, Math.ceil((endsAt - now) / (60 * 60 * 1000)));
-    const normalizedType = (dropRecord.type || "drop") as "drop" | "auction" | "campaign";
+    const normalizedType = (dropRecord.type || "drop").toLowerCase() as "drop" | "auction" | "campaign";
     const normalizedContractKind =
       dropRecord.contract_kind ||
       (normalizedType === "auction"

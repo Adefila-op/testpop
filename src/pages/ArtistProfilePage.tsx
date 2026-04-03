@@ -101,7 +101,7 @@ const ArtistProfilePage = () => {
       maxBuy: drop.supply || 1,
       bought: drop.sold || 0,
       status: normalizePublicDropStatus(drop.status),
-      type: drop.type || "drop",
+      type: (drop.type || "drop").toLowerCase() as "drop" | "auction" | "campaign",
       endsAt: drop.ends_at || null,
       image: resolveMediaUrl(drop.preview_uri, drop.image_url, drop.image_ipfs_uri) || transformedArtist?.banner || artistFallbackArt,
     }));

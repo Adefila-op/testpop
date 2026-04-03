@@ -584,7 +584,7 @@ export async function fetchLiveDropsFromSupabase() {
     let { data, error } = await supabase
       .from("drops")
       .select(getLiveDropsSelectClause())
-      .in("status", [...LIVE_DROP_STATUSES])
+      .not("status", "eq", "draft")
       .order("created_at", { ascending: false });
 
     updateDropSchemaModes(error);
@@ -598,7 +598,7 @@ export async function fetchLiveDropsFromSupabase() {
       ({ data, error } = await supabase
         .from("drops")
         .select(getLiveDropsSelectClause())
-        .in("status", [...LIVE_DROP_STATUSES])
+        .not("status", "eq", "draft")
         .order("created_at", { ascending: false }));
 
       if (!error && dropsArtistRelationMode === "detached") {

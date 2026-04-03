@@ -1,5 +1,9 @@
-import { FC, useState, useEffect } from "react";
-import { X, ChevronLeft, ChevronRight } from "lucide-react";
+import { FC, useEffect, useRef, useState } from "react";
+import { ChevronLeft, ChevronRight, ExternalLink, Loader2, X } from "lucide-react";
+import { GlobalWorkerOptions, getDocument, type PDFDocumentProxy, type RenderTask } from "pdfjs-dist";
+import pdfWorkerSrc from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+
+GlobalWorkerOptions.workerSrc = pdfWorkerSrc;
 
 interface PdfReaderProps {
   src: string;
@@ -11,63 +15,226 @@ export const PdfReader: FC<PdfReaderProps> = ({ src, title, onClose }) => {
   const [pageNumber, setPageNumber] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRendering, setIsRendering] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [containerWidth, setContainerWidth] = useState(0);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const pdfDocumentRef = useRef<PDFDocumentProxy | null>(null);
+  const renderTaskRef = useRef<RenderTask | null>(null);
 
   useEffect(() => {
-    // Load PDF metadata to get page count
-    fetch(src)
-      .then(res => res.blob())
-      .then(blob => {
-        // For now, we'll show the PDF in an iframe
-        // Full PDF.js integration would require additional setup
-        setIsLoading(false);
+    let cancelled = false;
+    const loadingTask = getDocument(src);
+
+    setIsLoading(true);
+    setIsRendering(false);
+    setError(null);
+    setPageNumber(1);
+    setTotalPages(1);
+
+    loadingTask.promise
+      .then((pdf) => {
+        if (cancelled) {
+          void pdf.destroy();
+          return;
+        }
+
+        pdfDocumentRef.current = pdf;
+        setTotalPages(pdf.numPages);
       })
-      .catch(err => {
+      .catch((err) => {
         console.error("Failed to load PDF:", err);
-        setIsLoading(false);
+        if (!cancelled) {
+          setError("This PDF could not be opened in the in-app reader.");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
       });
+
+    return () => {
+      cancelled = true;
+      renderTaskRef.current?.cancel();
+      renderTaskRef.current = null;
+      void loadingTask.destroy();
+      void pdfDocumentRef.current?.destroy();
+      pdfDocumentRef.current = null;
+    };
   }, [src]);
 
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const updateWidth = () => setContainerWidth(container.clientWidth);
+    updateWidth();
+
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", updateWidth);
+      return () => window.removeEventListener("resize", updateWidth);
+    }
+
+    const observer = new ResizeObserver(() => updateWidth());
+    observer.observe(container);
+
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const pdf = pdfDocumentRef.current;
+    const canvas = canvasRef.current;
+    const container = containerRef.current;
+    if (!pdf || !canvas || !containerWidth || !container) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const renderPage = async () => {
+      try {
+        setIsRendering(true);
+        setError(null);
+
+        renderTaskRef.current?.cancel();
+        renderTaskRef.current = null;
+
+        const page = await pdf.getPage(pageNumber);
+        const unscaledViewport = page.getViewport({ scale: 1 });
+        const availableWidth = Math.max(containerWidth - 32, 280);
+        const fitScale = availableWidth / unscaledViewport.width;
+        const cssViewport = page.getViewport({ scale: fitScale });
+        const deviceScale = typeof window !== "undefined" ? Math.max(window.devicePixelRatio || 1, 1) : 1;
+        const renderViewport = page.getViewport({ scale: fitScale * deviceScale });
+        const context = canvas.getContext("2d", { alpha: false });
+
+        if (!context) {
+          throw new Error("Canvas context is not available");
+        }
+
+        canvas.width = Math.ceil(renderViewport.width);
+        canvas.height = Math.ceil(renderViewport.height);
+        canvas.style.width = `${Math.ceil(cssViewport.width)}px`;
+        canvas.style.height = `${Math.ceil(cssViewport.height)}px`;
+
+        const renderTask = page.render({
+          canvasContext: context,
+          viewport: renderViewport,
+        });
+        renderTaskRef.current = renderTask;
+        await renderTask.promise;
+      } catch (err) {
+        if ((err as { name?: string })?.name === "RenderingCancelledException" || cancelled) {
+          return;
+        }
+        console.error("Failed to render PDF page:", err);
+        setError("This PDF loaded but could not be rendered on this device.");
+      } finally {
+        if (!cancelled) {
+          setIsRendering(false);
+        }
+      }
+    };
+
+    void renderPage();
+
+    return () => {
+      cancelled = true;
+      renderTaskRef.current?.cancel();
+      renderTaskRef.current = null;
+    };
+  }, [containerWidth, pageNumber, totalPages]);
+
+  const canGoPrev = pageNumber > 1;
+  const canGoNext = pageNumber < totalPages;
+
   return (
-    <div className="relative w-full h-full flex flex-col bg-gray-900 rounded-xl overflow-hidden">
-      {onClose && (
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 p-2 bg-white/20 hover:bg-white/40 rounded-full transition-colors z-10"
-        >
-          <X className="h-5 w-5 text-white" />
-        </button>
-      )}
-
-      {title && (
-        <div className="bg-gray-800 px-6 py-4 border-b border-gray-700">
-          <h3 className="text-lg font-semibold text-white">{title}</h3>
+    <div className="flex h-full min-h-0 w-full flex-col bg-[#0b1220] text-white">
+      <div className="flex items-center justify-between gap-3 border-b border-white/10 bg-[#101a2f] px-4 py-3 sm:px-6">
+        <div className="min-w-0">
+          {title && <h3 className="truncate text-base font-semibold sm:text-lg">{title}</h3>}
+          <p className="text-xs text-white/60">
+            {isLoading ? "Opening document..." : `Page ${pageNumber} of ${totalPages}`}
+          </p>
         </div>
-      )}
 
-      <div className="flex-1 flex items-center justify-center overflow-auto">
-        {isLoading ? (
-          <div className="text-center text-gray-400">
-            <div className="h-8 w-8 border-4 border-gray-600 border-t-white rounded-full animate-spin mx-auto mb-2"></div>
-            Loading PDF...
+        <div className="flex items-center gap-2">
+          <a
+            href={src}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-2 text-xs font-medium text-white/85 transition-colors hover:bg-white/10"
+          >
+            <ExternalLink className="h-4 w-4" />
+            Open Source
+          </a>
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="rounded-full border border-white/15 bg-white/5 p-2 transition-colors hover:bg-white/10"
+              aria-label="Close PDF reader"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div ref={containerRef} className="relative min-h-0 flex-1 overflow-auto bg-[#111827] px-4 py-4 sm:px-8">
+        <div className="mx-auto w-fit rounded-[1.5rem] bg-white p-3 shadow-[0_30px_80px_rgba(15,23,42,0.45)]">
+          <canvas ref={canvasRef} className="block max-w-full rounded-[1rem]" />
+        </div>
+
+        {(isLoading || isRendering) && (
+          <div className="absolute inset-0 flex items-center justify-center bg-[#0b1220]/78">
+            <div className="inline-flex items-center gap-3 rounded-full border border-white/10 bg-[#101a2f] px-5 py-3 text-sm text-white/80 shadow-lg">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              {isLoading ? "Loading PDF..." : "Rendering page..."}
+            </div>
           </div>
-        ) : (
-          <iframe
-            src={src}
-            className="w-full h-full border-0"
-            title="PDF Viewer"
-          />
+        )}
+
+        {error && !isLoading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-[#0b1220]/82 p-6">
+            <div className="max-w-md rounded-[1.5rem] border border-white/10 bg-[#101a2f] p-6 text-center shadow-xl">
+              <p className="text-sm text-white/80">{error}</p>
+              <a
+                href={src}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-4 inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-medium text-slate-900 transition-colors hover:bg-slate-200"
+              >
+                <ExternalLink className="h-4 w-4" />
+                Open PDF in Browser
+              </a>
+            </div>
+          </div>
         )}
       </div>
 
-      <div className="bg-gray-800 px-6 py-4 border-t border-gray-700 flex items-center justify-center gap-4">
-        <button className="p-2 hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-50">
-          <ChevronLeft className="h-5 w-5 text-white" />
+      <div className="flex items-center justify-center gap-4 border-t border-white/10 bg-[#101a2f] px-4 py-3 sm:px-6">
+        <button
+          type="button"
+          onClick={() => canGoPrev && setPageNumber((current) => Math.max(1, current - 1))}
+          disabled={!canGoPrev || isLoading || isRendering}
+          className="rounded-full border border-white/15 bg-white/5 p-2 transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+          aria-label="Previous page"
+        >
+          <ChevronLeft className="h-5 w-5" />
         </button>
-        <span className="text-sm text-gray-400 min-w-24 text-center">
+        <span className="min-w-28 text-center text-sm text-white/70">
           Page {pageNumber} of {totalPages}
         </span>
-        <button className="p-2 hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-50">
-          <ChevronRight className="h-5 w-5 text-white" />
+        <button
+          type="button"
+          onClick={() => canGoNext && setPageNumber((current) => Math.min(totalPages, current + 1))}
+          disabled={!canGoNext || isLoading || isRendering}
+          className="rounded-full border border-white/15 bg-white/5 p-2 transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+          aria-label="Next page"
+        >
+          <ChevronRight className="h-5 w-5" />
         </button>
       </div>
     </div>

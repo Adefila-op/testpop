@@ -188,7 +188,7 @@ export function useSupabaseLiveDrops(enabled = true) {
     enabled,
     ...STANDARD_QUERY_OPTIONS,
     staleTime: 60_000,
-    refetchOnMount: false,
+    refetchOnMount: true,
   });
 
   return {
