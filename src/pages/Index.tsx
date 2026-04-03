@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState, useRef, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowRight, Clock, Gavel, Heart, Loader2, ShoppingCart, Sparkles, User } from "lucide-react";
+import { ArrowRight, Clock, Gavel, Heart, Loader2, ShoppingCart, Sparkles, User, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useWallet, useSubscribeToArtistContract, useIsSubscribedToArtistContract } from "@/hooks/useContracts";
@@ -21,17 +21,8 @@ import {
   getFeaturedCreatorsUpdateEventName,
   type FeaturedCreatorSlide,
 } from "@/lib/featuredCreators";
-import DesktopHomeDashboard from "@/components/home/DesktopHomeDashboard";
-import type { HomeArtist, HomeDrop, HomeSubscribeButtonProps } from "@/components/home/types";
 
-const SubscribeButtonWrapper = ({
-  artist,
-  isConnected,
-  connectWallet,
-  address,
-  toast,
-  className = "",
-}: HomeSubscribeButtonProps) => {
+const SubscribeButtonWrapper = ({ artist, isConnected, connectWallet, address, toast }: any) => {
   const effectiveContractAddress = useResolvedArtistContract(artist?.wallet, artist?.contractAddress);
   const { subscribe, isPending: isSubscribePending, isConfirming: isSubscribeConfirming, isSuccess: isSubscribeSuccess } = useSubscribeToArtistContract(effectiveContractAddress);
   const { isSubscribed, isLoading: isSubscribedLoading, refetch: refetchSubscriptionStatus } =
@@ -110,7 +101,7 @@ const SubscribeButtonWrapper = ({
       size="default"
       onClick={handleSubscribe}
       disabled={isSubscribing || isSubscribePending || isSubscribeConfirming || isSubscribed || isSubscribedLoading}
-      className={`flex-1 rounded-full gradient-primary text-primary-foreground font-bold text-sm h-11 ${className}`}
+      className="flex-1 rounded-full gradient-primary text-primary-foreground font-bold text-sm h-11"
     >
       {isSubscribed ? (
         "Subscribed ✓"
@@ -136,9 +127,9 @@ const Index = () => {
   const { toast } = useToast();
   const addCollectedDrop = useCollectionStore((state) => state.addCollectedDrop);
   
-  const [featuredArtists, setFeaturedArtists] = useState<HomeArtist[]>([]);
+  const [featuredArtists, setFeaturedArtists] = useState([]);
   const [adminFeaturedSlides, setAdminFeaturedSlides] = useState<FeaturedCreatorSlide[]>([]);
-  const [liveDrops, setLiveDrops] = useState<HomeDrop[]>([]);
+  const [liveDrops, setLiveDrops] = useState([]);
   const [currentCard, setCurrentCard] = useState(0);
   const [featuredCarouselIndex, setFeaturedCarouselIndex] = useState(0);
   const [currentDropCard, setCurrentDropCard] = useState(0);
@@ -147,9 +138,10 @@ const Index = () => {
   const [isSwiping, setIsSwiping] = useState(false);
   const [isDropSwiping, setIsDropSwiping] = useState(false);
   const [mintingDropId, setMintingDropId] = useState<string | null>(null);
-  const [collectingDrop, setCollectingDrop] = useState<HomeDrop | null>(null);
+  const [collectingDrop, setCollectingDrop] = useState<any | null>(null);
   const [flippingDropId, setFlippingDropId] = useState<string | null>(null);
   const [biddingDropId, setBiddingDropId] = useState<string | null>(null);
+  const [selectedDesktopArtist, setSelectedDesktopArtist] = useState<any | null>(null);
   
   // Mint state for per-artist contracts
   const { mint: mintArtist, mintedTokenId: mintedArtistTokenId, isPending: isMintingArtist, error: mintErrorArtist, isSuccess: isMintSuccessArtist } = useMintArtist();
@@ -182,62 +174,54 @@ const Index = () => {
 
   // Update featured artists from Supabase when data loads
   useEffect(() => {
-    if (!supabaseArtists || supabaseArtists.length === 0) {
-      setFeaturedArtists([]);
-      return;
+    if (supabaseArtists && supabaseArtists.length > 0) {
+      setFeaturedArtists(
+        supabaseArtists
+          .map((artist: any) => {
+            const portfolio = Array.isArray(artist.portfolio) ? artist.portfolio : [];
+            const featuredPortfolioImage = resolvePortfolioImage(portfolio[0]) || "";
+
+            return {
+              id: artist.id,
+              wallet: artist.wallet,
+              contractAddress: artist.contract_address || null,
+              subscriptionPrice: artist.subscription_price,
+              name: artist.name || "Untitled Artist",
+              avatar: resolveMediaUrl(artist.avatar_url, artist.banner_url) || featuredPortfolioImage || "",
+              tag: artist.tag || "artist",
+              bio: artist.bio || "This artist has not published a public bio yet.",
+              cover: featuredPortfolioImage || resolveMediaUrl(artist.banner_url, artist.avatar_url) || "",
+              portfolio,
+            };
+          })
+          .filter((artist: any) => Boolean(artist.id) && Boolean(artist.avatar || artist.cover || artist.portfolio?.length))
+      );
     }
-
-    setFeaturedArtists(
-      supabaseArtists
-        .map((artist: any) => {
-          const portfolio = Array.isArray(artist.portfolio) ? artist.portfolio : [];
-          const featuredPortfolioImage = resolvePortfolioImage(portfolio[0]) || "";
-
-          return {
-            id: artist.id,
-            wallet: artist.wallet,
-            contractAddress: artist.contract_address || null,
-            subscriptionPrice: artist.subscription_price,
-            name: artist.name || "Untitled Artist",
-            avatar: resolveMediaUrl(artist.avatar_url, artist.banner_url) || featuredPortfolioImage || "",
-            tag: artist.tag || "artist",
-            bio: artist.bio || "This artist has not published a public bio yet.",
-            cover: featuredPortfolioImage || resolveMediaUrl(artist.banner_url, artist.avatar_url) || "",
-            portfolio,
-          };
-        })
-        .filter((artist) => Boolean(artist.id) && Boolean(artist.avatar || artist.cover || artist.portfolio?.length))
-    );
   }, [supabaseArtists]);
 
   // Update live drops from Supabase when data loads
   useEffect(() => {
-    if (!supabaseLiveDrops || supabaseLiveDrops.length === 0) {
-      setLiveDrops([]);
-      return;
-    }
-
-    setLiveDrops(
-      supabaseLiveDrops.map((drop) => {
+    if (supabaseLiveDrops && supabaseLiveDrops.length > 0) {
+      setLiveDrops(supabaseLiveDrops.map((drop) => {
         const artist = drop.artists && !Array.isArray(drop.artists) ? drop.artists : null;
         const normalizedType = (drop.type || "drop").toLowerCase() as "drop" | "auction" | "campaign";
         return {
           id: drop.id,
           contractAddress: drop.contract_address,
-          contractDropId: drop.contract_drop_id ?? null,
+          contractDropId: drop.contract_drop_id, // The actual on-chain drop ID (number)
           title: drop.title,
           artist: artist?.name || "Unknown Artist",
           priceEth: drop.price_eth ? parseFloat(drop.price_eth).toFixed(3) : "0",
-          image: resolveMediaUrl(drop.preview_uri, drop.image_url, drop.image_ipfs_uri) || "",
-          previewUri: resolveMediaUrl(drop.preview_uri, drop.image_url, drop.image_ipfs_uri) || "",
+          image: resolveMediaUrl(drop.preview_uri, drop.image_url, drop.image_ipfs_uri),
+          previewUri: resolveMediaUrl(drop.preview_uri, drop.image_url, drop.image_ipfs_uri),
           deliveryUri: drop.delivery_uri || "",
           assetType: drop.asset_type || "image",
           type: normalizedType,
           status: drop.status as "live" | "draft" | "ended",
           endsIn: drop.ends_at ? `${Math.max(0, Math.floor((new Date(drop.ends_at).getTime() - Date.now()) / (1000 * 60 * 60)))}h` : "--",
         };
-      })
-    );
+      }).filter((drop): drop is NonNullable<typeof drop> => drop !== null));
+    }
   }, [supabaseLiveDrops]);
 
   const nextCard = useCallback(() => {
@@ -334,7 +318,7 @@ const Index = () => {
   }, [dropSwipeOffset, nextDropCard, prevDropCard]);
 
   // Handle collecting a drop
-  const handleCollectDrop = async (drop: HomeDrop) => {
+  const handleCollectDrop = async (drop: any) => {
     if (!isConnected) {
       await connectWallet();
       return;
@@ -482,7 +466,7 @@ const Index = () => {
   }, [bidError, biddingDropId, toast]);
 
   // Handle bidding on a drop
-  const handleBidOnDrop = async (drop: HomeDrop) => {
+  const handleBidOnDrop = async (drop: any) => {
     if (!isConnected) {
       await connectWallet();
       return;
@@ -552,6 +536,67 @@ const Index = () => {
 
   const visibleCards = getVisibleCards();
   const visibleDropCards = getVisibleDropCards();
+  const desktopLiveDrops = liveDrops.slice(0, 3);
+  const getPortfolioImage = (piece: any) => resolvePortfolioImage(piece) || "";
+  const getArtistFeaturedPiece = (artist: any) => {
+    const featuredPiece = Array.isArray(artist?.portfolio) ? artist.portfolio[0] : null;
+    return {
+      image: getPortfolioImage(featuredPiece) || artist?.cover || artist?.avatar || "",
+      title: featuredPiece?.title || `${artist?.name || "Artist"} feature`,
+      medium: featuredPiece?.medium || "Digital artwork",
+      year: featuredPiece?.year || "Now",
+    };
+  };
+  const getArtistPreviewPieces = (artist: any) => {
+    const portfolioPieces = Array.isArray(artist?.portfolio) ? artist.portfolio.slice(0, 3) : [];
+    const resolvedPieces = portfolioPieces
+      .map((piece: any, index: number) => ({
+        id: piece?.id || `${artist?.id || "artist"}-${index}`,
+        image: getPortfolioImage(piece),
+        title: piece?.title || `Portfolio ${index + 1}`,
+        medium: piece?.medium || "Digital artwork",
+        year: piece?.year || "Now",
+      }))
+      .filter((piece: any) => Boolean(piece.image));
+
+    if (resolvedPieces.length > 0) {
+      return resolvedPieces;
+    }
+
+    const fallbacks = [artist?.cover, artist?.avatar].filter(Boolean);
+    return fallbacks.map((image: string, index: number) => ({
+      id: `${artist?.id || "artist"}-fallback-${index}`,
+      image,
+      title: index === 0 ? `${artist?.name || "Artist"} feature` : `${artist?.name || "Artist"} portrait`,
+      medium: "Digital artwork",
+      year: "Now",
+    }));
+  };
+  const getArtistAvatarImage = (artist: any) =>
+    artist?.avatar || getArtistFeaturedPiece(artist).image || artist?.cover || "";
+  const getDesktopDeckCards = () => {
+    if (!featuredArtists.length) return [];
+
+    const offsets =
+      featuredArtists.length === 1
+        ? [0]
+        : featuredArtists.length === 2
+        ? [0, 1]
+        : featuredArtists.length === 3
+        ? [-1, 0, 1]
+        : [-1, 0, 1, 2];
+
+    return offsets.map((offset) => {
+      const index = (currentCard + offset + featuredArtists.length) % featuredArtists.length;
+      return {
+        ...featuredArtists[index],
+        deckOffset: offset,
+        deckIndex: index,
+      };
+    });
+  };
+
+  const desktopDeckCards = getDesktopDeckCards();
   const activeFeaturedSlide =
     adminFeaturedSlides.length > 0
       ? adminFeaturedSlides[featuredCarouselIndex % adminFeaturedSlides.length]
@@ -569,29 +614,378 @@ const Index = () => {
 
   return (
     <div className="flex flex-col min-h-[calc(100vh-88px)] px-4 overflow-y-auto md:px-0">
-      <DesktopHomeDashboard
-        featuredArtists={featuredArtists}
-        liveDrops={liveDrops}
-        currentCard={currentCard}
-        setCurrentCard={setCurrentCard}
-        nextCard={nextCard}
-        prevCard={prevCard}
-        isConnected={isConnected}
-        connectWallet={connectWallet}
-        address={address}
-        toast={toast}
-        loading={loading}
-        error={error}
-        dropsLoading={dropsLoading}
-        dropsError={dropsError}
-        mintingDropId={mintingDropId}
-        isMintingArtist={isMintingArtist}
-        biddingDropId={biddingDropId}
-        isBidding={isBidding}
-        onCollectDrop={handleCollectDrop}
-        onBidOnDrop={handleBidOnDrop}
-        SubscribeButtonComponent={SubscribeButtonWrapper}
-      />
+      <div className="hidden md:block">
+        <section className="relative overflow-hidden rounded-[2.2rem] border border-[#dbe7ff] bg-[linear-gradient(180deg,#fbfdff_0%,#eef5ff_100%)] p-8 shadow-[0_35px_100px_rgba(37,99,235,0.10)]">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(96,165,250,0.18),transparent_24%),radial-gradient(circle_at_bottom_right,rgba(29,78,216,0.12),transparent_24%)]" />
+
+          <div className="relative pt-2">
+            <div>
+              <p className="text-xs uppercase tracking-[0.32em] text-muted-foreground">Featured Deck</p>
+              <h1 className="mt-3 max-w-2xl text-5xl font-bold tracking-tight text-foreground">
+                Discover your favorite creative
+              </h1>
+              <p className="mt-4 max-w-xl text-base leading-7 text-muted-foreground">
+                Slide through artist decks, preview a featured portfolio piece, and open a POPUP artist panel without leaving the desktop flow.
+              </p>
+            </div>
+
+            {adminFeaturedSlides.length > 0 && activeFeaturedSlide ? (
+              <div className="mt-10 grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
+                <div className="relative overflow-hidden rounded-[2rem] border border-[#cfe0ff] bg-white shadow-[0_30px_70px_rgba(37,99,235,0.12)]">
+                  <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0)_0%,rgba(15,23,42,0.18)_100%)]" />
+                  <img
+                    src={activeFeaturedSlide.primaryImage}
+                    alt={activeFeaturedSlide.artistName}
+                    className="h-[460px] w-full object-cover"
+                  />
+                  <div className="absolute inset-x-0 bottom-0 p-8 text-white">
+                    <p className="text-xs uppercase tracking-[0.3em] text-white/70">
+                      {activeFeaturedSlide.artistTag || "Featured Creator"}
+                    </p>
+                    <h2 className="mt-3 max-w-xl text-4xl font-semibold tracking-tight">
+                      {activeFeaturedSlide.title}
+                    </h2>
+                    <p className="mt-3 text-lg text-white/88">{activeFeaturedSlide.artistName}</p>
+                  </div>
+                </div>
+
+                <div className="flex flex-col justify-between rounded-[2rem] border border-[#dbe7ff] bg-white/90 p-6 shadow-[0_20px_60px_rgba(37,99,235,0.08)]">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">Curated Spotlight</p>
+                    <h3 className="mt-3 text-3xl font-semibold tracking-tight text-foreground">
+                      {activeFeaturedSlide.artistName}
+                    </h3>
+                    <p className="mt-4 text-sm leading-7 text-muted-foreground">
+                      {activeFeaturedSlide.subtitle || "A hand-picked feature from the POPUP admin team."}
+                    </p>
+
+                    {activeFeaturedSlide.secondaryImage && (
+                      <div className="mt-6 overflow-hidden rounded-[1.6rem] border border-[#dbe7ff] bg-[#eff6ff]">
+                        <img
+                          src={activeFeaturedSlide.secondaryImage}
+                          alt={`${activeFeaturedSlide.artistName} detail`}
+                          className="h-52 w-full object-cover"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="mt-8 flex items-end justify-between gap-4">
+                    <div className="flex gap-2">
+                      {adminFeaturedSlides.map((slide, i) => (
+                        <button
+                          type="button"
+                          key={slide.id}
+                          onClick={() => setFeaturedCarouselIndex(i)}
+                          className={`h-2 rounded-full transition-all duration-300 ${
+                            i === featuredCarouselIndex ? "w-10 bg-[#1d4ed8]" : "w-2 bg-[#bfd5ff]"
+                          }`}
+                        />
+                      ))}
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={prevFeaturedSlide}
+                        className="rounded-full px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-[#eaf3ff]"
+                      >
+                        Prev
+                      </button>
+                      <button
+                        type="button"
+                        onClick={nextFeaturedSlide}
+                        className="rounded-full px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-[#eaf3ff]"
+                      >
+                        Next
+                      </button>
+                      {activeFeaturedSlide.profilePath && (
+                        <Button className="rounded-full gradient-primary text-primary-foreground font-semibold" asChild>
+                          <Link to={activeFeaturedSlide.profilePath}>
+                            Open feature <ArrowRight className="ml-2 h-4 w-4" />
+                          </Link>
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <>
+                {loading && (
+                  <div className="flex h-[420px] items-center justify-center">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  </div>
+                )}
+
+                {error && (
+                  <div className="flex h-[420px] items-center justify-center">
+                    <p className="text-sm text-red-500">{error.message}</p>
+                  </div>
+                )}
+
+                {!loading && !error && featuredArtists.length === 0 && (
+                  <div className="flex h-[420px] items-center justify-center rounded-[2rem] border border-dashed border-[#bfd5ff] bg-white/75">
+                    <div className="text-center">
+                      <Sparkles className="mx-auto h-10 w-10 text-primary" />
+                      <p className="mt-3 text-lg font-semibold text-foreground">No featured artists yet</p>
+                      <p className="mt-2 text-sm text-muted-foreground">
+                        Whitelisted artist profiles will appear here once creators publish work.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {!loading && !error && featuredArtists.length > 0 && (
+                  <>
+                    <div className="relative mt-10 h-[430px] overflow-hidden">
+                      {desktopDeckCards.map((artist: any) => {
+                        const featuredPiece = getArtistFeaturedPiece(artist);
+                        const offset = artist.deckOffset;
+                        const isActive = offset === 0;
+                        const translateXMap: Record<string, string> = {
+                          "-1": "14%",
+                          "0": "50%",
+                          "1": "74%",
+                          "2": "90%",
+                        };
+                        const rotateMap: Record<string, string> = {
+                          "-1": "-8deg",
+                          "0": "0deg",
+                          "1": "7deg",
+                          "2": "9deg",
+                        };
+                        const scaleMap: Record<string, string> = {
+                          "-1": "0.9",
+                          "0": "1",
+                          "1": "0.92",
+                          "2": "0.86",
+                        };
+                        const opacityMap: Record<string, string> = {
+                          "-1": "0.86",
+                          "0": "1",
+                          "1": "0.9",
+                          "2": "0.72",
+                        };
+
+                        return (
+                          <button
+                            key={`${artist.id}-${artist.deckOffset}`}
+                            type="button"
+                            onClick={() => {
+                              if (isActive) {
+                                setSelectedDesktopArtist(artist);
+                                return;
+                              }
+                              setCurrentCard(artist.deckIndex);
+                            }}
+                            className="group absolute top-10 h-[320px] w-[240px] rounded-[2rem] text-left transition-all duration-500 ease-out"
+                            style={{
+                              left: translateXMap[String(offset)],
+                              zIndex: isActive ? 20 : 10 - offset,
+                              opacity: Number(opacityMap[String(offset)]),
+                              transform: `translateX(-50%) translateY(${isActive ? "0" : offset < 0 ? "36px" : "26px"}) scale(${scaleMap[String(offset)]}) rotate(${rotateMap[String(offset)]})`,
+                            }}
+                          >
+                            <div className="relative h-full overflow-hidden rounded-[2rem] bg-white shadow-[0_30px_60px_rgba(15,23,42,0.18)] ring-1 ring-black/5">
+                              <div
+                                className={`absolute inset-0 ${
+                                  isActive
+                                    ? "bg-[linear-gradient(180deg,#60a5fa_0%,#1d4ed8_100%)]"
+                                    : offset < 0
+                                    ? "bg-[linear-gradient(180deg,#93c5fd_0%,#3b82f6_100%)]"
+                                    : "bg-[linear-gradient(180deg,#bfdbfe_0%,#2563eb_100%)]"
+                                }`}
+                              />
+                              <img
+                                src={getArtistAvatarImage(artist)}
+                                alt={artist.name}
+                                className={`absolute left-1/2 top-[-48px] z-10 object-cover drop-shadow-[0_18px_24px_rgba(15,23,42,0.25)] ${
+                                  isActive ? "h-44 w-44" : "h-36 w-36"
+                                } -translate-x-1/2 rounded-[2rem]`}
+                              />
+                              <div className="absolute inset-x-0 bottom-0 p-5 text-white">
+                                <div className="overflow-hidden rounded-[1.4rem] bg-white/14 p-2 backdrop-blur-[2px]">
+                                  <img
+                                    src={featuredPiece.image}
+                                    alt={featuredPiece.title}
+                                    className="mb-4 h-28 w-full rounded-[1rem] object-cover"
+                                  />
+                                  <p className="text-2xl font-semibold leading-none">{artist.name}</p>
+                                  <p className="mt-2 text-xs uppercase tracking-[0.24em] text-white/78">{featuredPiece.medium}</p>
+                                </div>
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <div className="mt-8 flex items-center justify-between">
+                      <div className="flex gap-2">
+                        {featuredArtists.map((_: any, i: number) => (
+                          <button
+                            type="button"
+                            key={i}
+                            onClick={() => setCurrentCard(i)}
+                            className={`h-2 rounded-full transition-all duration-300 ${
+                              i === currentCard ? "w-10 bg-[#1d4ed8]" : "w-2 bg-[#bfd5ff]"
+                            }`}
+                          />
+                        ))}
+                      </div>
+
+                      <div className="flex items-center gap-3 text-sm font-medium text-foreground">
+                        <button type="button" onClick={prevCard} className="rounded-full px-3 py-2 transition-colors hover:bg-[#eaf3ff]">
+                          Prev
+                        </button>
+                        <button type="button" onClick={nextCard} className="rounded-full px-3 py-2 transition-colors hover:bg-[#eaf3ff]">
+                          Next
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {selectedDesktopArtist && (
+                  <div className="absolute inset-0 z-30 flex items-center justify-center bg-[#edf5ff]/95 p-6 backdrop-blur-sm">
+                    <div className="relative grid min-h-[440px] w-full max-w-6xl grid-cols-[0.95fr_1.05fr] overflow-hidden rounded-[2.2rem] border border-[#dbe7ff] bg-white shadow-[0_40px_100px_rgba(37,99,235,0.16)]">
+                      <div className="relative overflow-hidden bg-[linear-gradient(180deg,#3b82f6_0%,#1e3a8a_100%)] p-8 text-white">
+                        <img
+                          src={getArtistAvatarImage(selectedDesktopArtist)}
+                          alt={selectedDesktopArtist.name}
+                          className="absolute left-10 top-10 h-[340px] w-[340px] rounded-[2.8rem] object-cover drop-shadow-[0_25px_40px_rgba(15,23,42,0.35)]"
+                        />
+                        <div className="absolute bottom-8 left-8">
+                          <p className="text-xs uppercase tracking-[0.3em] text-white/70">POPUP Preview</p>
+                        </div>
+                      </div>
+
+                      <div className="relative p-8">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedDesktopArtist(null)}
+                          className="absolute right-6 top-6 inline-flex items-center gap-2 text-sm text-foreground/80 transition-colors hover:text-foreground"
+                        >
+                          <X className="h-4 w-4" /> Close
+                        </button>
+
+                        <div className="max-w-xl pt-8">
+                          <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">Artist Profile</p>
+                          <h2 className="mt-3 text-4xl font-semibold tracking-tight text-foreground">{selectedDesktopArtist.name}</h2>
+                          <p className="mt-2 text-sm uppercase tracking-[0.24em] text-primary">{selectedDesktopArtist.tag}</p>
+                          <p className="mt-5 text-sm leading-7 text-muted-foreground">
+                            {selectedDesktopArtist.bio}
+                          </p>
+
+                          <div className="mt-8">
+                            <p className="text-sm font-semibold text-foreground">Clips</p>
+                            <div className="mt-3 grid grid-cols-3 gap-3">
+                              {getArtistPreviewPieces(selectedDesktopArtist).map((piece: any) => (
+                                <div key={piece.id} className="overflow-hidden rounded-[1.1rem] bg-[#eaf3ff]">
+                                  <img src={piece.image} alt={piece.title} className="h-24 w-full object-cover" />
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div className="mt-8 flex items-center gap-3">
+                            <SubscribeButtonWrapper
+                              artist={selectedDesktopArtist}
+                              isConnected={isConnected}
+                              connectWallet={connectWallet}
+                              address={address}
+                              toast={toast}
+                            />
+                            <Button variant="outline" className="h-11 rounded-full px-5 font-semibold" asChild>
+                              <Link to={`/artists/${selectedDesktopArtist.id}`}>
+                                <User className="mr-2 h-4 w-4" /> Open profile
+                              </Link>
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </section>
+
+        {!dropsLoading && !dropsError && desktopLiveDrops.length > 0 && (
+          <section className="py-10">
+            <div className="mb-5 flex items-end justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">Live Drops</p>
+                <h2 className="mt-2 text-3xl font-semibold text-foreground">Live Drops</h2>
+              </div>
+              <Link to="/drops" className="text-sm font-medium text-primary">See all live drops</Link>
+            </div>
+
+            <div className="grid gap-5 lg:grid-cols-3">
+              {desktopLiveDrops.map((drop: any) => (
+                <div key={drop.id} className="overflow-hidden rounded-[1.75rem] border border-[#dbe7ff] bg-white shadow-[0_24px_50px_rgba(37,99,235,0.08)]">
+                  <div className="relative aspect-[1.08] overflow-hidden bg-[#eff6ff]">
+                    {drop.image ? (
+                      <img src={drop.image} alt={drop.title} className="h-full w-full object-cover" />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-slate-900 via-slate-700 to-slate-500 text-xs font-semibold uppercase tracking-[0.24em] text-white">
+                        {drop.assetType || "digital"}
+                      </div>
+                    )}
+                    <Badge className="absolute left-4 top-4 rounded-full bg-white/90 px-3 py-1 text-[10px] uppercase tracking-[0.24em] text-foreground backdrop-blur-sm">
+                      {drop.type === "drop" ? "collect" : drop.type}
+                    </Badge>
+                  </div>
+                  <div className="space-y-4 p-5">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-lg font-semibold text-card-foreground">{drop.title}</p>
+                        <p className="truncate text-sm text-muted-foreground">{drop.artist}</p>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <p className="text-sm font-semibold text-primary">{drop.priceEth} ETH</p>
+                        <p className="mt-1 text-xs text-muted-foreground">{drop.endsIn}</p>
+                      </div>
+                    </div>
+
+                    {drop.type === "auction" ? (
+                      <Button
+                        onClick={() => handleBidOnDrop(drop)}
+                        disabled={isBidding || biddingDropId === drop.id}
+                        className="h-11 w-full rounded-full gradient-primary text-primary-foreground font-semibold"
+                      >
+                        {biddingDropId === drop.id ? (
+                          <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Bidding...</>
+                        ) : (
+                          <><Gavel className="mr-2 h-4 w-4" /> Place Bid</>
+                        )}
+                      </Button>
+                    ) : drop.type === "campaign" ? (
+                      <Button onClick={() => navigate(`/drops/${drop.id}`)} className="h-11 w-full rounded-full gradient-primary text-primary-foreground font-semibold">
+                        View Campaign
+                      </Button>
+                    ) : (
+                      <Button
+                        onClick={() => handleCollectDrop(drop)}
+                        disabled={isMintingArtist || mintingDropId === drop.id}
+                        className="h-11 w-full rounded-full gradient-primary text-primary-foreground font-semibold"
+                      >
+                        {mintingDropId === drop.id ? (
+                          <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Collecting...</>
+                        ) : (
+                          <><ShoppingCart className="mr-2 h-4 w-4" /> Collect Drop</>
+                        )}
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+      </div>
 
       <div className="md:hidden">
       {/* Hero */}
