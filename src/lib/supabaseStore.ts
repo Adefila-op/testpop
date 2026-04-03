@@ -15,8 +15,34 @@ import {
 let dropsColumnsMode: "full" | "legacy" | null = null;
 let dropsArtistRelationMode: "embedded" | "detached" | null = null;
 let artistsStatusMode: "native" | "legacy" | null = null;
+let productColumnsMode: "full" | "legacy" | null = null;
 
-const PUBLIC_PRODUCT_SELECT = [
+const FULL_PUBLIC_PRODUCT_SELECT = [
+  "id",
+  "artist_id",
+  "creator_wallet",
+  "name",
+  "description",
+  "category",
+  "product_type",
+  "asset_type",
+  "price_eth",
+  "stock",
+  "sold",
+  "image_url",
+  "image_ipfs_uri",
+  "preview_uri",
+  "is_gated",
+  "nft_link",
+  "status",
+  "metadata",
+  "contract_product_id",
+  "metadata_uri",
+  "created_at",
+  "updated_at",
+].join(", ");
+
+const LEGACY_PUBLIC_PRODUCT_SELECT = [
   "id",
   "artist_id",
   "creator_wallet",
@@ -39,6 +65,16 @@ const PUBLIC_PRODUCT_SELECT = [
   "created_at",
   "updated_at",
 ].join(", ");
+
+function getPublicProductSelectClause() {
+  return productColumnsMode === "legacy" ? LEGACY_PUBLIC_PRODUCT_SELECT : FULL_PUBLIC_PRODUCT_SELECT;
+}
+
+function updateProductSchemaMode(error: { message?: string } | null | undefined) {
+  if (isMissingColumnError(error, "products", "contract_product_id")) {
+    productColumnsMode = "legacy";
+  }
+}
 
 function isMissingColumnError(error: { message?: string } | null | undefined, table: string, column: string) {
   const message = error?.message || "";
@@ -397,11 +433,21 @@ export async function fetchAllProductsFromSupabase() {
 export async function fetchPublishedProductsFromSupabase() {
   try {
     console.log("📖 Fetching public products from Supabase...");
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from("products")
-      .select(PUBLIC_PRODUCT_SELECT)
+      .select(getPublicProductSelectClause())
       .in("status", [...PUBLIC_PRODUCT_STATUSES])
       .order("created_at", { ascending: false });
+
+    updateProductSchemaMode(error);
+
+    if (error && productColumnsMode === "legacy") {
+      ({ data, error } = await supabase
+        .from("products")
+        .select(getPublicProductSelectClause())
+        .in("status", [...PUBLIC_PRODUCT_STATUSES])
+        .order("created_at", { ascending: false }));
+    }
 
     if (error) {
       console.error("❌ Error fetching products:", error.message);
@@ -419,12 +465,23 @@ export async function fetchPublishedProductsFromSupabase() {
 export async function fetchProductByIdFromSupabase(productId: string) {
   try {
     console.log(`📦 Fetching product by ID from Supabase: ${productId}`);
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from("products")
-      .select(PUBLIC_PRODUCT_SELECT)
+      .select(getPublicProductSelectClause())
       .eq("id", productId)
       .in("status", [...PUBLIC_PRODUCT_STATUSES])
       .maybeSingle();
+
+    updateProductSchemaMode(error);
+
+    if (error && productColumnsMode === "legacy") {
+      ({ data, error } = await supabase
+        .from("products")
+        .select(getPublicProductSelectClause())
+        .eq("id", productId)
+        .in("status", [...PUBLIC_PRODUCT_STATUSES])
+        .maybeSingle());
+    }
 
     if (error) {
       console.error("❌ Error fetching product:", error.message);

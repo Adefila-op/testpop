@@ -20,7 +20,7 @@ import {
 import { useWallet, useCreateCampaign, useGetSubscriberCountFromArtistContract } from "@/hooks/useContracts";
 import { useCreateDropArtist } from "@/hooks/useContractsArtist";
 import { useCreateCampaignV2 } from "@/hooks/useCampaignV2";
-import { useGetArtistContract } from "@/hooks/useContractIntegrations";
+import { useGetArtistContract, useResolvedArtistContract } from "@/hooks/useContractIntegrations";
 import { ipfsToHttp, resolveMediaUrl, uploadFileToPinata, uploadMetadataToPinata } from "@/lib/pinata";
 import { formatEther } from "viem";
 import { toast } from "sonner";
@@ -995,7 +995,10 @@ const ArtistStudioPage = ({ embedded = false }: ArtistStudioPageProps) => {
     await queryClient.invalidateQueries({ queryKey: ["drops"] });
   }, [queryClient]);
 
+  const fallbackArtist = useMemo(() => resolveArtistForWallet(address), [address]);
+  const storedArtistContractAddress = artistProfileRecord?.contract_address || fallbackArtist.contractAddress || null;
   const deployedContractAddress = useGetArtistContract(address); // Fetch deployed contract address
+  const artistContractAddress = useResolvedArtistContract(address, storedArtistContractAddress);
   const deploymentPending = false;
   const deploymentSuccess = false;
   const deploymentError = null;
@@ -1007,7 +1010,6 @@ const ArtistStudioPage = ({ embedded = false }: ArtistStudioPageProps) => {
   const unreadCount = notifications.filter(n => !n.read).length;
 
   useEffect(() => {
-    const fallbackArtist = resolveArtistForWallet(address);
     const artist = artistProfileRecord
       ? {
           ...fallbackArtist,
@@ -1094,7 +1096,7 @@ const ArtistStudioPage = ({ embedded = false }: ArtistStudioPageProps) => {
     });
     setDrops(artistDrops);
     setProfileComplete(Boolean(artist.name && artist.handle));
-  }, [address, artistProfileRecord, artistDropRecords]);
+  }, [address, artistProfileRecord, artistDropRecords, fallbackArtist]);
 
   useEffect(() => {
     if (!artistProfileRecord?.id) {
@@ -1244,11 +1246,10 @@ const ArtistStudioPage = ({ embedded = false }: ArtistStudioPageProps) => {
       await refetchArtistProfile();
 
       // âœ¨ NEW: Deploy artist contract if not already deployed (async, doesn't block profile save)
-      const artist = resolveArtistForWallet(address);
-      if (!artist.contractAddress && !deployedContractAddress) {
+      if (!artistContractAddress) {
         toast.info("Profile saved. An admin will deploy your artist contract before you can publish drops.");
       }
-      if (deploymentPending && !artist.contractAddress) {
+      if (deploymentPending && !artistContractAddress) {
         console.log("ðŸš€ Contract not found for artist, initiating deployment...");
         setDeployingArtistWallet(address);
         toast.info("ðŸš€ Deploying your artist NFT contract in the background...");
@@ -1327,7 +1328,6 @@ const ArtistStudioPage = ({ embedded = false }: ArtistStudioPageProps) => {
 
   const totalRevenue = drops.reduce((s, d) => s + parseFloat(d.revenue || "0"), 0);
   const liveDrops = drops.filter(d => d.status === "live").length;
-  const artistContractAddress = artistProfileRecord?.contract_address || deployedContractAddress || null;
   const { count: totalSubscribers = 0 } = useGetSubscriberCountFromArtistContract(artistContractAddress);
   const totalCampaignDrops = drops.filter((d) => d.type === "campaign").length;
   const hasRaiseEligibility = totalSubscribers >= 100;
@@ -2326,7 +2326,7 @@ const ArtistStudioPage = ({ embedded = false }: ArtistStudioPageProps) => {
       <CreateDropSheet
         open={showDropSheet}
         onClose={() => setShowDropSheet(false)}
-        artistContractAddress={deployedContractAddress}
+        artistContractAddress={artistContractAddress}
         defaultPoapAllocation={profile.defaultPoapAllocation}
         onCreated={d => {
           setDrops(prev => [d, ...prev]);

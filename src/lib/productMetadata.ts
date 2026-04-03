@@ -21,9 +21,35 @@ export function extractContractProductId(metadata: ProductMetadataValue): number
   return normalized >= 1 ? normalized : null;
 }
 
+export function resolveContractProductId(
+  metadata: ProductMetadataValue,
+  contractProductId?: number | string | null
+) {
+  const columnValue = toFiniteNumber(contractProductId);
+  if (columnValue !== null) {
+    const normalized = Math.floor(columnValue);
+    if (normalized >= 1) {
+      return normalized;
+    }
+  }
+
+  return extractContractProductId(metadata);
+}
+
 export function extractProductMetadataUri(metadata: ProductMetadataValue): string | null {
   const value = metadata?.metadata_uri;
   return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+export function resolveProductMetadataUri(
+  metadata: ProductMetadataValue,
+  metadataUri?: string | null
+) {
+  if (typeof metadataUri === "string" && metadataUri.trim()) {
+    return metadataUri.trim();
+  }
+
+  return extractProductMetadataUri(metadata);
 }
 
 export function mergeProductMetadata(
