@@ -10,6 +10,30 @@ import { toast } from "sonner";
 let dropsColumnsMode: "full" | "legacy" | null = null;
 let dropsArtistRelationMode: "embedded" | "detached" | null = null;
 
+const PUBLIC_PRODUCT_SELECT = [
+  "id",
+  "artist_id",
+  "creator_wallet",
+  "name",
+  "description",
+  "category",
+  "product_type",
+  "asset_type",
+  "price_eth",
+  "stock",
+  "sold",
+  "image_url",
+  "image_ipfs_uri",
+  "preview_uri",
+  "is_gated",
+  "nft_link",
+  "status",
+  "metadata",
+  "metadata_uri",
+  "created_at",
+  "updated_at",
+].join(", ");
+
 function isMissingColumnError(error: { message?: string } | null | undefined, table: string, column: string) {
   const message = error?.message || "";
   return message.includes(`column ${table}.${column} does not exist`);
@@ -108,7 +132,7 @@ function getLiveDropsSelectClause() {
   ];
 
   if (shouldUseFullDropColumns()) {
-    columns.splice(7, 0, "preview_uri", "delivery_uri", "asset_type");
+    columns.splice(7, 0, "preview_uri", "asset_type");
     columns.push("contract_kind");
   }
 
@@ -145,7 +169,7 @@ function getDropDetailSelectClause() {
   ];
 
   if (shouldUseFullDropColumns()) {
-    columns.splice(10, 0, "preview_uri", "delivery_uri", "asset_type");
+    columns.splice(10, 0, "preview_uri", "asset_type");
     columns.push("contract_kind");
   }
 
@@ -263,7 +287,7 @@ export async function fetchPublishedProductsFromSupabase() {
     console.log("📖 Fetching published products from Supabase...");
     const { data, error } = await supabase
       .from("products")
-      .select("*")
+      .select(PUBLIC_PRODUCT_SELECT)
       .eq("status", "published")
       .order("created_at", { ascending: false });
 
@@ -285,7 +309,7 @@ export async function fetchProductByIdFromSupabase(productId: string) {
     console.log(`📦 Fetching product by ID from Supabase: ${productId}`);
     const { data, error } = await supabase
       .from("products")
-      .select("*")
+      .select(PUBLIC_PRODUCT_SELECT)
       .eq("id", productId)
       .maybeSingle();
 

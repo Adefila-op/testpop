@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+﻿import { useState, useRef, useEffect, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,10 +39,16 @@ import {
   updateArtistDropContractId,
   type ArtistPortfolioItem,
 } from "@/lib/artistStore";
-import { createDrop as dbCreateDrop, getArtistProfile as dbGetArtistProfile } from "@/lib/db";
+import {
+  createDrop as dbCreateDrop,
+  getArtistProfile as dbGetArtistProfile,
+  getIPCampaigns,
+  createIPCampaign,
+  type IPCampaign,
+} from "@/lib/db";
 import { useSupabaseArtistByWallet, useSupabaseDropsByArtist } from "@/hooks/useSupabase";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 type StudioArtistProfile = {
   name: string;
   handle: string;
@@ -110,7 +116,25 @@ const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 const toGatewayUrl = (cidOrUri: string) => ipfsToHttp(cidOrUri.startsWith("ipfs://") ? cidOrUri : `ipfs://${cidOrUri}`);
 const isDataUrl = (value?: string | null) => typeof value === "string" && value.startsWith("data:");
 
-// ─── Small helpers ────────────────────────────────────────────────────────────
+const raiseStatusStyles: Record<string, string> = {
+  review: "bg-amber-100 text-amber-800",
+  active: "bg-green-100 text-green-800",
+  funded: "bg-blue-100 text-blue-800",
+  settled: "bg-indigo-100 text-indigo-800",
+  closed: "bg-secondary text-muted-foreground",
+  cancelled: "bg-red-100 text-red-800",
+  draft: "bg-secondary text-muted-foreground",
+};
+
+function getRaiseReviewLabel(campaign: IPCampaign) {
+  const reviewStatus = String(campaign.metadata?.review_status || "").toLowerCase();
+  if (reviewStatus === "rejected") return "Rejected";
+  if (reviewStatus === "approved" || campaign.status === "active") return "Approved";
+  if (campaign.status === "review") return "Awaiting admin approval";
+  return String(campaign.status || "draft").replace(/_/g, " ");
+}
+
+// â”€â”€â”€ Small helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const StatusPill = ({ status }: { status: string }) => {
   const map: Record<string, string> = {
     live: "bg-green-100 text-green-800",
@@ -135,7 +159,7 @@ const StatCard = ({ icon: Icon, label, value, sub, accent }: StatCardProps) => (
   </div>
 );
 
-// ─── Create Drop Sheet ────────────────────────────────────────────────────────
+// â”€â”€â”€ Create Drop Sheet â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const CreateDropSheet = ({
   open,
   onClose,
@@ -344,7 +368,7 @@ const CreateDropSheet = ({
       }
 
       const previewUri = imageUri;
-      toast.info("Pinning metadata…");
+      toast.info("Pinning metadataâ€¦");
       const uri = await uploadMetadataToPinata({
         name: form.title,
         description: form.description,
@@ -567,7 +591,7 @@ const CreateDropSheet = ({
           onClose();
         }
       } catch (dbError) {
-        console.error("❌ Failed to save drop to database:", dbError);
+        console.error("âŒ Failed to save drop to database:", dbError);
         toast.error(dbError instanceof Error ? dbError.message : "Drop minted but failed to save to database. Please refresh.");
         setPendingResult(null);
         setIsUploading(false);
@@ -689,7 +713,7 @@ const CreateDropSheet = ({
               {coverPreview ? (
                 <div className="relative aspect-square rounded-xl overflow-hidden">
                   <img src={coverPreview} className="w-full h-full object-cover" />
-                  <button onClick={() => { setPreview(null); setFile(null); }} className="absolute top-2 right-2 p-1.5 rounded-full bg-background/80 text-xs">✕</button>
+                  <button onClick={() => { setPreview(null); setFile(null); }} className="absolute top-2 right-2 p-1.5 rounded-full bg-background/80 text-xs">âœ•</button>
                 </div>
               ) : (
                 <button onClick={() => fileRef.current?.click()}
@@ -697,7 +721,7 @@ const CreateDropSheet = ({
                   <Upload className="h-8 w-8 text-muted-foreground" />
                   <div className="text-center">
                     <p className="text-sm font-semibold text-foreground">Upload artwork</p>
-                    <p className="text-xs text-muted-foreground">PNG · JPG · GIF · MP4 · Max 10MB</p>
+                    <p className="text-xs text-muted-foreground">PNG Â· JPG Â· GIF Â· MP4 Â· Max 10MB</p>
                   </div>
                 </button>
               )}
@@ -749,7 +773,7 @@ const CreateDropSheet = ({
               <div>
                 <Label className="text-xs">Description</Label>
                 <textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })}
-                  placeholder="Tell collectors about this piece…"
+                  placeholder="Tell collectors about this pieceâ€¦"
                   className="w-full mt-1 px-3 py-2 rounded-lg border border-border bg-background text-sm resize-none min-h-[72px]" />
               </div>
               {form.type === "campaign" ? (
@@ -819,7 +843,7 @@ const CreateDropSheet = ({
                         ? `${form.startAt ? new Date(form.startAt).toLocaleDateString() : "--"} to ${form.endAt ? new Date(form.endAt).toLocaleDateString() : "--"}`
                         : `${form.duration}h`}
                     </Badge>
-                    <Badge variant="secondary" className="text-[10px]">×{form.supply}</Badge>
+                    <Badge variant="secondary" className="text-[10px]">Ã—{form.supply}</Badge>
                   </div>
                 </div>
               </div>
@@ -837,9 +861,9 @@ const CreateDropSheet = ({
               {form.type === "campaign" && <div className="flex gap-2 p-3 rounded-xl bg-primary/5 text-foreground text-xs"><AlertTriangle className="h-4 w-4 shrink-0 text-primary" />Campaign entries are saved in-app right now: ETH purchases add credits immediately, content submissions add credits after artist approval, and collectors redeem POAPs 24 hours after the campaign closes.</div>}
               {activePublishError && <p className="text-xs text-destructive">{(activePublishError as Web3Error).shortMessage ?? (activePublishError as Web3Error).message}</p>}
               <Button onClick={handlePublish} disabled={busy} className="w-full rounded-xl gradient-primary text-primary-foreground font-bold h-11">
-                {isUploading ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Uploading to IPFS…</>
-                  : isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Confirm in wallet…</>
-                  : isConfirming ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Minting…</>
+                {isUploading ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Uploading to IPFSâ€¦</>
+                  : isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Confirm in walletâ€¦</>
+                  : isConfirming ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Mintingâ€¦</>
                   : <><Zap className="h-4 w-4 mr-2" />Mint & Publish</>}
               </Button>
             </div>
@@ -859,7 +883,7 @@ const CreateDropSheet = ({
   );
 };
 
-// ─── Main Studio Page ─────────────────────────────────────────────────────────
+// â”€â”€â”€ Main Studio Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const ArtistStudioPage = () => {
   const { address, balance, disconnect } = useWallet();
   const [tab, setTab] = useState("home");
@@ -890,6 +914,20 @@ const ArtistStudioPage = () => {
   const [profileComplete, setProfileComplete] = useState(false);
   const [publicArtistId, setPublicArtistId] = useState("1");
   const [dropDeletingId, setDropDeletingId] = useState<string | null>(null);
+  const [raiseRequests, setRaiseRequests] = useState<IPCampaign[]>([]);
+  const [raiseRequestsLoading, setRaiseRequestsLoading] = useState(false);
+  const [raiseDialogOpen, setRaiseDialogOpen] = useState(false);
+  const [raiseSubmitting, setRaiseSubmitting] = useState(false);
+  const [raiseForm, setRaiseForm] = useState({
+    title: "",
+    summary: "",
+    description: "",
+    fundingTargetEth: "",
+    minimumRaiseEth: "",
+    unitPriceEth: "",
+    totalUnits: "",
+    rightsType: "creative_ip",
+  });
   const { data: artistProfileRecord, refetch: refetchArtistProfile } = useSupabaseArtistByWallet(address);
   const { data: artistDropRecords, refetch: refetchArtistDrops } = useSupabaseDropsByArtist(artistProfileRecord?.id);
 
@@ -992,9 +1030,41 @@ const ArtistStudioPage = () => {
     setProfileComplete(Boolean(artist.name && artist.handle));
   }, [address, artistProfileRecord, artistDropRecords]);
 
-  // ─── Handle Contract Deployment Success ─────────────────────────────────────
   useEffect(() => {
-    console.log("📊 Deployment status:", { 
+    if (!artistProfileRecord?.id) {
+      setRaiseRequests([]);
+      return;
+    }
+
+    let cancelled = false;
+    setRaiseRequestsLoading(true);
+
+    getIPCampaigns({ artistId: artistProfileRecord.id })
+      .then((campaigns) => {
+        if (!cancelled) {
+          setRaiseRequests(campaigns);
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          console.error("Failed to load raise requests:", error);
+          toast.error(error instanceof Error ? error.message : "Failed to load raise requests");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setRaiseRequestsLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [artistProfileRecord?.id]);
+
+  // â”€â”€â”€ Handle Contract Deployment Success â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  useEffect(() => {
+    console.log("ðŸ“Š Deployment status:", { 
       deploymentSuccess, 
       deployedContractAddress, 
       hashExists: !!deploymentHash,
@@ -1006,30 +1076,30 @@ const ArtistStudioPage = () => {
     if (!deploymentSuccess) return;
     if (!deployedContractAddress) return;
     if (!deploymentReceipt) {
-      console.warn("⚠️  Receipt not available yet, waiting for confirmation...");
+      console.warn("âš ï¸  Receipt not available yet, waiting for confirmation...");
       return;
     }
 
     (async () => {
       try {
         const contractAddress = deployedContractAddress;
-        console.log("✅ Contract deployment confirmed! Address:", contractAddress);
+        console.log("âœ… Contract deployment confirmed! Address:", contractAddress);
 
         // Update artist profile with contract address
         await updateArtistProfile(address, {
           contractAddress: contractAddress,
         });
 
-        console.log("💾 Artist profile updated with contract address");
-        toast.success("🎉 Artist contract deployed successfully!");
+        console.log("ðŸ’¾ Artist profile updated with contract address");
+        toast.success("ðŸŽ‰ Artist contract deployed successfully!");
         
         // Re-fetch profile to show contract address
         await refetchArtistProfile();
         const updatedArtist = resolveArtistForWallet(address);
-        console.log("🔄 Updated artist record:", updatedArtist);
+        console.log("ðŸ”„ Updated artist record:", updatedArtist);
         setProfile((prev) => ({ ...prev })); // Force refresh
       } catch (err) {
-        console.error("❌ Failed to update artist with contract address:", err);
+        console.error("âŒ Failed to update artist with contract address:", err);
         toast.error("Contract deployed but failed to save address");
       } finally {
         setDeployingArtistWallet(null);
@@ -1099,7 +1169,7 @@ const ArtistStudioPage = () => {
       setProfile((prev) => ({ ...prev, avatarPreview, bannerPreview }));
       setPendingImages({});
 
-      // ✨ Profile saved successfully
+      // âœ¨ Profile saved successfully
       setProfileSaving(false);
       setProfileSaved(true);
       setProfileComplete(true);
@@ -1107,21 +1177,21 @@ const ArtistStudioPage = () => {
       setTimeout(() => setProfileSaved(false), 2000);
       await refetchArtistProfile();
 
-      // ✨ NEW: Deploy artist contract if not already deployed (async, doesn't block profile save)
+      // âœ¨ NEW: Deploy artist contract if not already deployed (async, doesn't block profile save)
       const artist = resolveArtistForWallet(address);
       if (!artist.contractAddress && !deployedContractAddress) {
         toast.info("Profile saved. An admin will deploy your artist contract before you can publish drops.");
       }
       if (deploymentPending && !artist.contractAddress) {
-        console.log("🚀 Contract not found for artist, initiating deployment...");
+        console.log("ðŸš€ Contract not found for artist, initiating deployment...");
         setDeployingArtistWallet(address);
-        toast.info("🚀 Deploying your artist NFT contract in the background...");
+        toast.info("ðŸš€ Deploying your artist NFT contract in the background...");
         try {
           await deploy(address);
-          console.log("📤 Deployment transaction submitted");
+          console.log("ðŸ“¤ Deployment transaction submitted");
           // The useEffect will handle the receipt and completion
         } catch (deployErr) {
-          console.error("❌ Contract deployment failed:", deployErr);
+          console.error("âŒ Contract deployment failed:", deployErr);
           toast.error("Failed to deploy artist contract. You can still create drops.");
           setDeployingArtistWallet(null);
         }
@@ -1129,7 +1199,7 @@ const ArtistStudioPage = () => {
     } catch (error: unknown) {
       setProfileSaving(false);
       const errorMessage = error instanceof Error ? error.message : "Profile save failed";
-      console.error("❌ Profile save error:", errorMessage, error);
+      console.error("âŒ Profile save error:", errorMessage, error);
       toast.error(errorMessage);
       return;
     }
@@ -1191,15 +1261,82 @@ const ArtistStudioPage = () => {
 
   const totalRevenue = drops.reduce((s, d) => s + parseFloat(d.revenue || "0"), 0);
   const liveDrops = drops.filter(d => d.status === "live").length;
-  // Note: Artist contract address tracking is coming - for now this will return 0 subscribers
-  // Once contract_address is populated in Supabase and passed through artistStore, we'll use it here
-  const { count: totalSubscribers = 0 } = useGetSubscriberCountFromArtistContract(null);
+  const artistContractAddress = artistProfileRecord?.contract_address || deployedContractAddress || null;
+  const { count: totalSubscribers = 0 } = useGetSubscriberCountFromArtistContract(artistContractAddress);
   const totalCampaignDrops = drops.filter((d) => d.type === "campaign").length;
+  const hasRaiseEligibility = totalSubscribers >= 100;
+  const latestRaiseRequest = useMemo(() => raiseRequests[0] || null, [raiseRequests]);
+  const pendingRaiseRequest = useMemo(
+    () => raiseRequests.find((campaign) => campaign.status === "review") || null,
+    [raiseRequests],
+  );
 
-  // ── NAV ITEMS ───────────────────────────────────────────────────────────────
+  const submitRaiseRequest = async () => {
+    if (!artistProfileRecord?.id) {
+      toast.error("Complete your artist profile before requesting a raise.");
+      return;
+    }
+
+    if (!hasRaiseEligibility) {
+      toast.error(`You need 100 followers to request a raise. Current followers: ${totalSubscribers}.`);
+      return;
+    }
+
+    if (!raiseForm.title.trim() || !raiseForm.description.trim() || !raiseForm.fundingTargetEth.trim()) {
+      toast.error("Title, description, and funding target are required.");
+      return;
+    }
+
+    setRaiseSubmitting(true);
+    try {
+      const created = await createIPCampaign({
+        artist_id: artistProfileRecord.id,
+        title: raiseForm.title.trim(),
+        summary: raiseForm.summary.trim() || raiseForm.title.trim(),
+        description: raiseForm.description.trim(),
+        campaign_type: "production_raise",
+        rights_type: raiseForm.rightsType as IPCampaign["rights_type"],
+        visibility: "private",
+        funding_target_eth: Number(raiseForm.fundingTargetEth),
+        minimum_raise_eth: raiseForm.minimumRaiseEth ? Number(raiseForm.minimumRaiseEth) : 0,
+        unit_price_eth: raiseForm.unitPriceEth ? Number(raiseForm.unitPriceEth) : null,
+        total_units: raiseForm.totalUnits ? Number(raiseForm.totalUnits) : null,
+        metadata: {
+          requested_from: "artist_studio",
+          follower_count: totalSubscribers,
+        },
+      });
+
+      if (!created) {
+        throw new Error("Raise request was not created.");
+      }
+
+      setRaiseRequests((prev) => [created, ...prev]);
+      setRaiseDialogOpen(false);
+      setRaiseForm({
+        title: "",
+        summary: "",
+        description: "",
+        fundingTargetEth: "",
+        minimumRaiseEth: "",
+        unitPriceEth: "",
+        totalUnits: "",
+        rightsType: "creative_ip",
+      });
+      toast.success("Raise request submitted for admin approval.");
+    } catch (error) {
+      console.error("Failed to submit raise request:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to submit raise request");
+    } finally {
+      setRaiseSubmitting(false);
+    }
+  };
+
+  // â”€â”€ NAV ITEMS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const navItems = [
     { id: "home", icon: Home, label: "Home" },
     { id: "drops", icon: Package, label: "Drops" },
+    { id: "raises", icon: Gavel, label: "Raises" },
     { id: "analytics", icon: BarChart3, label: "Analytics" },
     { id: "profile", icon: Palette, label: "Profile" },
   ];
@@ -1207,7 +1344,7 @@ const ArtistStudioPage = () => {
   return (
     <div className="min-h-screen bg-background max-w-lg mx-auto relative">
 
-      {/* ── Studio Top Bar ── */}
+      {/* â”€â”€ Studio Top Bar â”€â”€ */}
       <header className="sticky top-0 z-40 bg-background/90 backdrop-blur-xl border-b border-border">
         <div className="flex items-center justify-between h-14 px-4">
           <div className="flex items-center gap-2.5">
@@ -1242,10 +1379,10 @@ const ArtistStudioPage = () => {
         </div>
       </header>
 
-      {/* ── Content ── */}
+      {/* â”€â”€ Content â”€â”€ */}
       <main className="pb-24">
 
-        {/* ════════ HOME TAB ════════ */}
+        {/* â•â•â•â•â•â•â•â• HOME TAB â•â•â•â•â•â•â•â• */}
         {tab === "home" && (
           <div className="px-4 pt-4 space-y-5">
             {/* Wallet card */}
@@ -1260,14 +1397,14 @@ const ArtistStudioPage = () => {
                   <div>
                     <p className="text-sm font-bold text-foreground">{profile.name || "Set up your profile"}</p>
                     <button onClick={copyAddress} className="flex items-center gap-1 text-[10px] font-mono text-muted-foreground">
-                      {address?.slice(0, 8)}…{address?.slice(-4)}
+                      {address?.slice(0, 8)}â€¦{address?.slice(-4)}
                       {copied ? <Check className="h-3 w-3 text-primary" /> : <Copy className="h-3 w-3" />}
                     </button>
                   </div>
                 </div>
                 <div className="text-right">
                   <p className="text-sm font-bold text-foreground">
-                    {balance ? `${parseFloat(formatEther(balance.value)).toFixed(4)} ETH` : "—"}
+                    {balance ? `${parseFloat(formatEther(balance.value)).toFixed(4)} ETH` : "â€”"}
                   </p>
                   <p className="text-[10px] text-muted-foreground">wallet balance</p>
                 </div>
@@ -1275,7 +1412,7 @@ const ArtistStudioPage = () => {
               {!profileComplete && (
                 <button onClick={() => setTab("profile")}
                   className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-primary/10 text-primary text-xs font-semibold">
-                  <span>⚡ Complete your profile to go live</span>
+                  <span>âš¡ Complete your profile to go live</span>
                   <ChevronRight className="h-4 w-4" />
                 </button>
               )}
@@ -1309,8 +1446,43 @@ const ArtistStudioPage = () => {
                   className="p-4 rounded-2xl bg-card border border-border text-left hover:border-primary/40 transition-colors">
                   <Edit3 className="h-5 w-5 text-primary mb-2" />
                   <p className="text-sm font-semibold text-foreground">Edit Profile</p>
-                  <p className="text-[10px] text-muted-foreground mt-0.5">Bio · links · pricing</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">Bio Â· links Â· pricing</p>
                 </button>
+                <button onClick={() => setTab("raises")}
+                  className="p-4 rounded-2xl bg-card border border-border text-left hover:border-primary/40 transition-colors">
+                  <Gavel className="h-5 w-5 text-primary mb-2" />
+                  <p className="text-sm font-semibold text-foreground">IP Raise</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">Request admin approval</p>
+                </button>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-border bg-card p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-foreground">IP Raise eligibility</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Artists can request a tokenized production raise after reaching 100 followers.
+                  </p>
+                </div>
+                <Badge className={hasRaiseEligibility ? "bg-green-100 text-green-800" : "bg-amber-100 text-amber-800"}>
+                  {hasRaiseEligibility ? "Eligible" : `${totalSubscribers}/100`}
+                </Badge>
+              </div>
+              <div className="mt-4 flex items-center justify-between rounded-xl bg-secondary/60 px-3 py-2">
+                <div>
+                  <p className="text-xs font-medium text-foreground">
+                    {latestRaiseRequest ? getRaiseReviewLabel(latestRaiseRequest) : "No raise request submitted yet"}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {latestRaiseRequest
+                      ? latestRaiseRequest.title
+                      : "Once approved, admins can move the raise live for investment."}
+                  </p>
+                </div>
+                <Button size="sm" variant="outline" className="rounded-full" onClick={() => setTab("raises")}>
+                  Open
+                </Button>
               </div>
             </div>
 
@@ -1344,7 +1516,7 @@ const ArtistStudioPage = () => {
           </div>
         )}
 
-        {/* ════════ DROPS TAB ════════ */}
+        {/* â•â•â•â•â•â•â•â• DROPS TAB â•â•â•â•â•â•â•â• */}
         {tab === "drops" && (
           <div className="px-4 pt-4 space-y-4">
             <div className="flex items-center justify-between">
@@ -1431,7 +1603,110 @@ const ArtistStudioPage = () => {
           </div>
         )}
 
-        {/* ════════ ANALYTICS TAB ════════ */}
+        {tab === "raises" && (
+          <div className="px-4 pt-4 space-y-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-bold">IP Raises</h2>
+                <p className="text-xs text-muted-foreground">Request funding for a creative idea once you hit 100 followers.</p>
+              </div>
+              <Button
+                size="sm"
+                className="rounded-full gradient-primary text-primary-foreground"
+                disabled={!hasRaiseEligibility || Boolean(pendingRaiseRequest)}
+                onClick={() => setRaiseDialogOpen(true)}
+              >
+                <Plus className="mr-1 h-3.5 w-3.5" /> New Request
+              </Button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-2xl border border-border bg-card p-4">
+                <p className="text-xs text-muted-foreground">Followers</p>
+                <p className="mt-1 text-2xl font-bold text-foreground">{totalSubscribers}</p>
+                <p className="mt-1 text-[10px] text-muted-foreground">Minimum needed: 100</p>
+              </div>
+              <div className="rounded-2xl border border-border bg-card p-4">
+                <p className="text-xs text-muted-foreground">Current status</p>
+                <p className="mt-1 text-sm font-semibold text-foreground">
+                  {latestRaiseRequest ? getRaiseReviewLabel(latestRaiseRequest) : "Not started"}
+                </p>
+                <p className="mt-1 text-[10px] text-muted-foreground">
+                  {pendingRaiseRequest ? "Admin review is pending." : "Submit a request when ready."}
+                </p>
+              </div>
+            </div>
+
+            {!hasRaiseEligibility && (
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
+                <p className="text-sm font-semibold">Follower gate not met yet</p>
+                <p className="mt-1 text-xs">
+                  Your raise request unlocks at 100 followers. Current followers: {totalSubscribers}.
+                </p>
+              </div>
+            )}
+
+            {pendingRaiseRequest && (
+              <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
+                <p className="text-sm font-semibold text-foreground">Review in progress</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  "{pendingRaiseRequest.title}" is waiting on admin approval before it can go live for investors.
+                </p>
+              </div>
+            )}
+
+            {raiseRequestsLoading ? (
+              <div className="flex items-center justify-center py-10 text-sm text-muted-foreground">
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading raise requests...
+              </div>
+            ) : raiseRequests.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-border bg-card p-8 text-center">
+                <Gavel className="mx-auto h-10 w-10 text-border" />
+                <p className="mt-3 text-sm font-semibold text-foreground">No raise requests yet</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Submit your idea, target raise, and IP summary for admin review.
+                </p>
+              </div>
+            ) : (
+              raiseRequests.map((campaign) => (
+                <div key={campaign.id} className="rounded-2xl border border-border bg-card p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">{campaign.title}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">{campaign.summary || campaign.description}</p>
+                    </div>
+                    <Badge className={raiseStatusStyles[campaign.status || "draft"] || raiseStatusStyles.draft}>
+                      {getRaiseReviewLabel(campaign)}
+                    </Badge>
+                  </div>
+                  <div className="mt-3 grid grid-cols-3 gap-2">
+                    <div className="rounded-xl bg-secondary p-2 text-center">
+                      <p className="text-xs font-semibold text-foreground">{campaign.funding_target_eth || 0} ETH</p>
+                      <p className="text-[10px] text-muted-foreground">Target</p>
+                    </div>
+                    <div className="rounded-xl bg-secondary p-2 text-center">
+                      <p className="text-xs font-semibold text-foreground">{campaign.total_units || "--"}</p>
+                      <p className="text-[10px] text-muted-foreground">Units</p>
+                    </div>
+                    <div className="rounded-xl bg-secondary p-2 text-center">
+                      <p className="text-xs font-semibold text-foreground">{campaign.unit_price_eth || "--"}</p>
+                      <p className="text-[10px] text-muted-foreground">Unit Price</p>
+                    </div>
+                  </div>
+                  <p className="mt-3 text-[11px] text-muted-foreground">
+                    {campaign.metadata?.review_status === "rejected"
+                      ? "Admin declined this raise request. You can refine the idea and submit again."
+                      : campaign.status === "active"
+                        ? "Approved by admin. This raise is ready for investor-facing wiring."
+                        : "Waiting for admin review."}
+                  </p>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+
+        {/* â•â•â•â•â•â•â•â• ANALYTICS TAB â•â•â•â•â•â•â•â• */}
         {tab === "analytics" && (
           <div className="px-4 pt-4 space-y-5">
             <h2 className="text-lg font-bold">Analytics</h2>
@@ -1516,12 +1791,12 @@ const ArtistStudioPage = () => {
           </div>
         )}
 
-        {/* ════════ PROFILE SETUP TAB ════════ */}
+        {/* â•â•â•â•â•â•â•â• PROFILE SETUP TAB â•â•â•â•â•â•â•â• */}
         {tab === "profile" && (
           <div className="px-4 pt-4 pb-8 space-y-5">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold">Profile Setup</h2>
-              {profileComplete && <Badge className="bg-green-100 text-green-800 text-[10px]">✓ Complete</Badge>}
+              {profileComplete && <Badge className="bg-green-100 text-green-800 text-[10px]">âœ“ Complete</Badge>}
             </div>
 
             {/* Banner + Avatar upload */}
@@ -1569,7 +1844,7 @@ const ArtistStudioPage = () => {
                 <textarea
                   value={profile.bio}
                   onChange={e => setProfile(p => ({ ...p, bio: e.target.value }))}
-                  placeholder="Tell collectors who you are and what you create…"
+                  placeholder="Tell collectors who you are and what you createâ€¦"
                   className="w-full mt-1 px-3 py-2.5 rounded-xl border border-border bg-background text-sm resize-none min-h-[88px] focus:outline-none focus:ring-2 focus:ring-primary/30"
                   maxLength={280}
                 />
@@ -1652,7 +1927,7 @@ const ArtistStudioPage = () => {
                 Upload as many artworks as you want. Titles are generated from filenames and each piece is pinned to Pinata.
               </p>
               <Button onClick={addPortfolioPiece} disabled={portfolioUploading} variant="outline" className="w-full rounded-xl">
-                {portfolioUploading ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Uploading…</> : <><Plus className="h-4 w-4 mr-2" />Add Portfolio Piece</>}
+                {portfolioUploading ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Uploadingâ€¦</> : <><Plus className="h-4 w-4 mr-2" />Add Portfolio Piece</>}
               </Button>
               {profile.portfolio.length > 0 && (
                 <div className="grid grid-cols-3 gap-2">
@@ -1701,8 +1976,8 @@ const ArtistStudioPage = () => {
             {/* Save button */}
             <Button onClick={saveProfile} disabled={profileSaving}
               className="w-full h-12 rounded-xl gradient-primary text-primary-foreground font-bold text-sm">
-              {profileSaving ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Saving…</>
-                : deploymentPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Deploying contract…</>
+              {profileSaving ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Savingâ€¦</>
+                : deploymentPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Deploying contractâ€¦</>
                 : profileSaved ? <><CheckCircle2 className="h-4 w-4 mr-2" />Saved!</>
                 : "Save Profile"}
             </Button>
@@ -1718,7 +1993,7 @@ const ArtistStudioPage = () => {
         )}
       </main>
 
-      {/* ── Bottom Nav ── */}
+      {/* â”€â”€ Bottom Nav â”€â”€ */}
       <nav className="fixed bottom-0 left-0 right-0 z-50 bg-background/90 backdrop-blur-xl border-t border-border max-w-lg mx-auto">
         <div className="flex items-center justify-around h-16 px-2">
           {navItems.map(item => (
@@ -1731,7 +2006,81 @@ const ArtistStudioPage = () => {
         </div>
       </nav>
 
-      {/* ── Notification Drawer ── */}
+      <Dialog open={raiseDialogOpen} onOpenChange={setRaiseDialogOpen}>
+        <DialogContent className="max-w-md rounded-2xl">
+          <DialogHeader>
+            <DialogTitle>Request IP Raise</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="rounded-xl bg-secondary/60 p-3 text-xs text-muted-foreground">
+              Artists can request a raise after 100 followers. This request goes to admin for review before anything is investable.
+            </div>
+            <div>
+              <Label className="text-xs">Idea title</Label>
+              <Input value={raiseForm.title} onChange={(e) => setRaiseForm((prev) => ({ ...prev, title: e.target.value }))} className="mt-1 h-10 rounded-xl" placeholder="Short film, album, archive drop..." />
+            </div>
+            <div>
+              <Label className="text-xs">Short summary</Label>
+              <Input value={raiseForm.summary} onChange={(e) => setRaiseForm((prev) => ({ ...prev, summary: e.target.value }))} className="mt-1 h-10 rounded-xl" placeholder="What are you raising for?" />
+            </div>
+            <div>
+              <Label className="text-xs">Description</Label>
+              <textarea
+                value={raiseForm.description}
+                onChange={(e) => setRaiseForm((prev) => ({ ...prev, description: e.target.value }))}
+                className="mt-1 min-h-[110px] w-full rounded-xl border border-border bg-background px-3 py-2 text-sm"
+                placeholder="Explain the project, what backers are funding, and the IP/revenue idea."
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label className="text-xs">Target (ETH)</Label>
+                <Input value={raiseForm.fundingTargetEth} onChange={(e) => setRaiseForm((prev) => ({ ...prev, fundingTargetEth: e.target.value }))} className="mt-1 h-10 rounded-xl" type="number" min="0" step="0.01" />
+              </div>
+              <div>
+                <Label className="text-xs">Minimum raise</Label>
+                <Input value={raiseForm.minimumRaiseEth} onChange={(e) => setRaiseForm((prev) => ({ ...prev, minimumRaiseEth: e.target.value }))} className="mt-1 h-10 rounded-xl" type="number" min="0" step="0.01" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label className="text-xs">Unit price</Label>
+                <Input value={raiseForm.unitPriceEth} onChange={(e) => setRaiseForm((prev) => ({ ...prev, unitPriceEth: e.target.value }))} className="mt-1 h-10 rounded-xl" type="number" min="0" step="0.01" />
+              </div>
+              <div>
+                <Label className="text-xs">Total units</Label>
+                <Input value={raiseForm.totalUnits} onChange={(e) => setRaiseForm((prev) => ({ ...prev, totalUnits: e.target.value }))} className="mt-1 h-10 rounded-xl" type="number" min="0" step="1" />
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs">Rights type</Label>
+              <select
+                value={raiseForm.rightsType}
+                onChange={(e) => setRaiseForm((prev) => ({ ...prev, rightsType: e.target.value }))}
+                className="mt-1 h-10 w-full rounded-xl border border-border bg-background px-3 text-sm"
+              >
+                <option value="creative_ip">Creative IP</option>
+                <option value="royalty_stream">Royalty stream</option>
+                <option value="production_rights">Production rights</option>
+                <option value="license_pool">License pool</option>
+                <option value="catalog_interest">Catalog interest</option>
+              </select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRaiseDialogOpen(false)}>Cancel</Button>
+            <Button
+              className="gradient-primary text-primary-foreground"
+              disabled={raiseSubmitting}
+              onClick={submitRaiseRequest}
+            >
+              {raiseSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Submitting...</> : "Submit for Approval"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* â”€â”€ Notification Drawer â”€â”€ */}
       <Dialog open={showNotifications} onOpenChange={setShowNotifications}>
         <DialogContent className="max-w-sm rounded-2xl">
           <DialogHeader>
@@ -1764,7 +2113,7 @@ const ArtistStudioPage = () => {
         </DialogContent>
       </Dialog>
 
-      {/* ── Create Drop sheet ── */}
+      {/* â”€â”€ Create Drop sheet â”€â”€ */}
       <CreateDropSheet
         open={showDropSheet}
         onClose={() => setShowDropSheet(false)}
@@ -1808,3 +2157,4 @@ const ArtistStudioPage = () => {
 };
 
 export default ArtistStudioPage;
+

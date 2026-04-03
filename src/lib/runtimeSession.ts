@@ -6,6 +6,11 @@ type RuntimeSessionState = {
   guestCustomerId: string;
 };
 
+type PersistedRuntimeSessionState = Pick<
+  RuntimeSessionState,
+  "wallet" | "role" | "guestCustomerId"
+>;
+
 const SESSION_STORAGE_KEY = "popup.runtime-session";
 
 declare global {
@@ -33,7 +38,7 @@ function readStoredSession(): Partial<RuntimeSessionState> {
     const raw = window.sessionStorage.getItem(SESSION_STORAGE_KEY);
     if (!raw) return {};
 
-    const parsed = JSON.parse(raw) as Partial<RuntimeSessionState>;
+    const parsed = JSON.parse(raw) as Partial<PersistedRuntimeSessionState>;
     return parsed && typeof parsed === "object" ? parsed : {};
   } catch {
     return {};
@@ -44,7 +49,12 @@ function persistRuntimeSession(session: RuntimeSessionState) {
   if (!canUseStorage()) return;
 
   try {
-    window.sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
+    const persistedSession: PersistedRuntimeSessionState = {
+      wallet: session.wallet,
+      role: session.role,
+      guestCustomerId: session.guestCustomerId,
+    };
+    window.sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(persistedSession));
   } catch {
     // best-effort only
   }

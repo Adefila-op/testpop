@@ -84,7 +84,7 @@ npm install
 cp .env.example .env
 # Edit .env and add:
 # PRIVATE_KEY=...        # without 0x prefix
-# VITE_PINATA_JWT=...
+# PINATA_JWT=...         # server-side only, never expose with a VITE_ prefix
 ```
 
 ### Deploy to Base Sepolia (Testnet)
@@ -103,7 +103,7 @@ After deployment, the contract addresses will be saved to `deployed-addresses.js
 
 ## Pinata Uploads In The UI
 
-The artist creation dialogs use `VITE_PINATA_JWT` from your Vite env.
+The artist creation dialogs upload through the backend Pinata proxy using `PINATA_JWT` on the server.
 
 - If the contract addresses in `src/lib/contracts/` are still the zero address, the dialogs will still upload the asset or metadata to Pinata and complete in mock mode.
 - Once you paste real deployed contract addresses into those files, the same dialogs will continue on to the on-chain write step.

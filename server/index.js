@@ -48,6 +48,10 @@ const LEGACY_DROP_COLUMNS = new Set([
   "updated_at",
 ]);
 
+const ARTIST_SUBSCRIPTION_ABI = [
+  "function getSubscriberCount() view returns (uint256)",
+];
+
 function stripUnsupportedDropColumns(drop = {}) {
   return Object.fromEntries(
     Object.entries(drop).filter(([key, value]) => LEGACY_DROP_COLUMNS.has(key) && value !== undefined)
@@ -687,6 +691,88 @@ function adminRequired(req, res, next) {
 
 function sameWalletOrAdmin(targetWallet, auth) {
   return auth?.role === "admin" || normalizeWallet(targetWallet) === auth?.wallet;
+}
+
+async function getArtistRecordByWallet(wallet) {
+  const normalizedWallet = normalizeWallet(wallet);
+  if (!normalizedWallet) return null;
+
+  const { data, error } = await supabase
+    .from("artists")
+    .select("id, wallet, name, handle, contract_address, shares_enabled, shares_contract_address")
+    .eq("wallet", normalizedWallet)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message || "Failed to load artist profile");
+  }
+
+  return data || null;
+}
+
+async function getWhitelistStatusByWallet(wallet) {
+  const normalizedWallet = normalizeWallet(wallet);
+  if (!normalizedWallet) return null;
+
+  const { data, error } = await supabase
+    .from("whitelist")
+    .select("status")
+    .eq("wallet", normalizedWallet)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message || "Failed to load whitelist status");
+  }
+
+  return data?.status || null;
+}
+
+async function getArtistSubscriberCount(contractAddress) {
+  const normalizedAddress = String(contractAddress || "").trim();
+  if (!normalizedAddress) return 0;
+
+  try {
+    const provider = getCampaignProvider();
+    const contract = new ethers.Contract(normalizedAddress, ARTIST_SUBSCRIPTION_ABI, provider);
+    const count = await contract.getSubscriberCount();
+    return Number(count || 0n);
+  } catch (error) {
+    console.warn("Unable to read artist subscriber count:", error?.message || error);
+    return 0;
+  }
+}
+
+function normalizeIPCampaignPayload(payload = {}) {
+  const trimOrNull = (value) => {
+    if (typeof value !== "string") return null;
+    const trimmed = value.trim();
+    return trimmed ? trimmed : null;
+  };
+
+  const numberOrNull = (value) => {
+    if (value === null || value === undefined || value === "") return null;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+
+  return {
+    slug: trimOrNull(payload.slug)?.toLowerCase() || null,
+    title: trimOrNull(payload.title),
+    summary: trimOrNull(payload.summary),
+    description: trimOrNull(payload.description),
+    campaign_type: trimOrNull(payload.campaign_type) || "production_raise",
+    rights_type: trimOrNull(payload.rights_type) || "creative_ip",
+    visibility: trimOrNull(payload.visibility) || "private",
+    funding_target_eth: numberOrNull(payload.funding_target_eth),
+    minimum_raise_eth: numberOrNull(payload.minimum_raise_eth),
+    unit_price_eth: numberOrNull(payload.unit_price_eth),
+    total_units: numberOrNull(payload.total_units),
+    opens_at: trimOrNull(payload.opens_at),
+    closes_at: trimOrNull(payload.closes_at),
+    legal_doc_uri: trimOrNull(payload.legal_doc_uri),
+    cover_image_uri: trimOrNull(payload.cover_image_uri),
+    metadata: typeof payload.metadata === "object" && payload.metadata !== null ? payload.metadata : {},
+  };
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -1854,6 +1940,22 @@ function normalizeOrderRecord(order) {
   };
 }
 
+const ALLOWED_ORDER_STATUSES = new Set([
+  "pending",
+  "paid",
+  "processing",
+  "shipped",
+  "delivered",
+  "cancelled",
+  "refunded",
+]);
+
+function normalizeOrderStatus(value) {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim().toLowerCase();
+  return ALLOWED_ORDER_STATUSES.has(normalized) ? normalized : null;
+}
+
 async function listOrdersForBuyer(wallet) {
   let { data, error } = await supabase
     .from("orders")
@@ -2067,6 +2169,11 @@ app.post("/orders", authRequired, async (req, res) => {
   const rawTxHash = typeof order.tx_hash === "string" && order.tx_hash.trim()
     ? order.tx_hash.trim()
     : null;
+  if (!rawTxHash) {
+    return res.status(400).json({
+      error: "tx_hash is required and must reference the verified onchain purchase",
+    });
+  }
   let productsById;
   try {
     productsById = await loadCheckoutProducts(normalizedItems.map((item) => item.product_id));
@@ -2216,9 +2323,46 @@ app.patch("/orders/:id", authRequired, async (req, res) => {
 
   if (!canUpdate) return res.status(403).json({ error: "Only the creator or admin can update this order" });
 
+  const now = new Date().toISOString();
+  const updates = { updated_at: now };
+  let hasAllowedUpdate = false;
+
+  if (Object.prototype.hasOwnProperty.call(req.body || {}, "status")) {
+    const normalizedStatus = normalizeOrderStatus(req.body?.status);
+    if (!normalizedStatus) {
+      return res.status(400).json({ error: "Invalid order status" });
+    }
+
+    updates.status = normalizedStatus;
+    hasAllowedUpdate = true;
+
+    if (normalizedStatus === "paid" && !existing.paid_at) {
+      updates.paid_at = now;
+    }
+    if (normalizedStatus === "shipped") {
+      updates.shipped_at = now;
+    }
+    if (normalizedStatus === "delivered") {
+      updates.delivered_at = now;
+    }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(req.body || {}, "tracking_code")) {
+    const trackingCode =
+      typeof req.body?.tracking_code === "string" ? req.body.tracking_code.trim() : "";
+    updates.tracking_code = trackingCode || null;
+    hasAllowedUpdate = true;
+  }
+
+  if (!hasAllowedUpdate) {
+    return res.status(400).json({
+      error: "Only status and tracking_code can be updated via this endpoint",
+    });
+  }
+
   const { data, error } = await supabase
     .from("orders")
-    .update({ ...req.body, updated_at: new Date().toISOString() })
+    .update(updates)
     .eq("id", req.params.id)
     .select("*")
     .single();
@@ -2286,6 +2430,359 @@ app.delete("/whitelist/:id", authRequired, adminRequired, async (req, res) => {
 // ╔═══════════════════════════════════════════════════════════════════════════╗
 // ║ PINATA FILE UPLOAD ROUTES - Registered at both /path and /api/path        ║
 // ╚═══════════════════════════════════════════════════════════════════════════╝
+
+registerRoute("get", "/ip-campaigns", authRequired, async (req, res) => {
+  try {
+    const isAdmin = req.auth.role === "admin";
+    const requestedArtistId =
+      typeof req.query.artist_id === "string" && req.query.artist_id.trim()
+        ? req.query.artist_id.trim()
+        : null;
+    const requestedStatus =
+      typeof req.query.status === "string" && req.query.status.trim()
+        ? req.query.status.trim()
+        : null;
+
+    const ownedArtist = await getArtistRecordByWallet(req.auth.wallet);
+    let query = supabase
+      .from("ip_campaigns")
+      .select("*, artists(id, wallet, name, handle)")
+      .order("created_at", { ascending: false });
+
+    if (requestedArtistId) {
+      query = query.eq("artist_id", requestedArtistId);
+    } else if (!isAdmin && ownedArtist?.id) {
+      query = query.eq("artist_id", ownedArtist.id);
+    } else if (!isAdmin) {
+      query = query
+        .in("visibility", ["listed", "unlisted"])
+        .in("status", ["active", "funded", "settled", "closed"]);
+    }
+
+    if (requestedStatus) {
+      query = query.eq("status", requestedStatus);
+    }
+
+    const { data, error } = await query;
+    if (error) return res.status(400).json({ error: error.message });
+
+    const filtered = (data || []).filter((campaign) => {
+      if (isAdmin) return true;
+      if (ownedArtist?.id && campaign.artist_id === ownedArtist.id) return true;
+      return ["active", "funded", "settled", "closed"].includes(String(campaign.status || ""));
+    });
+
+    return res.json(filtered);
+  } catch (error) {
+    return res.status(500).json({ error: error.message || "Failed to load IP campaigns" });
+  }
+});
+
+registerRoute("post", "/ip-campaigns", authRequired, async (req, res) => {
+  try {
+    const isAdmin = req.auth.role === "admin";
+    const payload = normalizeIPCampaignPayload(req.body || {});
+    if (!payload.title) {
+      return res.status(400).json({ error: "title is required" });
+    }
+
+    let artistRecord = null;
+    if (isAdmin && req.body?.artist_id) {
+      const { data, error } = await supabase
+        .from("artists")
+        .select("id, wallet, name, handle, contract_address")
+        .eq("id", req.body.artist_id)
+        .maybeSingle();
+
+      if (error) return res.status(400).json({ error: error.message });
+      artistRecord = data;
+    } else {
+      artistRecord = await getArtistRecordByWallet(req.auth.wallet);
+    }
+
+    if (!artistRecord?.id) {
+      return res.status(400).json({ error: "Artist profile not found. Complete your artist profile first." });
+    }
+
+    if (!isAdmin) {
+      const whitelistStatus = await getWhitelistStatusByWallet(artistRecord.wallet);
+      if (whitelistStatus !== "approved") {
+        return res.status(403).json({ error: "Only approved artists can request an IP raise" });
+      }
+    }
+
+    const followerCount = await getArtistSubscriberCount(artistRecord.contract_address);
+    if (!isAdmin && followerCount < 100) {
+      return res.status(403).json({
+        error: `This artist needs at least 100 followers before requesting an IP raise. Current followers: ${followerCount}.`,
+      });
+    }
+
+    const now = new Date().toISOString();
+    const insertPayload = {
+      artist_id: artistRecord.id,
+      slug: payload.slug,
+      title: payload.title,
+      summary: payload.summary,
+      description: payload.description,
+      campaign_type: payload.campaign_type,
+      rights_type: payload.rights_type,
+      status: isAdmin ? req.body?.status || "review" : "review",
+      visibility: payload.visibility,
+      funding_target_eth: payload.funding_target_eth ?? 0,
+      minimum_raise_eth: payload.minimum_raise_eth ?? 0,
+      unit_price_eth: payload.unit_price_eth,
+      total_units: payload.total_units,
+      opens_at: payload.opens_at,
+      closes_at: payload.closes_at,
+      legal_doc_uri: payload.legal_doc_uri,
+      cover_image_uri: payload.cover_image_uri,
+      metadata: {
+        ...(payload.metadata || {}),
+        review_status: isAdmin ? "approved" : "pending",
+        eligibility_followers: followerCount,
+        eligibility_threshold: 100,
+        requested_by_wallet: normalizeWallet(req.auth.wallet),
+        requested_at: now,
+      },
+      created_at: now,
+      updated_at: now,
+    };
+
+    const { data, error } = await supabase
+      .from("ip_campaigns")
+      .insert(insertPayload)
+      .select("*, artists(id, wallet, name, handle)")
+      .single();
+
+    if (error) return res.status(400).json({ error: error.message });
+    return res.json(data);
+  } catch (error) {
+    return res.status(500).json({ error: error.message || "Failed to create IP campaign request" });
+  }
+});
+
+registerRoute("patch", "/ip-campaigns/:id", authRequired, async (req, res) => {
+  try {
+    const isAdmin = req.auth.role === "admin";
+    const { data: existing, error: existingError } = await supabase
+      .from("ip_campaigns")
+      .select("*, artists(id, wallet, name, handle, contract_address)")
+      .eq("id", req.params.id)
+      .single();
+
+    if (existingError || !existing) {
+      return res.status(404).json({ error: existingError?.message || "IP campaign not found" });
+    }
+
+    const ownerWallet = normalizeWallet(existing.artists?.wallet || "");
+    if (!sameWalletOrAdmin(ownerWallet, req.auth)) {
+      return res.status(403).json({ error: "Only the artist or admin can update this IP campaign" });
+    }
+
+    const payload = normalizeIPCampaignPayload(req.body || {});
+    const nextMetadata = {
+      ...(existing.metadata || {}),
+      ...(payload.metadata || {}),
+    };
+
+    const updates = {
+      slug: payload.slug ?? existing.slug,
+      title: payload.title ?? existing.title,
+      summary: payload.summary,
+      description: payload.description,
+      campaign_type: payload.campaign_type ?? existing.campaign_type,
+      rights_type: payload.rights_type ?? existing.rights_type,
+      visibility: payload.visibility ?? existing.visibility,
+      funding_target_eth: payload.funding_target_eth ?? existing.funding_target_eth,
+      minimum_raise_eth: payload.minimum_raise_eth ?? existing.minimum_raise_eth,
+      unit_price_eth: payload.unit_price_eth,
+      total_units: payload.total_units,
+      opens_at: payload.opens_at,
+      closes_at: payload.closes_at,
+      legal_doc_uri: payload.legal_doc_uri,
+      cover_image_uri: payload.cover_image_uri,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (isAdmin && typeof req.body?.status === "string" && req.body.status.trim()) {
+      const requestedStatus = req.body.status.trim();
+      updates.status = requestedStatus;
+      if (requestedStatus === "active") {
+        if (existing.visibility === "private") {
+          updates.visibility = "listed";
+        }
+        nextMetadata.review_status = "approved";
+        nextMetadata.reviewed_by = req.auth.wallet;
+        nextMetadata.reviewed_at = updates.updated_at;
+        if (!existing.opens_at) {
+          updates.opens_at = updates.updated_at;
+        }
+      } else if (requestedStatus === "cancelled" && existing.status === "review") {
+        nextMetadata.review_status = "rejected";
+        nextMetadata.reviewed_by = req.auth.wallet;
+        nextMetadata.reviewed_at = updates.updated_at;
+      }
+    } else if (!isAdmin) {
+      if (!["review", "draft"].includes(String(existing.status || ""))) {
+        return res.status(400).json({ error: "Artist edits are only allowed while a raise is under review" });
+      }
+      updates.status = "review";
+      nextMetadata.review_status = "pending";
+    }
+
+    updates.metadata = nextMetadata;
+
+    const { data, error } = await supabase
+      .from("ip_campaigns")
+      .update(updates)
+      .eq("id", req.params.id)
+      .select("*, artists(id, wallet, name, handle)")
+      .single();
+
+    if (error) return res.status(400).json({ error: error.message });
+    return res.json(data);
+  } catch (error) {
+    return res.status(500).json({ error: error.message || "Failed to update IP campaign" });
+  }
+});
+
+registerRoute("get", "/ip-investments", authRequired, async (req, res) => {
+  try {
+    const requestedWallet =
+      typeof req.query.investor_wallet === "string" && req.query.investor_wallet.trim()
+        ? normalizeWallet(req.query.investor_wallet)
+        : req.auth.wallet;
+
+    if (!sameWalletOrAdmin(requestedWallet, req.auth)) {
+      return res.status(403).json({ error: "Cannot view another investor's positions" });
+    }
+
+    let query = supabase
+      .from("ip_investments")
+      .select("*, ip_campaigns(id, title, status, artist_id)")
+      .eq("investor_wallet", requestedWallet)
+      .order("created_at", { ascending: false });
+
+    if (typeof req.query.campaign_id === "string" && req.query.campaign_id.trim()) {
+      query = query.eq("campaign_id", req.query.campaign_id.trim());
+    }
+
+    const { data, error } = await query;
+    if (error) return res.status(400).json({ error: error.message });
+    return res.json(data || []);
+  } catch (error) {
+    return res.status(500).json({ error: error.message || "Failed to load investor positions" });
+  }
+});
+
+registerRoute("post", "/ip-investments", authRequired, async (req, res) => {
+  try {
+    const campaignId = typeof req.body?.campaign_id === "string" ? req.body.campaign_id.trim() : "";
+    if (!campaignId) {
+      return res.status(400).json({ error: "campaign_id is required" });
+    }
+
+    const amountEth = Number(req.body?.amount_eth ?? 0);
+    const requestedUnits = Number(req.body?.units_purchased ?? 0);
+    if ((!Number.isFinite(amountEth) || amountEth <= 0) && (!Number.isFinite(requestedUnits) || requestedUnits <= 0)) {
+      return res.status(400).json({ error: "A positive amount_eth or units_purchased is required" });
+    }
+
+    const { data: campaign, error: campaignError } = await supabase
+      .from("ip_campaigns")
+      .select("*")
+      .eq("id", campaignId)
+      .single();
+
+    if (campaignError || !campaign) {
+      return res.status(404).json({ error: campaignError?.message || "IP campaign not found" });
+    }
+
+    if (campaign.status !== "active") {
+      return res.status(400).json({ error: "This raise is not open for investors" });
+    }
+
+    if (!["listed", "unlisted"].includes(String(campaign.visibility || ""))) {
+      return res.status(400).json({ error: "This raise is not visible to investors yet" });
+    }
+
+    const investorWallet = req.auth.wallet;
+    const unitPrice = Number(campaign.unit_price_eth || 0);
+    const computedUnits =
+      requestedUnits > 0
+        ? requestedUnits
+        : unitPrice > 0
+          ? Number((amountEth / unitPrice).toFixed(8))
+          : 0;
+    const computedAmount =
+      amountEth > 0
+        ? amountEth
+        : unitPrice > 0 && requestedUnits > 0
+          ? Number((requestedUnits * unitPrice).toFixed(8))
+          : 0;
+
+    if (computedUnits <= 0 || computedAmount <= 0) {
+      return res.status(400).json({ error: "Unable to compute a valid investment amount" });
+    }
+
+    const now = new Date().toISOString();
+    const investmentPayload = {
+      campaign_id: campaign.id,
+      investor_wallet: investorWallet,
+      amount_eth: computedAmount,
+      units_purchased: computedUnits,
+      unit_price_eth: unitPrice || null,
+      status: "pending",
+      invested_at: now,
+      metadata: {
+        source: "web_app",
+        note: "Pending until payment rail is finalized",
+      },
+      created_at: now,
+      updated_at: now,
+    };
+
+    const { data: investment, error: investmentError } = await supabase
+      .from("ip_investments")
+      .insert(investmentPayload)
+      .select("*")
+      .single();
+
+    if (investmentError) return res.status(400).json({ error: investmentError.message });
+
+    const nextUnitsSold = Number(campaign.units_sold || 0) + computedUnits;
+    const campaignUpdates = {
+      units_sold: nextUnitsSold,
+      updated_at: now,
+      metadata: {
+        ...(campaign.metadata || {}),
+        last_investment_at: now,
+      },
+    };
+
+    if (campaign.total_units && nextUnitsSold >= Number(campaign.total_units)) {
+      campaignUpdates.status = "funded";
+    }
+
+    if (campaign.funding_target_eth && Number(campaign.funding_target_eth) > 0) {
+      const totalRaised = Number((Number(campaign.metadata?.committed_amount_eth || 0) + computedAmount).toFixed(8));
+      campaignUpdates.metadata.committed_amount_eth = totalRaised;
+      if (totalRaised >= Number(campaign.funding_target_eth)) {
+        campaignUpdates.status = "funded";
+      }
+    }
+
+    await supabase
+      .from("ip_campaigns")
+      .update(campaignUpdates)
+      .eq("id", campaign.id);
+
+    return res.json(investment);
+  } catch (error) {
+    return res.status(500).json({ error: error.message || "Failed to create investment" });
+  }
+});
 
 const pinataFileImpl = async (req, res) => {
   try {

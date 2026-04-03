@@ -80,6 +80,27 @@ export interface Product {
   updated_at?: string;
 }
 
+export interface ProductAsset {
+  id: string;
+  product_id: string;
+  role?: "preview" | "delivery" | "source" | "attachment";
+  visibility?: "public" | "gated" | "private";
+  asset_type?: "image" | "video" | "audio" | "pdf" | "epub" | "archive" | "software" | "document" | "other";
+  storage_provider?: string | null;
+  uri: string;
+  preview_uri?: string | null;
+  mime_type?: string | null;
+  file_name?: string | null;
+  file_size_bytes?: number | null;
+  checksum_sha256?: string | null;
+  sort_order?: number;
+  is_primary?: boolean;
+  requires_signed_url?: boolean;
+  metadata?: Record<string, unknown>;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface OrderItem {
   id: string;
   order_id: string;
@@ -172,6 +193,114 @@ export interface OrderWithItems extends Order {
       creator_wallet?: string | null;
     }> | null;
   }>;
+}
+
+export interface Entitlement {
+  id: string;
+  order_id?: string | null;
+  order_item_id?: string | null;
+  product_id: string;
+  asset_id?: string | null;
+  buyer_wallet: string;
+  access_type?: "download" | "stream" | "reader" | "license";
+  status?: "granted" | "revoked" | "expired" | "pending";
+  grant_reason?: string | null;
+  granted_at?: string;
+  expires_at?: string | null;
+  revoked_at?: string | null;
+  last_accessed_at?: string | null;
+  access_count?: number;
+  metadata?: Record<string, unknown>;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface Fulfillment {
+  id: string;
+  order_id: string;
+  order_item_id?: string | null;
+  product_id: string;
+  creator_wallet?: string | null;
+  fulfillment_type?: "physical" | "digital" | "hybrid";
+  status?: "pending" | "queued" | "processing" | "sent" | "shipped" | "delivered" | "cancelled" | "failed";
+  provider?: string | null;
+  tracking_code?: string | null;
+  tracking_url?: string | null;
+  shipping_address_jsonb?: Record<string, unknown> | null;
+  shipped_at?: string | null;
+  delivered_at?: string | null;
+  delivery_confirmed_at?: string | null;
+  metadata?: Record<string, unknown>;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface IPCampaign {
+  id: string;
+  artist_id: string;
+  artists?: {
+    id?: string;
+    wallet?: string;
+    name?: string | null;
+    handle?: string | null;
+  } | null;
+  slug?: string | null;
+  title: string;
+  summary?: string | null;
+  description?: string | null;
+  campaign_type?: "revenue_share" | "royalty_split" | "catalog_fund" | "production_raise" | "fan_equity";
+  rights_type?: "creative_ip" | "royalty_stream" | "production_rights" | "license_pool" | "catalog_interest";
+  status?: "draft" | "review" | "active" | "funded" | "settled" | "closed" | "cancelled";
+  visibility?: "private" | "listed" | "unlisted";
+  funding_target_eth?: number;
+  minimum_raise_eth?: number;
+  unit_price_eth?: number | null;
+  total_units?: number | null;
+  units_sold?: number;
+  opens_at?: string | null;
+  closes_at?: string | null;
+  settlement_at?: string | null;
+  shares_contract_address?: string | null;
+  shares_contract_tx?: string | null;
+  legal_doc_uri?: string | null;
+  cover_image_uri?: string | null;
+  metadata?: Record<string, unknown>;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface IPInvestment {
+  id: string;
+  campaign_id: string;
+  investor_wallet: string;
+  amount_eth?: number;
+  units_purchased?: number;
+  unit_price_eth?: number | null;
+  status?: "pending" | "confirmed" | "settled" | "refunded" | "cancelled";
+  contribution_tx_hash?: string | null;
+  settlement_tx_hash?: string | null;
+  invested_at?: string;
+  settled_at?: string | null;
+  metadata?: Record<string, unknown>;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface RoyaltyDistribution {
+  id: string;
+  campaign_id: string;
+  investment_id?: string | null;
+  recipient_wallet: string;
+  source_reference?: string | null;
+  gross_amount_eth?: number;
+  fee_amount_eth?: number;
+  net_amount_eth?: number;
+  status?: "pending" | "processing" | "paid" | "failed" | "cancelled";
+  payout_tx_hash?: string | null;
+  distributed_at?: string | null;
+  metadata?: Record<string, unknown>;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface WhitelistEntry {
@@ -795,6 +924,170 @@ export async function updateOrder(orderId: string, updates: Partial<Order>): Pro
 }
 
 // ──────────────────────────────────────────────
+export async function getProductAssets(
+  productId: string,
+  options: { includePrivate?: boolean } = {},
+): Promise<ProductAsset[]> {
+  try {
+    if (!productId || !supabaseUrl || !supabaseAnonKey) return [];
+
+    if (options.includePrivate) {
+      return await secureApiRequest<ProductAsset[]>(`/products/${productId}/assets`);
+    }
+
+    const { data, error } = await supabase
+      .from("product_assets")
+      .select("*")
+      .eq("product_id", productId)
+      .eq("visibility", "public")
+      .order("is_primary", { ascending: false })
+      .order("sort_order", { ascending: true });
+
+    if (error) {
+      console.error("Error fetching public product assets:", error.message);
+      throw error;
+    }
+
+    return data || [];
+  } catch (error: any) {
+    console.error("getProductAssets failed:", error.message);
+    return [];
+  }
+}
+
+export async function getEntitlementsByBuyer(wallet: string): Promise<Entitlement[]> {
+  try {
+    if (!wallet) return [];
+    return await secureApiRequest<Entitlement[]>(
+      `/entitlements?buyer_wallet=${encodeURIComponent(wallet.toLowerCase())}`,
+    );
+  } catch (error: any) {
+    console.error("getEntitlementsByBuyer failed:", error.message);
+    return [];
+  }
+}
+
+export async function getFulfillmentsByOrder(orderId: string): Promise<Fulfillment[]> {
+  try {
+    if (!orderId) return [];
+    return await secureApiRequest<Fulfillment[]>(`/orders/${orderId}/fulfillments`);
+  } catch (error: any) {
+    console.error("getFulfillmentsByOrder failed:", error.message);
+    return [];
+  }
+}
+
+export async function getIPCampaigns(
+  options: { artistId?: string; status?: IPCampaign["status"] } = {},
+): Promise<IPCampaign[]> {
+  try {
+    if (!supabaseUrl || !supabaseAnonKey) return [];
+
+    const params = new URLSearchParams();
+    if (options.artistId) params.set("artist_id", options.artistId);
+    if (options.status) params.set("status", options.status);
+
+    if (getApiAuthToken()) {
+      const queryString = params.toString();
+      return await secureApiRequest<IPCampaign[]>(
+        `/ip-campaigns${queryString ? `?${queryString}` : ""}`,
+      );
+    }
+
+    let query = supabase
+      .from("ip_campaigns")
+      .select("*")
+      .in("visibility", ["listed", "unlisted"])
+      .in("status", ["active", "funded", "settled", "closed"])
+      .order("created_at", { ascending: false });
+
+    if (options.artistId) {
+      query = query.eq("artist_id", options.artistId);
+    }
+
+    if (options.status) {
+      query = query.eq("status", options.status);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error("Error fetching IP campaigns:", error.message);
+      throw error;
+    }
+
+    return data || [];
+  } catch (error: any) {
+    console.error("getIPCampaigns failed:", error.message);
+    return [];
+  }
+}
+
+export async function createIPCampaign(payload: Partial<IPCampaign>): Promise<IPCampaign | null> {
+  try {
+    return await secureApiRequest<IPCampaign | null>("/ip-campaigns", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  } catch (error: any) {
+    console.error("createIPCampaign failed:", error.message);
+    return null;
+  }
+}
+
+export async function updateIPCampaign(
+  campaignId: string,
+  payload: Partial<IPCampaign>,
+): Promise<IPCampaign | null> {
+  try {
+    return await secureApiRequest<IPCampaign | null>(`/ip-campaigns/${campaignId}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+  } catch (error: any) {
+    console.error("updateIPCampaign failed:", error.message);
+    return null;
+  }
+}
+
+export async function createIPInvestment(
+  payload: Partial<IPInvestment>,
+): Promise<IPInvestment | null> {
+  try {
+    return await secureApiRequest<IPInvestment | null>("/ip-investments", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  } catch (error: any) {
+    console.error("createIPInvestment failed:", error.message);
+    return null;
+  }
+}
+
+export async function getInvestorPositions(wallet: string): Promise<IPInvestment[]> {
+  try {
+    if (!wallet) return [];
+    return await secureApiRequest<IPInvestment[]>(
+      `/ip-investments?investor_wallet=${encodeURIComponent(wallet.toLowerCase())}`,
+    );
+  } catch (error: any) {
+    console.error("getInvestorPositions failed:", error.message);
+    return [];
+  }
+}
+
+export async function getRoyaltyDistributions(wallet: string): Promise<RoyaltyDistribution[]> {
+  try {
+    if (!wallet) return [];
+    return await secureApiRequest<RoyaltyDistribution[]>(
+      `/royalty-distributions?recipient_wallet=${encodeURIComponent(wallet.toLowerCase())}`,
+    );
+  } catch (error: any) {
+    console.error("getRoyaltyDistributions failed:", error.message);
+    return [];
+  }
+}
+
 //  Whitelist Operations
 // ──────────────────────────────────────────────
 

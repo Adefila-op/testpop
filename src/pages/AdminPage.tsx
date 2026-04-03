@@ -28,6 +28,9 @@ import {
   deleteWhitelistEntry as dbDeleteWhitelistEntry,
   updateProduct as dbUpdateProduct,
   updateOrder as dbUpdateOrder,
+  getIPCampaigns as dbGetIPCampaigns,
+  updateIPCampaign as dbUpdateIPCampaign,
+  type IPCampaign,
 } from "@/lib/db";
 import { createOnchainProduct } from "@/lib/productStoreChain";
 import { extractContractProductId, extractProductMetadataUri, mergeProductMetadata } from "@/lib/productMetadata";
@@ -128,6 +131,23 @@ const whitelistColor: Record<string, string> = {
   pending: "bg-yellow-100 text-yellow-800",
   rejected: "bg-red-100 text-red-800",
 };
+const raiseColor: Record<string, string> = {
+  review: "bg-amber-100 text-amber-800",
+  active: "bg-green-100 text-green-800",
+  funded: "bg-blue-100 text-blue-800",
+  settled: "bg-indigo-100 text-indigo-800",
+  closed: "bg-secondary text-muted-foreground",
+  cancelled: "bg-red-100 text-red-800",
+  draft: "bg-secondary text-muted-foreground",
+};
+
+function getRaiseAdminLabel(campaign: IPCampaign) {
+  const reviewStatus = String(campaign.metadata?.review_status || "").toLowerCase();
+  if (reviewStatus === "rejected") return "Rejected";
+  if (reviewStatus === "approved" || campaign.status === "active") return "Approved";
+  if (campaign.status === "review") return "Needs Review";
+  return String(campaign.status || "draft").replace(/_/g, " ");
+}
 function normalizeStoredProduct(product: Partial<MarketProduct> & { id?: string; name?: string }): MarketProduct {
   return {
     id: product.id ?? `mp${Date.now()}`,
@@ -779,6 +799,9 @@ const AdminPage = () => {
   const [products, setProducts] = useState<MarketProduct[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [ordersLoaded, setOrdersLoaded] = useState(false);
+  const [raiseRequests, setRaiseRequests] = useState<IPCampaign[]>([]);
+  const [raiseRequestsLoading, setRaiseRequestsLoading] = useState(false);
+  const [raiseActionId, setRaiseActionId] = useState<string | null>(null);
 
   const [whitelistFilter, setWhitelistFilter] = useState<"all" | "pending" | "approved" | "rejected">("all");
   const [addingArtist, setAddingArtist] = useState(false);
@@ -865,6 +888,37 @@ const AdminPage = () => {
       active = false;
     };
   }, [activeTab, ordersLoaded]);
+
+  useEffect(() => {
+    if (activeTab !== "raises") {
+      return;
+    }
+
+    let active = true;
+    setRaiseRequestsLoading(true);
+
+    dbGetIPCampaigns()
+      .then((campaigns) => {
+        if (active) {
+          setRaiseRequests(campaigns);
+        }
+      })
+      .catch((error) => {
+        console.error("Failed to load raise requests:", error);
+        if (active) {
+          toast.error(error instanceof Error ? error.message : "Failed to load raise requests");
+        }
+      })
+      .finally(() => {
+        if (active) {
+          setRaiseRequestsLoading(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [activeTab]);
 
   // Whitelist actions — now uses backend API for deployment
   const approveArtist = useCallback(async (id: string) => {
@@ -956,6 +1010,32 @@ const AdminPage = () => {
       setWhitelistActionLabel(null);
     }
   }, [whitelist]);
+
+  const reviewRaiseRequest = useCallback(async (campaignId: string, status: "active" | "cancelled") => {
+    setRaiseActionId(campaignId);
+    try {
+      const updated = await dbUpdateIPCampaign(campaignId, {
+        status,
+        metadata: {
+          review_status: status === "active" ? "approved" : "rejected",
+        },
+      });
+
+      if (!updated) {
+        throw new Error("Raise request update failed");
+      }
+
+      setRaiseRequests((prev) => prev.map((campaign) => (
+        campaign.id === campaignId ? updated : campaign
+      )));
+      toast.success(status === "active" ? "Raise approved" : "Raise rejected");
+    } catch (error) {
+      console.error("Failed to review raise request:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to review raise request");
+    } finally {
+      setRaiseActionId(null);
+    }
+  }, []);
   const addArtist = async () => {
     // Validate wallet address
     if (!isValidWalletAddress(newWallet)) {
@@ -1088,6 +1168,7 @@ const AdminPage = () => {
   // Counts for badges
   const pendingWhitelist = useMemo(() => whitelist.filter(e => e.status === "pending").length, [whitelist]);
   const pendingOrders = useMemo(() => orders.filter(o => o.status === "pending").length, [orders]);
+  const pendingRaises = useMemo(() => raiseRequests.filter((campaign) => campaign.status === "review").length, [raiseRequests]);
   const approvedArtists = useMemo(() => whitelist.filter(e => e.status === "approved").length, [whitelist]);
   const whitelistStatusCounts = useMemo(() => ({
     pending: whitelist.filter((entry) => entry.status === "pending").length,
@@ -1188,7 +1269,7 @@ const AdminPage = () => {
           { label: "Whitelisted", value: approvedArtists, icon: Users },
           { label: "Products", value: products.filter(p => p.status === "active").length, icon: ShoppingBag },
           { label: "Orders", value: orders.length, icon: Package },
-          { label: "Pending", value: pendingWhitelist + pendingOrders, icon: AlertTriangle },
+          { label: "Pending", value: pendingWhitelist + pendingOrders + pendingRaises, icon: AlertTriangle },
         ].map(s => (
           <div key={s.label} className="p-3 rounded-2xl bg-card border border-border text-center">
             <s.icon className="h-4 w-4 text-primary mx-auto mb-1" />
@@ -1201,7 +1282,7 @@ const AdminPage = () => {
       {/* Tabs */}
       <div className="max-w-2xl mx-auto px-4 pb-12">
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="w-full bg-secondary rounded-xl h-10 grid grid-cols-5 mb-4">
+          <TabsList className="w-full bg-secondary rounded-xl h-10 grid grid-cols-6 mb-4">
             <TabsTrigger value="whitelist" className="rounded-lg text-xs">
               Artists
               {pendingWhitelist > 0 && (
@@ -1213,6 +1294,12 @@ const AdminPage = () => {
               Orders
               {pendingOrders > 0 && (
                 <span className="ml-1.5 h-4 w-4 rounded-full bg-primary text-primary-foreground text-[9px] inline-flex items-center justify-center">{pendingOrders}</span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="raises" className="rounded-lg text-xs">
+              Raises
+              {pendingRaises > 0 && (
+                <span className="ml-1.5 h-4 w-4 rounded-full bg-primary text-primary-foreground text-[9px] inline-flex items-center justify-center">{pendingRaises}</span>
               )}
             </TabsTrigger>
             <TabsTrigger value="featured" className="rounded-lg text-xs">Featured</TabsTrigger>
@@ -1452,6 +1539,83 @@ const AdminPage = () => {
 
                 <div className="flex justify-end">
                   <UpdateOrderDialog order={order} onUpdate={updateOrder} />
+                </div>
+              </div>
+            ))}
+          </TabsContent>}
+
+          {activeTab === "raises" && <TabsContent value="raises" className="space-y-3">
+            <div className="rounded-2xl border border-border bg-card p-4">
+              <p className="text-sm font-semibold text-foreground">IP raise approval queue</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Artists unlock this queue after reaching 100 followers, then submit a production/IP raise for admin approval.
+              </p>
+            </div>
+
+            {raiseRequestsLoading && (
+              <div className="flex items-center justify-center py-10 text-sm text-muted-foreground">
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading raise requests...
+              </div>
+            )}
+
+            {!raiseRequestsLoading && raiseRequests.length === 0 && (
+              <p className="text-center text-xs text-muted-foreground py-8">No raise requests yet.</p>
+            )}
+
+            {!raiseRequestsLoading && raiseRequests.map((campaign) => (
+              <div key={campaign.id} className="rounded-2xl border border-border bg-card p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">{campaign.title}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {campaign.artists?.name || "Unknown artist"} {campaign.artists?.handle ? `· @${campaign.artists.handle}` : ""}
+                    </p>
+                    <p className="mt-2 text-xs text-muted-foreground">{campaign.summary || campaign.description}</p>
+                  </div>
+                  <span className={`text-[10px] font-medium px-2 py-1 rounded-full ${raiseColor[campaign.status || "draft"] || raiseColor.draft}`}>
+                    {getRaiseAdminLabel(campaign)}
+                  </span>
+                </div>
+
+                <div className="mt-3 grid grid-cols-3 gap-2">
+                  <div className="rounded-xl bg-secondary p-2 text-center">
+                    <p className="text-xs font-bold text-foreground">{campaign.funding_target_eth || 0} ETH</p>
+                    <p className="text-[9px] text-muted-foreground">Target</p>
+                  </div>
+                  <div className="rounded-xl bg-secondary p-2 text-center">
+                    <p className="text-xs font-bold text-foreground">{campaign.metadata?.eligibility_followers || "--"}</p>
+                    <p className="text-[9px] text-muted-foreground">Followers</p>
+                  </div>
+                  <div className="rounded-xl bg-secondary p-2 text-center">
+                    <p className="text-xs font-bold text-foreground">{campaign.total_units || "--"}</p>
+                    <p className="text-[9px] text-muted-foreground">Units</p>
+                  </div>
+                </div>
+
+                <div className="mt-3 flex items-center justify-between gap-3">
+                  <div className="text-[10px] text-muted-foreground">
+                    Rights: {campaign.rights_type || "creative_ip"} · Type: {campaign.campaign_type || "production_raise"}
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="rounded-full"
+                      disabled={raiseActionId === campaign.id || campaign.status === "active"}
+                      onClick={() => reviewRaiseRequest(campaign.id, "active")}
+                    >
+                      {raiseActionId === campaign.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Approve"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="rounded-full text-destructive"
+                      disabled={raiseActionId === campaign.id || campaign.metadata?.review_status === "rejected"}
+                      onClick={() => reviewRaiseRequest(campaign.id, "cancelled")}
+                    >
+                      Reject
+                    </Button>
+                  </div>
                 </div>
               </div>
             ))}
