@@ -11,11 +11,14 @@ import {
   PUBLIC_PRODUCT_STATUSES,
   normalizePublicDropStatus,
 } from "@/lib/catalogVisibility";
+import { ipfsToHttp } from "@/lib/pinata";
+import { resolvePortfolioImage } from "@/lib/portfolio";
 
 let dropsColumnsMode: "full" | "legacy" | null = null;
 let dropsArtistRelationMode: "embedded" | "detached" | null = null;
 let artistsStatusMode: "native" | "legacy" | null = null;
 let productColumnsMode: "full" | "legacy" | null = null;
+const metadataJsonCache = new Map<string, Promise<Record<string, any> | null>>();
 
 const FULL_PUBLIC_PRODUCT_SELECT = [
   "id",
@@ -126,10 +129,19 @@ function withDropDefaults<T extends Record<string, any> | null>(drop: T): T {
   };
 }
 
+function isCampaignUpcomingDraft(drop: Record<string, any>) {
+  const normalizedType = normalizeDropType(drop?.type);
+  const normalizedStatus = normalizeDropStatus(drop?.status);
+  return normalizedType === "campaign" && (normalizedStatus === "draft" || normalizedStatus === "upcoming");
+}
+
 function filterNonExpiredLiveDrops<T extends Record<string, any>>(drops: T[]) {
   const now = Date.now();
   return (drops || []).filter((drop) => {
-    if (normalizeDropStatus(drop?.status) !== "live") {
+    const normalizedStatus = normalizeDropStatus(drop?.status);
+    const isVisibleCampaign = isCampaignUpcomingDraft(drop);
+
+    if (normalizedStatus !== "live" && !isVisibleCampaign) {
       return false;
     }
     if (!drop?.ends_at) return true;
@@ -137,6 +149,162 @@ function filterNonExpiredLiveDrops<T extends Record<string, any>>(drops: T[]) {
     if (!Number.isFinite(endsAt)) return true;
     return endsAt > now;
   });
+}
+
+function getMetadataField(metadata: Record<string, any> | null | undefined, key: string) {
+  const value = metadata?.[key];
+  return typeof value === "string" && value.trim() ? value.trim() : "";
+}
+
+function extractImageUriFromMetadata(metadata: Record<string, any> | null | undefined) {
+  if (!metadata || typeof metadata !== "object") {
+    return "";
+  }
+
+  const properties =
+    metadata.properties && typeof metadata.properties === "object" && !Array.isArray(metadata.properties)
+      ? (metadata.properties as Record<string, any>)
+      : null;
+
+  return (
+    getMetadataField(metadata, "coverImageUri") ||
+    getMetadataField(metadata, "cover_image_uri") ||
+    getMetadataField(metadata, "cover") ||
+    getMetadataField(metadata, "imageUrl") ||
+    getMetadataField(metadata, "image_url") ||
+    getMetadataField(metadata, "imageUri") ||
+    getMetadataField(metadata, "image_uri") ||
+    getMetadataField(metadata, "previewUri") ||
+    getMetadataField(metadata, "preview_uri") ||
+    getMetadataField(metadata, "image") ||
+    getMetadataField(properties, "coverImageUri") ||
+    getMetadataField(properties, "cover_image_uri") ||
+    getMetadataField(properties, "cover") ||
+    getMetadataField(properties, "imageUrl") ||
+    getMetadataField(properties, "image_url") ||
+    getMetadataField(properties, "imageUri") ||
+    getMetadataField(properties, "image_uri") ||
+    getMetadataField(properties, "previewUri") ||
+    getMetadataField(properties, "preview_uri") ||
+    getMetadataField(properties, "image")
+  );
+}
+
+async function fetchMetadataJson(uri?: string | null) {
+  const normalizedUri = uri?.trim();
+  if (!normalizedUri) {
+    return null;
+  }
+
+  if (!metadataJsonCache.has(normalizedUri)) {
+    metadataJsonCache.set(
+      normalizedUri,
+      fetch(ipfsToHttp(normalizedUri))
+        .then(async (response) => {
+          if (!response.ok) {
+            throw new Error(`Metadata request failed: ${response.status}`);
+          }
+          return (await response.json()) as Record<string, any>;
+        })
+        .catch((error) => {
+          console.warn("Failed to fetch metadata JSON:", normalizedUri, error);
+          return null;
+        })
+    );
+  }
+
+  return metadataJsonCache.get(normalizedUri) ?? null;
+}
+
+async function enrichDropMediaFromMetadata<T extends Record<string, any>>(drop: T) {
+  const withDefaults = withDropDefaults(drop);
+  const existingImage =
+    withDefaults.preview_uri ||
+    withDefaults.image_url ||
+    withDefaults.image_ipfs_uri ||
+    extractImageUriFromMetadata((withDefaults.metadata as Record<string, any> | undefined) || null);
+
+  if (existingImage || !withDefaults.metadata_ipfs_uri) {
+    return withDefaults;
+  }
+
+  const metadata = await fetchMetadataJson(withDefaults.metadata_ipfs_uri);
+  if (!metadata) {
+    return withDefaults;
+  }
+
+  const metadataImage = extractImageUriFromMetadata(metadata);
+  if (!metadataImage) {
+    return {
+      ...withDefaults,
+      metadata: withDefaults.metadata || metadata,
+    };
+  }
+
+  return {
+    ...withDefaults,
+    metadata: withDefaults.metadata || metadata,
+    image_ipfs_uri: withDefaults.image_ipfs_uri || metadataImage,
+    image_url: withDefaults.image_url || ipfsToHttp(metadataImage),
+    preview_uri: withDefaults.preview_uri || metadataImage,
+  };
+}
+
+async function enrichDropsMediaFromMetadata<T extends Record<string, any>>(drops: T[]) {
+  return Promise.all((drops || []).map((drop) => enrichDropMediaFromMetadata(drop)));
+}
+
+async function enrichArtistPortfolioEntries<T extends Record<string, any>>(artist: T) {
+  const portfolio = Array.isArray(artist.portfolio) ? artist.portfolio : [];
+  if (portfolio.length === 0) {
+    return artist;
+  }
+
+  const nextPortfolio = await Promise.all(
+    portfolio.map(async (piece) => {
+      if (!piece || typeof piece !== "object" || Array.isArray(piece)) {
+        return piece;
+      }
+
+      const resolvedImage = resolvePortfolioImage(piece as Record<string, unknown>);
+      if (resolvedImage) {
+        return piece;
+      }
+
+      const metadataUri =
+        (typeof (piece as Record<string, any>).metadataUri === "string" && (piece as Record<string, any>).metadataUri) ||
+        (typeof (piece as Record<string, any>).metadata_uri === "string" && (piece as Record<string, any>).metadata_uri) ||
+        "";
+
+      if (!metadataUri) {
+        return piece;
+      }
+
+      const metadata = await fetchMetadataJson(metadataUri);
+      const metadataImage = extractImageUriFromMetadata(metadata);
+      if (!metadataImage) {
+        return piece;
+      }
+
+      return {
+        ...piece,
+        image: (piece as Record<string, any>).image || ipfsToHttp(metadataImage),
+        imageUri:
+          (piece as Record<string, any>).imageUri ||
+          (piece as Record<string, any>).image_uri ||
+          metadataImage,
+      };
+    })
+  );
+
+  return {
+    ...artist,
+    portfolio: nextPortfolio,
+  };
+}
+
+async function enrichArtistsPortfolioEntries<T extends Record<string, any>>(artists: T[]) {
+  return Promise.all((artists || []).map((artist) => enrichArtistPortfolioEntries(artist)));
 }
 
 async function fetchArtistsByIdsFromSupabase(artistIds: Array<string | null | undefined>) {
@@ -279,7 +447,8 @@ async function fetchPublicArtistsFromSupabase(artistId?: string) {
       return acc;
     }, []);
 
-  return artistId ? (merged[0] ?? null) : merged;
+  const enriched = await enrichArtistsPortfolioEntries(merged);
+  return artistId ? (enriched[0] ?? null) : enriched;
 }
 
 function shouldUseFullDropColumns() {
@@ -584,7 +753,6 @@ export async function fetchLiveDropsFromSupabase() {
     let { data, error } = await supabase
       .from("drops")
       .select(getLiveDropsSelectClause())
-      .not("status", "eq", "draft")
       .order("created_at", { ascending: false });
 
     updateDropSchemaModes(error);
@@ -598,7 +766,6 @@ export async function fetchLiveDropsFromSupabase() {
       ({ data, error } = await supabase
         .from("drops")
         .select(getLiveDropsSelectClause())
-        .not("status", "eq", "draft")
         .order("created_at", { ascending: false }));
 
       if (!error && dropsArtistRelationMode === "detached") {
@@ -614,7 +781,8 @@ export async function fetchLiveDropsFromSupabase() {
       throw error;
     }
 
-    const filtered = filterNonExpiredLiveDrops(data || []);
+    const enriched = await enrichDropsMediaFromMetadata(data || []);
+    const filtered = filterNonExpiredLiveDrops(enriched);
     console.log(`✅ Fetched ${filtered.length || 0} live drops from Supabase`);
     return filtered;
   } catch (error: any) {
@@ -660,7 +828,7 @@ export async function fetchDropByIdFromSupabase(dropId: string) {
       throw error;
     }
 
-    return withDropDefaults(data ?? null);
+    return data ? await enrichDropMediaFromMetadata(data) : null;
   } catch (error: any) {
     console.error("❌ fetchDropByIdFromSupabase failed:", error.message);
     throw error;
@@ -703,8 +871,9 @@ export async function fetchDropsByArtistFromSupabase(artistId: string) {
       throw error;
     }
 
-    console.log(`✅ Fetched ${data?.length || 0} drops for artist`);
-    return (data || []).map((drop) => withDropDefaults(drop));
+    const enriched = await enrichDropsMediaFromMetadata(data || []);
+    console.log(`✅ Fetched ${enriched.length || 0} drops for artist`);
+    return enriched;
   } catch (error: any) {
     console.error("❌ fetchDropsByArtistFromSupabase failed:", error.message);
     throw error;

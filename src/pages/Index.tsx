@@ -18,6 +18,7 @@ import { resolveMediaUrl } from "@/lib/pinata";
 import { resolveDropCoverImage } from "@/lib/mediaPreview";
 import { resolvePortfolioImage } from "@/lib/portfolio";
 import { ACTIVE_CHAIN } from "@/lib/wagmi";
+import { normalizePublicDropStatus } from "@/lib/catalogVisibility";
 import {
   loadFeaturedCreatorSlides,
   getFeaturedCreatorsUpdateEventName,
@@ -277,7 +278,7 @@ const Index = () => {
         deliveryUri: drop.delivery_uri || "",
         assetType: drop.asset_type || "image",
         type: normalizedType,
-        status: drop.status as "live" | "draft" | "ended",
+        status: normalizePublicDropStatus(drop.status),
         endsIn: drop.ends_at ? `${Math.max(0, Math.floor((new Date(drop.ends_at).getTime() - Date.now()) / (1000 * 60 * 60)))}h` : "--",
       };
     }).filter((drop): drop is NonNullable<typeof drop> => drop !== null));

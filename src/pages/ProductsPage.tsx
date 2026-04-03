@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useMemo, useState } from "react";
-import { Search, ShoppingCart, Sparkles } from "lucide-react";
+import { Package, Search, ShoppingCart, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useNavigate } from "react-router-dom";
@@ -108,6 +108,15 @@ export function ProductsPage() {
               </div>
 
               <Button
+                onClick={() => navigate("/orders")}
+                className="h-12 rounded-full border border-black/8 bg-white px-5 text-foreground hover:bg-secondary"
+                variant="outline"
+              >
+                <Package className="mr-2 h-4 w-4" />
+                Orders
+              </Button>
+
+              <Button
                 onClick={() => navigate("/cart")}
                 className="relative h-12 rounded-full border border-black/8 bg-white px-5 text-foreground hover:bg-secondary"
                 variant="outline"
@@ -208,6 +217,32 @@ export function ProductsPage() {
                   <p className="text-sm text-muted-foreground">
                     {filteredByCategory.length} product{filteredByCategory.length !== 1 ? "s" : ""} found
                   </p>
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-3">
+                  <div className="rounded-[1.4rem] border border-[#dbeafe] bg-white/90 px-4 py-4">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#1d4ed8]">Marketplace</p>
+                    <p className="mt-2 text-lg font-semibold text-foreground">Desktop-ready shopping</p>
+                    <p className="mt-1 text-sm text-muted-foreground">Browse products, open cart, and jump straight into order tracking.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => navigate("/cart")}
+                    className="rounded-[1.4rem] border border-[#dbeafe] bg-white/90 px-4 py-4 text-left transition-colors hover:bg-[#f8fbff]"
+                  >
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#1d4ed8]">Cart</p>
+                    <p className="mt-2 text-lg font-semibold text-foreground">{totalCartItems} item{totalCartItems !== 1 ? "s" : ""} ready</p>
+                    <p className="mt-1 text-sm text-muted-foreground">Review quantities and continue to checkout.</p>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => navigate("/orders")}
+                    className="rounded-[1.4rem] border border-[#dbeafe] bg-white/90 px-4 py-4 text-left transition-colors hover:bg-[#f8fbff]"
+                  >
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#1d4ed8]">Orders</p>
+                    <p className="mt-2 text-lg font-semibold text-foreground">Track purchases</p>
+                    <p className="mt-1 text-sm text-muted-foreground">Check delivery status and revisit completed orders.</p>
+                  </button>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3">

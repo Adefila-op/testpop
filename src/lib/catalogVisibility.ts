@@ -2,6 +2,7 @@ const normalizeCatalogStatus = (status?: string | null) => status?.trim().toLowe
 
 export const PUBLIC_PRODUCT_STATUSES = ["published", "active"] as const;
 export const LIVE_DROP_STATUSES = ["live", "active", "published"] as const;
+export const UPCOMING_DROP_STATUSES = ["upcoming", "pending"] as const;
 
 export function isPublicProductStatus(status?: string | null) {
   const normalizedStatus = normalizeCatalogStatus(status);
@@ -10,7 +11,7 @@ export function isPublicProductStatus(status?: string | null) {
   );
 }
 
-export function normalizePublicDropStatus(status?: string | null) {
+export function normalizePublicDropStatus(status?: string | null): "live" | "upcoming" | "draft" | "ended" {
   const normalizedStatus = normalizeCatalogStatus(status);
 
   if (
@@ -22,9 +23,15 @@ export function normalizePublicDropStatus(status?: string | null) {
   }
 
   if (
-    normalizedStatus === "draft" ||
-    normalizedStatus === "upcoming" ||
-    normalizedStatus === "pending"
+    UPCOMING_DROP_STATUSES.includes(
+      normalizedStatus as (typeof UPCOMING_DROP_STATUSES)[number]
+    )
+  ) {
+    return "upcoming";
+  }
+
+  if (
+    normalizedStatus === "draft"
   ) {
     return "draft";
   }

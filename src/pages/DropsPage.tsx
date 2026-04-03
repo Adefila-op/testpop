@@ -8,6 +8,7 @@ import { useSupabaseLiveDrops } from "@/hooks/useSupabase";
 import { type AssetType } from "@/lib/assetTypes";
 import { resolveMediaUrl } from "@/lib/pinata";
 import { resolveDropCoverImage } from "@/lib/mediaPreview";
+import { normalizePublicDropStatus } from "@/lib/catalogVisibility";
 import {
   getFeaturedCreatorsUpdateEventName,
   loadFeaturedCreatorSlides,
@@ -59,7 +60,7 @@ const DropsPage = () => {
         previewUri: resolveMediaUrl(drop.preview_uri),
         deliveryUri: drop.delivery_uri || "",
         type: (drop.type || "drop").toLowerCase() as "drop" | "auction" | "campaign",
-        status: drop.status as "live" | "draft" | "ended",
+        status: normalizePublicDropStatus(drop.status),
         endsIn: drop.ends_at
           ? `${Math.max(0, Math.floor((new Date(drop.ends_at).getTime() - Date.now()) / (1000 * 60 * 60)))}h`
           : "--",
@@ -397,51 +398,8 @@ const DropsPage = () => {
       </div>
 
       <div className="px-4 pt-4 md:hidden">
-        <div className="overflow-hidden rounded-[2.4rem] bg-[linear-gradient(180deg,#eff6ff_0%,#dbeafe_100%)] px-4 pb-5 pt-5 shadow-[0_24px_60px_rgba(37,99,235,0.18)] ring-1 ring-[#bfdbfe] dark:bg-[linear-gradient(180deg,#0f172a_0%,#172554_100%)] dark:shadow-[0_28px_70px_rgba(15,23,42,0.45)] dark:ring-white/10">
-          <div className="flex items-start justify-between gap-4">
-            <div className="max-w-[15rem]">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#1d4ed8]/72 dark:text-sky-200/72">
-                Digital Drops
-              </p>
-              <h1 className="mt-2 text-[2rem] font-black leading-[1.02] tracking-[-0.04em] text-slate-950 dark:text-white">
-                Discover your next digital collection
-              </h1>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => {
-                if (mobileHeroDrop) {
-                  recordDropView(mobileHeroDrop.id);
-                  navigate(`/drops/${mobileHeroDrop.id}`);
-                }
-              }}
-              aria-label={mobileHeroDrop ? `Open ${mobileHeroDrop.title}` : "Featured drop"}
-              className="mt-1 flex h-11 w-11 items-center justify-center overflow-hidden rounded-full bg-white shadow-[0_12px_24px_rgba(37,99,235,0.16)] ring-1 ring-[#bfdbfe] dark:bg-slate-900 dark:ring-white/10"
-            >
-              {mobileHeroDrop?.artistAvatar ? (
-                <img
-                  src={mobileHeroDrop.artistAvatar}
-                  alt={mobileHeroDrop.artist}
-                  className="h-full w-full object-cover"
-                  loading="eager"
-                  decoding="async"
-                />
-              ) : mobileHeroDrop?.image ? (
-                <img
-                  src={mobileHeroDrop.image}
-                  alt={mobileHeroDrop.title}
-                  className="h-full w-full object-cover"
-                  loading="eager"
-                  decoding="async"
-                />
-              ) : (
-                <Sparkles className="h-5 w-5 text-primary" />
-              )}
-            </button>
-          </div>
-
-          <div className="mt-5 rounded-full bg-white/95 px-4 py-3 shadow-[0_12px_26px_rgba(37,99,235,0.14)] ring-1 ring-[#bfdbfe] dark:bg-slate-950/90 dark:ring-white/10">
+        <div className="overflow-hidden rounded-[2.2rem] bg-[linear-gradient(180deg,#eff6ff_0%,#dbeafe_100%)] px-4 pb-5 pt-4 shadow-[0_24px_60px_rgba(37,99,235,0.18)] ring-1 ring-[#bfdbfe] dark:bg-[linear-gradient(180deg,#0f172a_0%,#172554_100%)] dark:shadow-[0_28px_70px_rgba(15,23,42,0.45)] dark:ring-white/10">
+          <div className="rounded-full bg-white/95 px-4 py-3 shadow-[0_12px_26px_rgba(37,99,235,0.14)] ring-1 ring-[#bfdbfe] dark:bg-slate-950/90 dark:ring-white/10">
             <label className="flex items-center gap-3 text-sm text-slate-500 dark:text-slate-400">
               <Search className="h-4 w-4" />
               <input
@@ -505,24 +463,21 @@ const DropsPage = () => {
             {isSearchPending ? " Updating..." : ""}
           </p>
 
-          <div className="mt-4 grid grid-cols-2 gap-3">
+          <div className="mt-4 grid grid-cols-4 gap-2">
             {filters.map((filter) => {
               const isActive = active === filter.value;
               return (
                 <button
-                    key={filter.value}
-                    type="button"
-                    onClick={() => setActive(filter.value)}
-                    className={`rounded-[1.25rem] border px-4 py-4 text-left transition-all ${
-                      isActive
-                        ? "border-[#93c5fd] bg-white text-slate-950 shadow-[0_12px_24px_rgba(37,99,235,0.14)] dark:border-sky-400/40 dark:bg-slate-950 dark:text-white"
-                        : "border-[#bfdbfe] bg-white/65 text-slate-700 dark:border-white/10 dark:bg-slate-950/55 dark:text-slate-200"
-                    }`}
+                  key={filter.value}
+                  type="button"
+                  onClick={() => setActive(filter.value)}
+                  className={`rounded-full border px-2 py-2.5 text-center text-[11px] font-semibold uppercase tracking-[0.16em] transition-all ${
+                    isActive
+                      ? "border-[#93c5fd] bg-white text-slate-950 shadow-[0_10px_20px_rgba(37,99,235,0.14)] dark:border-sky-400/40 dark:bg-slate-950 dark:text-white"
+                      : "border-[#bfdbfe] bg-white/65 text-slate-700 dark:border-white/10 dark:bg-slate-950/55 dark:text-slate-200"
+                  }`}
                 >
-                  <p className="text-sm font-semibold">{filter.label}</p>
-                  <p className="mt-1 text-[11px] uppercase tracking-[0.22em] text-foreground/45">
-                    {filter.value === "all" ? "Curated" : filter.value}
-                  </p>
+                  {filter.label}
                 </button>
               );
             })}

@@ -11,6 +11,7 @@ type DropCoverInput = {
 };
 
 const IMAGE_EXTENSION_PATTERN = /\.(avif|bmp|gif|jpe?g|png|svg|webp)$/i;
+const NON_IMAGE_EXTENSION_PATTERN = /\.(pdf|epub|mp3|wav|ogg|m4a|flac|mp4|mov|webm|zip|rar|7z|json)$/i;
 const BARE_IPFS_CID_PATTERN = /^(bafy[a-z2-7]+|bafk[a-z2-7]+|Qm[1-9A-HJ-NP-Za-km-z]{44,})$/;
 
 function trimCandidate(candidate?: string | null) {
@@ -19,6 +20,11 @@ function trimCandidate(candidate?: string | null) {
 
 function stripQueryAndHash(value: string) {
   return value.replace(/[?#].*$/, "");
+}
+
+function isLikelyNonImageAssetUrl(value: string) {
+  const stripped = stripQueryAndHash(value);
+  return NON_IMAGE_EXTENSION_PATTERN.test(stripped);
 }
 
 function normalizeIpfsLikeValue(value: string) {
@@ -102,6 +108,11 @@ function getMetadataCoverCandidate(metadata?: Record<string, unknown> | null) {
     readStringField(metadata, "coverImageUri") ||
     readStringField(metadata, "cover_image_uri") ||
     readStringField(metadata, "cover_image") ||
+    readStringField(metadata, "cover") ||
+    readStringField(metadata, "imageUrl") ||
+    readStringField(metadata, "image_url") ||
+    readStringField(metadata, "imageUri") ||
+    readStringField(metadata, "image_uri") ||
     readStringField(metadata, "previewUri") ||
     readStringField(metadata, "preview_uri");
 
@@ -119,6 +130,11 @@ function getMetadataCoverCandidate(metadata?: Record<string, unknown> | null) {
     readStringField(propertiesRecord, "coverImageUri") ||
     readStringField(propertiesRecord, "cover_image_uri") ||
     readStringField(propertiesRecord, "cover_image") ||
+    readStringField(propertiesRecord, "cover") ||
+    readStringField(propertiesRecord, "imageUrl") ||
+    readStringField(propertiesRecord, "image_url") ||
+    readStringField(propertiesRecord, "imageUri") ||
+    readStringField(propertiesRecord, "image_uri") ||
     readStringField(propertiesRecord, "previewUri") ||
     readStringField(propertiesRecord, "preview_uri")
   );
@@ -157,8 +173,7 @@ export function resolveDropCoverImage({
       shouldAvoidDeliveryAsset &&
       !deliveryUri &&
       hasOnlyOneCandidateTarget &&
-      !/^data:image\//i.test(value) &&
-      !IMAGE_EXTENSION_PATTERN.test(stripQueryAndHash(value))
+      isLikelyNonImageAssetUrl(value)
     ) {
       continue;
     }

@@ -11,6 +11,7 @@ type PortfolioImageLike = {
   previewUri?: string | null;
   src?: string | null;
   url?: string | null;
+  cover?: string | null;
   coverImageUri?: string | null;
   cover_image_uri?: string | null;
 };
@@ -32,6 +33,7 @@ export function resolvePortfolioImage(piece?: PortfolioImageLike | string | null
     piece.image_uri,
     piece.previewUri,
     piece.preview_uri,
+    piece.cover,
     piece.coverImageUri,
     piece.cover_image_uri,
     piece.src,

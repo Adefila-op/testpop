@@ -261,10 +261,13 @@ const ArtistProfilePage = () => {
     [transformedArtist]
   );
   const isArtistOwner = !!address && !!transformedArtist?.wallet && address.toLowerCase() === transformedArtist.wallet.toLowerCase();
-  const liveDrops = useMemo(
+  const visibleDrops = useMemo(
     () =>
       artistDrops.filter((drop) => {
-        if (drop.status !== "live") return false;
+        const isVisibleStatus =
+          drop.status === "live" ||
+          (drop.type === "campaign" && (drop.status === "upcoming" || drop.status === "draft"));
+        if (!isVisibleStatus) return false;
         if (!drop.endsAt) return true;
         const endsAt = new Date(drop.endsAt).getTime();
         if (!Number.isFinite(endsAt)) return true;
@@ -272,7 +275,7 @@ const ArtistProfilePage = () => {
       }),
     [artistDrops]
   );
-  const featuredDrop = liveDrops[0] ?? null;
+  const featuredDrop = visibleDrops[0] ?? null;
   const primaryRaiseCampaign = visibleRaiseCampaigns[0] ?? null;
   const mobileIdentity = transformedArtist?.handle
     ? `@${transformedArtist.handle}`
@@ -288,12 +291,12 @@ const ArtistProfilePage = () => {
   useEffect(() => {
     setActiveContentTab((current) => {
       if (current === "portfolio" && portfolioPieces.length > 0) return current;
-      if (current === "drops" && liveDrops.length > 0) return current;
+      if (current === "drops" && visibleDrops.length > 0) return current;
       if (portfolioPieces.length > 0) return "portfolio";
-      if (liveDrops.length > 0) return "drops";
+      if (visibleDrops.length > 0) return "drops";
       return "portfolio";
     });
-  }, [liveDrops.length, portfolioPieces.length]);
+  }, [portfolioPieces.length, visibleDrops.length]);
 
   if (invalidArtistId) {
     return (
@@ -507,7 +510,7 @@ const ArtistProfilePage = () => {
                   </span>
                   <span className="inline-flex items-center gap-1.5">
                     <Flame className="h-4 w-4 text-[#0f9d74]" />
-                    {liveDrops.length} drops
+                    {visibleDrops.length} projects
                   </span>
                 </div>
 
@@ -605,11 +608,11 @@ const ArtistProfilePage = () => {
                   <TabsContent value="drops" className="mt-0 space-y-3">
                     {dropsLoading ? (
                       <div className="rounded-[1.4rem] bg-[#f8fbff] py-10 text-center text-sm text-muted-foreground">Loading drops...</div>
-                    ) : liveDrops.length === 0 ? (
-                      <div className="rounded-[1.4rem] border border-dashed border-[#dbe7ff] bg-[#f8fbff] py-10 text-center text-sm text-muted-foreground">No live drops yet.</div>
+                    ) : visibleDrops.length === 0 ? (
+                      <div className="rounded-[1.4rem] border border-dashed border-[#dbe7ff] bg-[#f8fbff] py-10 text-center text-sm text-muted-foreground">No drops or campaigns yet.</div>
                     ) : (
                       <div className="space-y-3">
-                        {liveDrops.map((drop, index) => (
+                        {visibleDrops.map((drop, index) => (
                           <Link key={drop.id} to={`/drops/${drop.id}`} className={`overflow-hidden rounded-[1.4rem] border border-[#edf2f7] bg-white shadow-[0_10px_24px_rgba(15,23,42,0.05)] ${index === 0 ? "block" : "flex items-center gap-3 p-3"}`}>
                             {index === 0 ? (
                               <div className="relative h-60 overflow-hidden">
@@ -689,7 +692,7 @@ const ArtistProfilePage = () => {
                 <p className="mt-1 text-xs uppercase tracking-[0.22em] text-white/74">Subscribers</p>
               </div>
               <div className="rounded-[1.3rem] bg-white/14 p-3 backdrop-blur-sm">
-                <p className="text-2xl font-black">{liveDrops.length}</p>
+                <p className="text-2xl font-black">{visibleDrops.length}</p>
                 <p className="mt-1 text-xs uppercase tracking-[0.22em] text-white/74">Projects</p>
               </div>
             </div>
@@ -827,7 +830,7 @@ const ArtistProfilePage = () => {
                       </span>
                     </div>
                     <h2 className="mt-3 text-3xl font-black tracking-[-0.04em] text-foreground sm:text-4xl xl:text-5xl">
-                      {activeContentTab === "portfolio" ? "Portfolio" : "Live Drops"}
+                      {activeContentTab === "portfolio" ? "Portfolio" : "Drops & Campaigns"}
                     </h2>
                   </div>
 
@@ -909,9 +912,9 @@ const ArtistProfilePage = () => {
                       <div className="rounded-[1.5rem] bg-white/80 py-12 text-center text-sm text-muted-foreground">
                         Loading drops...
                       </div>
-                    ) : liveDrops.length === 0 ? (
+                    ) : visibleDrops.length === 0 ? (
                       <div className="rounded-[1.5rem] border border-dashed border-[#dbe7ff] bg-white/80 py-12 text-center text-sm text-muted-foreground">
-                        No live drops yet.
+                        No drops or campaigns yet.
                       </div>
                     ) : (
                       <>
@@ -937,7 +940,7 @@ const ArtistProfilePage = () => {
                         )}
 
                         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                          {liveDrops.map((drop) => (
+                          {visibleDrops.map((drop) => (
                             <Link key={drop.id} to={`/drops/${drop.id}`} className="overflow-hidden rounded-2xl bg-card shadow-card">
                               <div className="aspect-square overflow-hidden">
                                 <img src={drop.image} alt={drop.title} className="h-full w-full object-cover" />
@@ -964,10 +967,10 @@ const ArtistProfilePage = () => {
               <div className="grid gap-3">
                 <div className="rounded-[1.5rem] bg-[#eff6ff] p-4">
                   <p className="text-4xl font-black text-foreground">
-                    {activeContentTab === "portfolio" ? portfolioPieces.length : liveDrops.length}
+                    {activeContentTab === "portfolio" ? portfolioPieces.length : visibleDrops.length}
                   </p>
                   <p className="mt-1 text-foreground/80">
-                    {activeContentTab === "portfolio" ? "Portfolio Pieces" : "Live Drops"}
+                    {activeContentTab === "portfolio" ? "Portfolio Pieces" : "Drops & Campaigns"}
                   </p>
                 </div>
                 <div className="rounded-[1.5rem] bg-[#1d4ed8] p-4 text-white">
