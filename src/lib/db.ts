@@ -352,14 +352,16 @@ export interface CampaignSubmission {
 // ─────────────────────────────────────────────────────────────────────────
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL?.trim();
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim();
+const supabaseAnonKey =
+  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY?.trim() ||
+  import.meta.env.VITE_SUPABASE_ANON_KEY?.trim();
 
 // Check if Supabase is configured - don't throw, just log
 if (!supabaseUrl || !supabaseAnonKey) {
   console.warn("⚠️  Supabase not configured.");
   console.warn("To enable Supabase, add these to .env.local:");
   console.warn("  VITE_SUPABASE_URL=https://your-project.supabase.co");
-  console.warn("  VITE_SUPABASE_ANON_KEY=your_anon_key_here");
+  console.warn("  VITE_SUPABASE_PUBLISHABLE_KEY=your_publishable_key_here");
 }
 
 // Create client even if not configured (will fail gracefully)

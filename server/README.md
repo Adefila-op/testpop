@@ -14,9 +14,9 @@ Create `server/.env` or set these variables in Railway/Render:
 - `FRONTEND_ORIGIN=http://localhost:5173`
 - `APP_JWT_SECRET=...`
 - `SUPABASE_URL=...`
-- `SUPABASE_SERVICE_ROLE_KEY=...`
+- `SUPABASE_SECRET_KEY=...` or `SUPABASE_SERVICE_ROLE_KEY=...`
 - `SUPABASE_JWT_SECRET=...` (optional but required if you want a Supabase-compatible JWT returned)
-- `PINATA_JWT=...`
+- `PINATA_JWT=...` or both `PINATA_API_KEY=...` and `PINATA_API_SECRET=...`
 - `ADMIN_WALLETS=0xabc...,0xdef...`
 
 ## Local run
@@ -37,5 +37,5 @@ npm run server:dev
 ## Security notes
 
 - privileged writes now go through the backend only
-- the backend uses the Supabase service role key and its own wallet-authenticated session token
+- the backend uses the Supabase server key and its own wallet-authenticated session token
 - Pinata credentials never enter the browser bundle

@@ -1,21 +1,18 @@
-// Vercel serverless function — proxies JSON metadata uploads to Pinata
+// Vercel serverless function - proxies JSON metadata uploads to Pinata
 // Deployed at: /api/pinata/json
-// Called by: src/lib/pinata.ts → uploadMetadataToPinata()
+// Called by: src/lib/pinata.ts -> uploadMetadataToPinata()
+
+import { requirePinataAuth } from "../../server/pinataAuth.js";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const pinataJwt = process.env.PINATA_JWT;
-  if (!pinataJwt) {
-    return res.status(500).json({ error: "PINATA_JWT is not configured on the server" });
-  }
-
   try {
+    const pinataAuthHeaders = requirePinataAuth(process.env);
     let body = req.body;
 
-    // body may arrive as a string if Vercel's default parser runs
     if (typeof body === "string") {
       try {
         body = JSON.parse(body);
@@ -32,7 +29,7 @@ export default async function handler(req, res) {
     const pinataResponse = await fetch("https://api.pinata.cloud/pinning/pinJSONToIPFS", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${pinataJwt}`,
+        ...pinataAuthHeaders,
         "Content-Type": "application/json",
       },
       body: JSON.stringify(metadata),

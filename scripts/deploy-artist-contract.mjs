@@ -14,7 +14,7 @@
  * Environment variables:
  *   PRIVATE_KEY - Factory owner private key
  *   SUPABASE_URL - Supabase project URL
- *   SUPABASE_ANON_KEY - Supabase anonymous key
+ *   SUPABASE_PUBLISHABLE_KEY or SUPABASE_ANON_KEY - Supabase client key
  */
 
 import { ethers } from 'ethers';
@@ -142,12 +142,15 @@ async function main() {
     console.log('═══════════════════════════════════════════════════════════════\n');
 
     // Update Supabase if credentials provided
-    if (process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY) {
+    const supabaseClientKey =
+      process.env.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY;
+
+    if (process.env.SUPABASE_URL && supabaseClientKey) {
       console.log('📝 Updating Supabase...\n');
 
       const supabase = createClient(
         process.env.SUPABASE_URL,
-        process.env.SUPABASE_ANON_KEY
+        supabaseClientKey
       );
 
       const { error } = await supabase

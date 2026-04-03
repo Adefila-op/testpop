@@ -10,6 +10,7 @@ import { ethers } from "ethers";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import { getPinataAuthMode, requirePinataAuth } from "./pinataAuth.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -158,8 +159,11 @@ const {
   JWT_SECRET,
   SUPABASE_URL,
   SUPABASE_SERVICE_ROLE_KEY,
+  SUPABASE_SECRET_KEY,
   SUPABASE_JWT_SECRET,
   PINATA_JWT,
+  PINATA_API_KEY,
+  PINATA_API_SECRET,
   ADMIN_WALLETS = "",
   BASE_SEPOLIA_RPC_URL: rawBaseSepoliaRpcUrl = "https://sepolia-preconf.base.org",
   ART_DROP_FACTORY_ADDRESS: rawArtDropFactoryAddress = "0x2d044a0AFAbE0C07Ee12b8f4c18691b82fb6cF01",
@@ -174,6 +178,7 @@ const ART_DROP_FACTORY_ADDRESS = rawArtDropFactoryAddress.trim();
 const POAP_CAMPAIGN_V2_ADDRESS = rawPoapCampaignV2Address.trim();
 const PRODUCT_STORE_ADDRESS = rawProductStoreAddress.trim();
 const DEPLOYER_PRIVATE_KEY = rawDeployerPrivateKey?.trim();
+const SUPABASE_SERVER_KEY = SUPABASE_SECRET_KEY?.trim() || SUPABASE_SERVICE_ROLE_KEY?.trim();
 const EXPIRED_DROP_RETENTION_HOURS = Math.max(24, Number(process.env.EXPIRED_DROP_RETENTION_HOURS || 24 * 30));
 const DROP_MAINTENANCE_INTERVAL_MS = Math.max(
   5 * 60 * 1000,
@@ -185,8 +190,8 @@ const appJwtSecret = APP_JWT_SECRET || JWT_SECRET;
 if (!appJwtSecret) {
   throw new Error("APP_JWT_SECRET or JWT_SECRET is required");
 }
-if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-  throw new Error("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required");
+if (!SUPABASE_URL || !SUPABASE_SERVER_KEY) {
+  throw new Error("SUPABASE_URL and SUPABASE_SECRET_KEY or SUPABASE_SERVICE_ROLE_KEY are required");
 }
 
 // Log startup configuration
@@ -196,10 +201,11 @@ console.log("══════════════════════�
 console.log("📍 Environment:", NODE_ENV);
 console.log("🌐 Frontend Origin:", FRONTEND_ORIGIN);
 console.log("🔐 Admin Wallets:", ADMIN_WALLETS || "none");
+console.log("🧷 Pinata Auth:", getPinataAuthMode(process.env) || "none");
 console.log("═══════════════════════════════════════════════════════════");
 
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVER_KEY, {
   auth: { persistSession: false, autoRefreshToken: false },
 });
 
@@ -2984,7 +2990,7 @@ registerRoute("post", "/ip-investments", authRequired, async (req, res) => {
 
 const pinataFileImpl = async (req, res) => {
   try {
-    requireEnv(PINATA_JWT, "PINATA_JWT");
+    const pinataAuthHeaders = requirePinataAuth(process.env);
     if (!req.file) return res.status(400).json({ error: "file is required" });
 
     const form = new FormData();
@@ -2992,7 +2998,7 @@ const pinataFileImpl = async (req, res) => {
 
     const response = await fetch("https://uploads.pinata.cloud/v3/files", {
       method: "POST",
-      headers: { Authorization: `Bearer ${PINATA_JWT}` },
+      headers: pinataAuthHeaders,
       body: form,
     });
 
@@ -3013,7 +3019,7 @@ const pinataFileImpl = async (req, res) => {
 
 const pinataJsonImpl = async (req, res) => {
   try {
-    requireEnv(PINATA_JWT, "PINATA_JWT");
+    const pinataAuthHeaders = requirePinataAuth(process.env);
     const metadata = req.body?.metadata;
     if (!metadata || typeof metadata !== "object") {
       return res.status(400).json({ error: "metadata object is required" });
@@ -3022,7 +3028,7 @@ const pinataJsonImpl = async (req, res) => {
     const response = await fetch("https://api.pinata.cloud/pinning/pinJSONToIPFS", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${PINATA_JWT}`,
+        ...pinataAuthHeaders,
         "Content-Type": "application/json",
       },
       body: JSON.stringify(metadata),

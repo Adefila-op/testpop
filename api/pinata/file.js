@@ -1,10 +1,12 @@
-// Vercel serverless function — proxies file uploads to Pinata
+// Vercel serverless function - proxies file uploads to Pinata
 // Deployed at: /api/pinata/file
-// Called by: src/lib/pinata.ts → uploadFileToPinata()
+// Called by: src/lib/pinata.ts -> uploadFileToPinata()
+
+import { requirePinataAuth } from "../../server/pinataAuth.js";
 
 export const config = {
   api: {
-    bodyParser: false, // we need raw multipart stream
+    bodyParser: false,
   },
 };
 
@@ -13,30 +15,24 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const pinataJwt = process.env.PINATA_JWT;
-  if (!pinataJwt) {
-    return res.status(500).json({ error: "PINATA_JWT is not configured on the server" });
-  }
-
   try {
-    // Read raw body as a Buffer
+    const pinataAuthHeaders = requirePinataAuth(process.env);
+
     const chunks = [];
     for await (const chunk of req) {
       chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
     }
     const rawBody = Buffer.concat(chunks);
 
-    // Extract Content-Type from the incoming request (includes boundary)
     const contentType = req.headers["content-type"];
     if (!contentType || !contentType.includes("multipart/form-data")) {
       return res.status(400).json({ error: "Expected multipart/form-data" });
     }
 
-    // Forward the raw multipart body directly to Pinata
     const pinataResponse = await fetch("https://uploads.pinata.cloud/v3/files", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${pinataJwt}`,
+        ...pinataAuthHeaders,
         "Content-Type": contentType,
       },
       body: rawBody,

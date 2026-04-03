@@ -79,12 +79,14 @@ This project includes two smart contracts: `ArtDrop.sol` and `POAPCampaign.sol`.
 npm install
 ```
 
-2. Create a `.env` file with your private key and Pinata JWT:
+2. Create a `.env.local` file with your private key and Pinata credentials:
 ```bash
-cp .env.example .env
-# Edit .env and add:
+cp .env.local.example .env.local
+# Edit .env.local and add:
 # PRIVATE_KEY=...        # without 0x prefix
-# PINATA_JWT=...         # server-side only, never expose with a VITE_ prefix
+# PINATA_JWT=...         # preferred server-side credential
+# PINATA_API_KEY=...     # optional fallback pair
+# PINATA_API_SECRET=...  # optional fallback pair
 ```
 
 ### Deploy to Base Sepolia (Testnet)
@@ -103,7 +105,7 @@ After deployment, the contract addresses will be saved to `deployed-addresses.js
 
 ## Pinata Uploads In The UI
 
-The artist creation dialogs upload through the backend Pinata proxy using `PINATA_JWT` on the server.
+The artist creation dialogs upload through the backend Pinata proxy using `PINATA_JWT` on the server, with `PINATA_API_KEY` and `PINATA_API_SECRET` supported as a fallback.
 
 - If the contract addresses in `src/lib/contracts/` are still the zero address, the dialogs will still upload the asset or metadata to Pinata and complete in mock mode.
 - Once you paste real deployed contract addresses into those files, the same dialogs will continue on to the on-chain write step.
