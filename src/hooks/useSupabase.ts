@@ -181,10 +181,11 @@ export function useSupabaseProductsByCreator(creatorWallet: string | undefined) 
 // Drops Hooks
 // ═══════════════════════════════════════════════════════════════════════════════
 
-export function useSupabaseLiveDrops() {
+export function useSupabaseLiveDrops(enabled = true) {
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["drops", "live"],
     queryFn: fetchLiveDropsFromSupabase,
+    enabled,
     ...STANDARD_QUERY_OPTIONS,
     staleTime: 60_000,
     refetchOnMount: false,

@@ -1,7 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, Clock, Filter, Loader2, Search, Sparkles, X } from "lucide-react";
-import { useDeferredValue, useEffect, useMemo, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useState, useTransition } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { recordDropView, recordPageVisit } from "@/lib/analyticsStore";
 import { useSupabaseLiveDrops } from "@/hooks/useSupabase";
@@ -24,8 +24,12 @@ const DropsPage = () => {
   const navigate = useNavigate();
   const [active, setActive] = useState<(typeof filters)[number]["value"]>("all");
   const [query, setQuery] = useState("");
+  const [isSearchPending, startSearchTransition] = useTransition();
   const [featuredCarouselIndex, setFeaturedCarouselIndex] = useState(0);
   const [adminFeaturedSlides, setAdminFeaturedSlides] = useState<FeaturedCreatorSlide[]>([]);
+  const [isDesktopViewport, setIsDesktopViewport] = useState(() =>
+    typeof window !== "undefined" ? window.innerWidth >= 768 : true
+  );
   const { data: supabaseDrops, loading, error } = useSupabaseLiveDrops();
   const deferredQuery = useDeferredValue(query.trim().toLowerCase());
 
@@ -66,19 +70,57 @@ const DropsPage = () => {
     );
   }, [active, allDrops, deferredQuery]);
   const featuredDesktopDrop = allDrops[0] ?? null;
-  const mobileHeroDrop = filtered[0] ?? allDrops[0] ?? null;
-  const mobileCollectionDrops = filtered;
   const activeFeaturedSlide =
     adminFeaturedSlides.length > 0
       ? adminFeaturedSlides[featuredCarouselIndex % adminFeaturedSlides.length]
       : null;
   const hasDiscoveryFilters = active !== "all" || Boolean(query.trim());
+  const mobileSourceDrops = hasDiscoveryFilters ? filtered : allDrops;
+  const mobileHeroDrop = mobileSourceDrops[0] ?? null;
+  const mobileCollectionDrops = useMemo(
+    () => mobileSourceDrops.filter((drop) => drop.id !== mobileHeroDrop?.id),
+    [mobileHeroDrop?.id, mobileSourceDrops]
+  );
+  const mobileSectionTitle = deferredQuery
+    ? "Search results"
+    : active === "all"
+    ? "Recommended for you"
+    : `${filters.find((filter) => filter.value === active)?.label ?? "All"} picks`;
+  const mobileCountCopy = loading && allDrops.length === 0
+    ? "Loading live collections..."
+    : error
+    ? "Unable to load collections right now."
+    : `${mobileSourceDrops.length} ${mobileSourceDrops.length === 1 ? "collection" : "collections"} available${active !== "all" ? ` in ${active}` : ""}.`;
 
   useEffect(() => {
     recordPageVisit();
   }, []);
 
   useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const mediaQuery = window.matchMedia("(min-width: 768px)");
+    const handleViewportChange = (event: MediaQueryListEvent) => {
+      setIsDesktopViewport(event.matches);
+    };
+
+    setIsDesktopViewport(mediaQuery.matches);
+    mediaQuery.addEventListener("change", handleViewportChange);
+
+    return () => {
+      mediaQuery.removeEventListener("change", handleViewportChange);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isDesktopViewport) {
+      setAdminFeaturedSlides([]);
+      setFeaturedCarouselIndex(0);
+      return;
+    }
+
     const syncFeaturedSlides = () => {
       setAdminFeaturedSlides(loadFeaturedCreatorSlides());
       setFeaturedCarouselIndex(0);
@@ -91,37 +133,7 @@ const DropsPage = () => {
     return () => {
       window.removeEventListener(eventName, syncFeaturedSlides);
     };
-  }, []);
-
-  if (loading) {
-    return (
-      <div className="space-y-4 px-4 pt-4">
-        <div className="flex items-center justify-between">
-          <h1 className="text-xl font-bold">Art Drops</h1>
-          <button className="rounded-full bg-secondary p-2">
-            <Filter className="h-4 w-4 text-secondary-foreground" />
-          </button>
-        </div>
-        <div className="flex h-40 items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="space-y-4 px-4 pt-4">
-        <div className="flex items-center justify-between">
-          <h1 className="text-xl font-bold">Art Drops</h1>
-          <button className="rounded-full bg-secondary p-2">
-            <Filter className="h-4 w-4 text-secondary-foreground" />
-          </button>
-        </div>
-        <div className="text-sm text-red-500">Error: {error.message}</div>
-      </div>
-    );
-  }
+  }, [isDesktopViewport]);
 
   return (
     <div>
@@ -257,7 +269,31 @@ const DropsPage = () => {
                 </p>
               </div>
 
-              {allDrops.length === 0 ? (
+              {error ? (
+                <div className="rounded-[1.8rem] border border-[#fecaca] bg-white/80 p-10 text-center">
+                  <p className="text-lg font-semibold text-foreground">Unable to load drops</p>
+                  <p className="mt-2 text-sm text-red-500">{error.message}</p>
+                </div>
+              ) : loading && allDrops.length === 0 ? (
+                <div className="grid gap-5 lg:grid-cols-3">
+                  {[0, 1, 2].map((index) => (
+                    <div
+                      key={`desktop-drop-skeleton-${index}`}
+                      className="overflow-hidden rounded-[1.7rem] bg-white shadow-[0_18px_45px_rgba(37,99,235,0.08)] ring-1 ring-[#dbe7ff]"
+                    >
+                      <div className="aspect-[1.05] animate-pulse bg-[#e5eefc]" />
+                      <div className="space-y-3 p-5">
+                        <div className="h-5 w-2/3 animate-pulse rounded-full bg-[#e5eefc]" />
+                        <div className="h-4 w-1/3 animate-pulse rounded-full bg-[#eef4ff]" />
+                        <div className="flex items-center justify-between">
+                          <div className="h-4 w-20 animate-pulse rounded-full bg-[#dbeafe]" />
+                          <div className="h-4 w-14 animate-pulse rounded-full bg-[#eef4ff]" />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : allDrops.length === 0 ? (
                 <div className="rounded-[1.8rem] border border-dashed border-border bg-card/60 p-10 text-center">
                   <Sparkles className="mx-auto mb-3 h-10 w-10 text-primary" />
                   <p className="text-lg font-semibold text-foreground">No drops yet</p>
@@ -345,12 +381,16 @@ const DropsPage = () => {
                   src={mobileHeroDrop.artistAvatar}
                   alt={mobileHeroDrop.artist}
                   className="h-full w-full object-cover"
+                  loading="eager"
+                  decoding="async"
                 />
               ) : mobileHeroDrop?.image ? (
                 <img
                   src={mobileHeroDrop.image}
                   alt={mobileHeroDrop.title}
                   className="h-full w-full object-cover"
+                  loading="eager"
+                  decoding="async"
                 />
               ) : (
                 <Sparkles className="h-5 w-5 text-primary" />
@@ -364,7 +404,12 @@ const DropsPage = () => {
               <input
                 type="text"
                 value={query}
-                onChange={(event) => setQuery(event.target.value)}
+                onChange={(event) => {
+                  const nextQuery = event.target.value;
+                  startSearchTransition(() => {
+                    setQuery(nextQuery);
+                  });
+                }}
                 placeholder="Search drops, artists, auctions..."
                 className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
               />
@@ -383,7 +428,7 @@ const DropsPage = () => {
 
           <div className="mt-6 flex items-center justify-between">
             <h2 className="text-[1.45rem] font-bold tracking-[-0.03em] text-foreground">
-              {deferredQuery ? "Search results" : "Recommended for you"}
+              {mobileSectionTitle}
             </h2>
             <button
               type="button"
@@ -399,8 +444,8 @@ const DropsPage = () => {
           </div>
 
           <p className="mt-2 text-sm text-foreground/55">
-            {mobileCollectionDrops.length} {mobileCollectionDrops.length === 1 ? "collection" : "collections"} available
-            {active !== "all" ? ` in ${active}` : ""}.
+            {mobileCountCopy}
+            {isSearchPending ? " Updating..." : ""}
           </p>
 
           <div className="mt-4 grid grid-cols-2 gap-3">
@@ -426,12 +471,40 @@ const DropsPage = () => {
             })}
           </div>
 
-          {mobileCollectionDrops.length === 0 ? (
+          {error ? (
+            <div className="mt-5 rounded-[1.8rem] border border-[#fecaca] bg-white/80 p-8 text-center">
+              <p className="text-lg font-semibold text-foreground">Unable to load drops</p>
+              <p className="mt-2 text-sm text-red-500">{error.message}</p>
+            </div>
+          ) : loading && allDrops.length === 0 ? (
+            <div className="mt-5 -mr-4 flex gap-4 overflow-x-auto pb-2 pr-4 no-scrollbar">
+              {[0, 1].map((index) => (
+                <div
+                  key={`mobile-drop-skeleton-${index}`}
+                  className="min-w-[16.5rem] flex-shrink-0 overflow-hidden rounded-[1.9rem] bg-[rgba(235,244,240,0.92)] shadow-[0_18px_36px_rgba(15,23,42,0.08)] ring-1 ring-black/5"
+                >
+                  <div className="aspect-[0.9] animate-pulse bg-[#d8e5de]" />
+                  <div className="space-y-3 p-4">
+                    <div className="h-8 w-3/4 animate-pulse rounded-2xl bg-[#d8e5de]" />
+                    <div className="h-4 w-1/2 animate-pulse rounded-full bg-white/80" />
+                    <div className="flex items-center justify-between pt-1">
+                      <div className="h-4 w-24 animate-pulse rounded-full bg-white/80" />
+                      <div className="h-4 w-12 animate-pulse rounded-full bg-white/70" />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : mobileCollectionDrops.length === 0 ? (
             <div className="mt-5 rounded-[1.8rem] border border-dashed border-black/10 bg-white/70 p-8 text-center">
               <Sparkles className="mx-auto mb-3 h-10 w-10 text-primary" />
-              <p className="text-lg font-semibold text-foreground">No drops yet</p>
+              <p className="text-lg font-semibold text-foreground">
+                {mobileHeroDrop ? "No more drops in this view" : "No drops yet"}
+              </p>
               <p className="mt-2 text-sm text-muted-foreground">
-                Published drops from approved artists will appear here.
+                {mobileHeroDrop
+                  ? "Try another filter or clear your search to browse more collections."
+                  : "Published drops from approved artists will appear here."}
               </p>
             </div>
           ) : (
@@ -450,12 +523,16 @@ const DropsPage = () => {
                         src={drop.image}
                         alt={drop.title}
                         className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                        loading={index < 2 ? "eager" : "lazy"}
+                        decoding="async"
                       />
                     ) : drop.assetType === "video" && (drop.previewUri || drop.image) ? (
                       <img
                         src={drop.previewUri || drop.image}
                         alt={drop.title}
                         className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                        loading={index < 2 ? "eager" : "lazy"}
+                        decoding="async"
                       />
                     ) : (
                       <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-slate-900 via-slate-700 to-slate-500 text-xs font-semibold uppercase tracking-[0.2em] text-white">

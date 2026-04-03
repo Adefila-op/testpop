@@ -135,8 +135,16 @@ const SubscribeButtonWrapper = ({ artist, isConnected, connectWallet, address, t
 const Index = () => {
   const navigate = useNavigate();
   const { isConnected, connectWallet, address, chain, requestActiveChainSwitch } = useWallet();
+  const [isDesktopViewport, setIsDesktopViewport] = useState(() =>
+    typeof window !== "undefined" ? window.innerWidth >= 768 : true
+  );
   const { data: supabaseArtists, loading, error } = useSupabaseArtists();
-  const { data: supabaseLiveDrops, loading: dropsLoading, error: dropsError, refetch: refetchDrops } = useSupabaseLiveDrops();
+  const {
+    data: supabaseLiveDrops,
+    loading: dropsLoading,
+    error: dropsError,
+    refetch: refetchDrops,
+  } = useSupabaseLiveDrops(isDesktopViewport);
   const { placeBid, isPending: isBidding, error: bidError } = usePlaceBid();
   const { toast } = useToast();
   const addCollectedDrop = useCollectionStore((state) => state.addCollectedDrop);
@@ -168,10 +176,34 @@ const Index = () => {
   const isDropHorizontalSwipe = useRef<boolean | null>(null);
 
   useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const mediaQuery = window.matchMedia("(min-width: 768px)");
+    const handleViewportChange = (event: MediaQueryListEvent) => {
+      setIsDesktopViewport(event.matches);
+    };
+
+    setIsDesktopViewport(mediaQuery.matches);
+    mediaQuery.addEventListener("change", handleViewportChange);
+
+    return () => {
+      mediaQuery.removeEventListener("change", handleViewportChange);
+    };
+  }, []);
+
+  useEffect(() => {
     recordPageVisit();
   }, []);
 
   useEffect(() => {
+    if (!isDesktopViewport) {
+      setAdminFeaturedSlides([]);
+      setFeaturedCarouselIndex(0);
+      return;
+    }
+
     const syncFeaturedSlides = () => {
       setAdminFeaturedSlides(loadFeaturedCreatorSlides());
       setFeaturedCarouselIndex(0);
@@ -184,7 +216,7 @@ const Index = () => {
     return () => {
       window.removeEventListener(eventName, syncFeaturedSlides);
     };
-  }, []);
+  }, [isDesktopViewport]);
 
   // Update featured artists from Supabase when data loads
   useEffect(() => {
@@ -215,27 +247,30 @@ const Index = () => {
 
   // Update live drops from Supabase when data loads
   useEffect(() => {
-    if (supabaseLiveDrops && supabaseLiveDrops.length > 0) {
-      setLiveDrops(supabaseLiveDrops.map((drop) => {
-        const artist = drop.artists && !Array.isArray(drop.artists) ? drop.artists : null;
-        const normalizedType = (drop.type || "drop").toLowerCase() as "drop" | "auction" | "campaign";
-        return {
-          id: drop.id,
-          contractAddress: drop.contract_address,
-          contractDropId: drop.contract_drop_id, // The actual on-chain drop ID (number)
-          title: drop.title,
-          artist: artist?.name || "Unknown Artist",
-          priceEth: drop.price_eth ? parseFloat(drop.price_eth).toFixed(3) : "0",
-          image: resolveMediaUrl(drop.preview_uri, drop.image_url, drop.image_ipfs_uri),
-          previewUri: resolveMediaUrl(drop.preview_uri, drop.image_url, drop.image_ipfs_uri),
-          deliveryUri: drop.delivery_uri || "",
-          assetType: drop.asset_type || "image",
-          type: normalizedType,
-          status: drop.status as "live" | "draft" | "ended",
-          endsIn: drop.ends_at ? `${Math.max(0, Math.floor((new Date(drop.ends_at).getTime() - Date.now()) / (1000 * 60 * 60)))}h` : "--",
-        };
-      }).filter((drop): drop is NonNullable<typeof drop> => drop !== null));
+    if (!supabaseLiveDrops || supabaseLiveDrops.length === 0) {
+      setLiveDrops([]);
+      return;
     }
+
+    setLiveDrops(supabaseLiveDrops.map((drop) => {
+      const artist = drop.artists && !Array.isArray(drop.artists) ? drop.artists : null;
+      const normalizedType = (drop.type || "drop").toLowerCase() as "drop" | "auction" | "campaign";
+      return {
+        id: drop.id,
+        contractAddress: drop.contract_address,
+        contractDropId: drop.contract_drop_id, // The actual on-chain drop ID (number)
+        title: drop.title,
+        artist: artist?.name || "Unknown Artist",
+        priceEth: drop.price_eth ? parseFloat(drop.price_eth).toFixed(3) : "0",
+        image: resolveMediaUrl(drop.preview_uri, drop.image_url, drop.image_ipfs_uri),
+        previewUri: resolveMediaUrl(drop.preview_uri, drop.image_url, drop.image_ipfs_uri),
+        deliveryUri: drop.delivery_uri || "",
+        assetType: drop.asset_type || "image",
+        type: normalizedType,
+        status: drop.status as "live" | "draft" | "ended",
+        endsIn: drop.ends_at ? `${Math.max(0, Math.floor((new Date(drop.ends_at).getTime() - Date.now()) / (1000 * 60 * 60)))}h` : "--",
+      };
+    }).filter((drop): drop is NonNullable<typeof drop> => drop !== null));
   }, [supabaseLiveDrops]);
 
   const nextCard = useCallback(() => {
@@ -1064,12 +1099,16 @@ const Index = () => {
                       src={activeMobilePiece.image}
                       alt={activeMobilePiece.title}
                       className="absolute inset-0 h-full w-full object-cover opacity-[0.22]"
+                      loading="eager"
+                      decoding="async"
                     />
                   ) : activeMobileArtist.cover ? (
                     <img
                       src={activeMobileArtist.cover}
                       alt={activeMobileArtist.name}
                       className="absolute inset-0 h-full w-full object-cover opacity-[0.22]"
+                      loading="eager"
+                      decoding="async"
                     />
                   ) : null}
                   <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(11,11,11,0.28)_0%,rgba(11,11,11,0.72)_55%,rgba(11,11,11,0.96)_100%)]" />
