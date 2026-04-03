@@ -9,6 +9,7 @@ import { toast } from "sonner";
 
 let dropsColumnsMode: "full" | "legacy" | null = null;
 let dropsArtistRelationMode: "embedded" | "detached" | null = null;
+let artistsStatusMode: "native" | "legacy" | null = null;
 
 const PUBLIC_PRODUCT_SELECT = [
   "id",
@@ -94,6 +95,80 @@ async function fetchArtistsByIdsFromSupabase(artistIds: Array<string | null | un
   }
 
   return new Map((data || []).map((artist) => [artist.id, artist]));
+}
+
+async function fetchApprovedArtistWalletsFromSupabase() {
+  const { data, error } = await supabase
+    .from("whitelist")
+    .select("wallet")
+    .eq("status", "approved");
+
+  if (error) {
+    throw error;
+  }
+
+  return Array.from(
+    new Set(
+      (data || [])
+        .map((entry) => entry.wallet?.toLowerCase?.())
+        .filter((wallet): wallet is string => Boolean(wallet))
+    )
+  );
+}
+
+function shouldUseNativeArtistStatusFilter() {
+  return artistsStatusMode !== "legacy";
+}
+
+function updateArtistSchemaMode(error: { message?: string } | null | undefined) {
+  if (isMissingColumnError(error, "artists", "status")) {
+    artistsStatusMode = "legacy";
+  }
+}
+
+async function fetchPublicArtistsFromSupabase(artistId?: string) {
+  let query = supabase
+    .from("artists")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (artistId) {
+    query = query.eq("id", artistId);
+  }
+
+  if (shouldUseNativeArtistStatusFilter()) {
+    query = query.in("status", ["approved", "active"]);
+  }
+
+  let { data, error } = await query;
+  updateArtistSchemaMode(error);
+
+  if (error && artistsStatusMode === "legacy") {
+    const approvedWallets = await fetchApprovedArtistWalletsFromSupabase();
+    if (approvedWallets.length === 0) {
+      return artistId ? null : [];
+    }
+
+    let legacyQuery = supabase
+      .from("artists")
+      .select("*")
+      .in("wallet", approvedWallets)
+      .order("created_at", { ascending: false });
+
+    if (artistId) {
+      legacyQuery = legacyQuery.eq("id", artistId);
+    }
+
+    ({ data, error } = await legacyQuery);
+  } else if (!error && shouldUseNativeArtistStatusFilter()) {
+    artistsStatusMode = "native";
+  }
+
+  if (error) {
+    throw error;
+  }
+
+  return artistId ? (data?.[0] ?? null) : (data || []);
 }
 
 function shouldUseFullDropColumns() {
@@ -206,15 +281,7 @@ function getDropDetailSelectClause() {
 export async function fetchAllArtistsFromSupabase() {
   try {
     console.log("📖 Fetching all artists from Supabase...");
-    const { data, error } = await supabase
-      .from("artists")
-      .select("*")
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      console.error("❌ Error fetching artists:", error.message);
-      throw error;
-    }
+    const data = await fetchPublicArtistsFromSupabase();
 
     console.log(`✅ Fetched ${data?.length || 0} artists from Supabase`);
     return data || [];
@@ -250,16 +317,7 @@ export async function fetchArtistByWalletFromSupabase(wallet: string) {
 export async function fetchArtistByIdFromSupabase(artistId: string) {
   try {
     console.log(`📖 Fetching artist by ID from Supabase: ${artistId}`);
-    const { data, error } = await supabase
-      .from("artists")
-      .select("*")
-      .eq("id", artistId)
-      .single();
-
-    if (error && error.code !== "PGRST116") {
-      console.error("❌ Error fetching artist:", error.message);
-      throw error;
-    }
+    const data = await fetchPublicArtistsFromSupabase(artistId);
 
     if (data) console.log(`✅ Found artist: ${data.name || artistId}`);
     return data || null;
