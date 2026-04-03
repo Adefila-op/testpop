@@ -30,7 +30,7 @@ import {
   DEFAULT_CAMPAIGN_DETAILS,
   type CampaignDetailContent,
 } from "@/components/campaign/CampaignArchitectureCard";
-import { detectAssetTypeFromFile, type AssetType } from "@/lib/assetTypes";
+import { detectAssetTypeFromFile, getAssetTypeLabel, type AssetType } from "@/lib/assetTypes";
 import { POAP_CAMPAIGN_ADDRESS } from "@/lib/contracts/poapCampaign";
 import { POAP_CAMPAIGN_V2_ADDRESS } from "@/lib/contracts/poapCampaignV2";
 import {
@@ -305,6 +305,78 @@ const CreateDropSheet = ({
     contentKind === "ebook"
       ? "PDF or EPUB delivered to collectors after purchase"
       : "ZIP, brush pack, PSD, PDF, or other digital file delivered after purchase";
+  const selectedCoverAssetType = coverFile ? detectAssetTypeFromFile(coverFile) : null;
+
+  useEffect(() => {
+    return () => {
+      if (coverPreview?.startsWith("blob:")) {
+        URL.revokeObjectURL(coverPreview);
+      }
+    };
+  }, [coverPreview]);
+
+  const renderCoverPreview = (mode: "full" | "compact" = "full") => {
+    if (!coverFile || !selectedCoverAssetType) return null;
+
+    const isCompact = mode === "compact";
+    const wrapperClass = isCompact
+      ? "h-16 w-16 rounded-xl overflow-hidden border border-border bg-secondary/40 shrink-0"
+      : "h-full w-full";
+    const fallbackCardClass = isCompact
+      ? "h-16 w-16 rounded-xl border border-border bg-secondary/40 flex items-center justify-center p-2 text-center"
+      : "h-full w-full rounded-xl border border-border bg-secondary/40 flex flex-col items-center justify-center p-4 text-center";
+
+    if (selectedCoverAssetType === "image" && coverPreview) {
+      return <img src={coverPreview} alt={coverFile.name} className={`${wrapperClass} object-cover`} />;
+    }
+
+    if (selectedCoverAssetType === "video" && coverPreview) {
+      return (
+        <video
+          src={coverPreview}
+          className={`${wrapperClass} object-cover`}
+          controls
+          muted
+          playsInline
+          preload="metadata"
+        />
+      );
+    }
+
+    if (selectedCoverAssetType === "audio" && coverPreview) {
+      return (
+        <div className={fallbackCardClass}>
+          <p className={`${isCompact ? "text-[9px]" : "text-xs"} font-semibold text-foreground line-clamp-2`}>
+            {isCompact ? "Audio" : coverFile.name}
+          </p>
+          {!isCompact && <audio src={coverPreview} controls className="mt-3 w-full" preload="metadata" />}
+        </div>
+      );
+    }
+
+    if (selectedCoverAssetType === "pdf" && coverPreview) {
+      return isCompact ? (
+        <div className={fallbackCardClass}>
+          <p className="text-[9px] font-semibold text-foreground">PDF</p>
+        </div>
+      ) : (
+        <iframe src={coverPreview} title={coverFile.name} className="h-full w-full rounded-xl border-0 bg-white" />
+      );
+    }
+
+    return (
+      <div className={fallbackCardClass}>
+        <p className={`${isCompact ? "text-[9px]" : "text-xs"} font-semibold text-foreground line-clamp-2`}>
+          {isCompact ? getAssetTypeLabel(selectedCoverAssetType) : coverFile.name}
+        </p>
+        {!isCompact && (
+          <p className="mt-2 text-[11px] text-muted-foreground">
+            {getAssetTypeLabel(selectedCoverAssetType)} selected and ready for upload.
+          </p>
+        )}
+      </div>
+    );
+  };
 
   const handleCoverFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
@@ -317,7 +389,7 @@ const CreateDropSheet = ({
       r.readAsDataURL(f);
       return;
     }
-    setCoverPreview(null);
+    setCoverPreview(URL.createObjectURL(f));
   };
 
   const handleDeliveryFile = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -765,9 +837,9 @@ const CreateDropSheet = ({
                 <p className="text-sm font-semibold text-foreground">{coverLabel}</p>
                 <p className="text-xs text-muted-foreground mt-1">{coverHelpText}</p>
               </div>
-              {coverPreview ? (
+              {coverFile ? (
                 <div className="relative aspect-square rounded-xl overflow-hidden">
-                  <img src={coverPreview} className="w-full h-full object-cover" />
+                  {renderCoverPreview("full")}
                   <button onClick={() => { setPreview(null); setFile(null); }} className="absolute top-2 right-2 p-1.5 rounded-full bg-background/80 text-xs">âœ•</button>
                 </div>
               ) : (
@@ -809,7 +881,7 @@ const CreateDropSheet = ({
                   {coverFile.name}
                 </div>
               )}
-              {preview && <img src={preview} className="h-16 w-16 rounded-xl object-cover" />}
+              {coverFile && renderCoverPreview("compact")}
               <div>
                 <Label className="text-xs">Drop type</Label>
                 <div className="grid grid-cols-3 gap-2 mt-1">
@@ -884,7 +956,7 @@ const CreateDropSheet = ({
           {step === 2 && (
             <div className="space-y-3">
               <div className="rounded-xl bg-secondary/50 p-3 flex gap-3">
-                {preview && <img src={preview} className="h-16 w-16 rounded-lg object-cover shrink-0" />}
+                {coverFile && renderCoverPreview("compact")}
                 <div>
                   <p className="font-bold text-sm text-foreground">{form.title}</p>
                   <p className="text-xs text-muted-foreground line-clamp-2">{form.description}</p>
