@@ -51,7 +51,7 @@ function SearchPanel({ onClose }: { onClose: () => void }) {
             .from("products")
             .select("id, name, price_eth, image_url, image_ipfs_uri")
             .or(`name.ilike.%${query}%,description.ilike.%${query}%`)
-            .eq("status", "published")
+            .in("status", ["published", "active"])
             .limit(4),
         ]);
 
@@ -117,8 +117,8 @@ function SearchPanel({ onClose }: { onClose: () => void }) {
                   className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-secondary transition-colors text-left"
                 >
                   <div className="h-10 w-10 rounded-full bg-secondary overflow-hidden flex-shrink-0">
-                    {artist.avatar_url && (
-                      <img src={artist.avatar_url} alt={artist.name} className="h-full w-full object-cover" />
+                    {resolveMediaUrl(artist.avatar_url) && (
+                      <img src={resolveMediaUrl(artist.avatar_url)} alt={artist.name} className="h-full w-full object-cover" />
                     )}
                   </div>
                   <div>

@@ -300,7 +300,7 @@ export async function fetchPublishedProductsFromSupabase() {
     const { data, error } = await supabase
       .from("products")
       .select(PUBLIC_PRODUCT_SELECT)
-      .eq("status", "published")
+      .in("status", ["published", "active"])
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -391,7 +391,6 @@ export async function fetchLiveDropsFromSupabase() {
       .from("drops")
       .select(getLiveDropsSelectClause())
       .eq("status", "live")
-      .or("type.eq.campaign,and(contract_address.not.is.null,contract_drop_id.not.is.null)")
       .order("created_at", { ascending: false });
 
     updateDropSchemaModes(error);
@@ -402,7 +401,6 @@ export async function fetchLiveDropsFromSupabase() {
         .from("drops")
         .select(getLiveDropsSelectClause())
         .eq("status", "live")
-        .or("type.eq.campaign,and(contract_address.not.is.null,contract_drop_id.not.is.null)")
         .order("created_at", { ascending: false }));
 
       if (!error) {

@@ -60,8 +60,8 @@ const ArtistProfilePage = () => {
 
     const normalizedPortfolio = Array.isArray(artist.portfolio) ? artist.portfolio : [];
     const featuredPortfolioArt = resolvePortfolioImage(normalizedPortfolio[0]) || "";
-    const avatar = artist.avatar_url || featuredPortfolioArt || artistFallbackArt;
-    const banner = artist.banner_url || featuredPortfolioArt || avatar;
+    const avatar = resolveMediaUrl(artist.avatar_url) || featuredPortfolioArt || artistFallbackArt;
+    const banner = resolveMediaUrl(artist.banner_url) || featuredPortfolioArt || avatar;
 
     return {
       id: artist.id,
@@ -189,6 +189,11 @@ const ArtistProfilePage = () => {
     };
   }, [address]);
 
+  const visibleRaiseCampaigns = useMemo(
+    () => raiseCampaigns.filter((campaign) => campaign.status === "active" || campaign.status === "funded"),
+    [raiseCampaigns],
+  );
+
   if (invalidArtistId) {
     return (
       <div className="space-y-4 px-4 py-10 text-center">
@@ -260,10 +265,6 @@ const ArtistProfilePage = () => {
     { label: "Website", href: transformedArtist.websiteUrl },
   ].filter((link) => Boolean(link.href));
   const isArtistOwner = !!address && address.toLowerCase() === transformedArtist.wallet.toLowerCase();
-  const visibleRaiseCampaigns = useMemo(
-    () => raiseCampaigns.filter((campaign) => campaign.status === "active" || campaign.status === "funded"),
-    [raiseCampaigns],
-  );
 
   const handleSubscribe = async () => {
     if (!isConnected) {

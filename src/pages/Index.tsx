@@ -187,10 +187,10 @@ const Index = () => {
               contractAddress: artist.contract_address || null,
               subscriptionPrice: artist.subscription_price,
               name: artist.name || "Untitled Artist",
-              avatar: artist.avatar_url || artist.banner_url || featuredPortfolioImage || "",
+              avatar: resolveMediaUrl(artist.avatar_url, artist.banner_url) || featuredPortfolioImage || "",
               tag: artist.tag || "artist",
               bio: artist.bio || "This artist has not published a public bio yet.",
-              cover: featuredPortfolioImage || artist.banner_url || artist.avatar_url || "",
+              cover: featuredPortfolioImage || resolveMediaUrl(artist.banner_url, artist.avatar_url) || "",
               portfolio,
             };
           })
@@ -205,18 +205,6 @@ const Index = () => {
       setLiveDrops(supabaseLiveDrops.map((drop) => {
         const artist = drop.artists && !Array.isArray(drop.artists) ? drop.artists : null;
         const normalizedType = (drop.type || "drop").toLowerCase() as "drop" | "auction" | "campaign";
-        // Campaign drops are app-driven right now, so they do not require onchain contract IDs.
-        if (
-          normalizedType !== "campaign" &&
-          (
-            drop.contract_drop_id === null ||
-            drop.contract_drop_id === undefined ||
-            !drop.contract_address
-          )
-        ) {
-          console.warn(`⚠️ Drop "${drop.title}" missing contract_address or contract_drop_id - skipping`);
-          return null;
-        }
         return {
           id: drop.id,
           contractAddress: drop.contract_address,

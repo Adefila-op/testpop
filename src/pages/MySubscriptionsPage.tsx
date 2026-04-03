@@ -12,6 +12,7 @@ import { ARTIST_DROP_ABI } from "@/lib/contracts/artDropArtist";
 import { ACTIVE_CHAIN } from "@/lib/wagmi";
 import { useSupabaseArtists } from "@/hooks/useSupabase";
 import { fetchResolvedArtistContractAddress } from "@/hooks/useContractIntegrations";
+import { resolveMediaUrl } from "@/lib/pinata";
 
 type MySubscriptionsPageProps = {
   embedded?: boolean;
@@ -84,8 +85,8 @@ const MySubscriptionsPage = ({ embedded = false }: MySubscriptionsPageProps) => 
                 wallet: artist.wallet,
                 name: artist.name || "Untitled Artist",
                 handle: artist.handle || "artist",
-                avatar: artist.avatar_url || artist.banner_url || "",
-                banner: artist.banner_url || artist.avatar_url || "",
+                avatar: resolveMediaUrl(artist.avatar_url, artist.banner_url),
+                banner: resolveMediaUrl(artist.banner_url, artist.avatar_url),
                 tag: artist.tag || "artist",
                 subscribers: 0,
                 bio: artist.bio || "This artist has not published a public bio yet.",

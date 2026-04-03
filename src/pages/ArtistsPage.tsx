@@ -8,6 +8,7 @@ import { useWallet, useSubscribeToArtistContract, useIsSubscribedToArtistContrac
 import { useResolvedArtistContract } from "@/hooks/useContractIntegrations";
 import { recordPageVisit } from "@/lib/analyticsStore";
 import { useSupabaseArtists } from "@/hooks/useSupabase";
+import { resolveMediaUrl } from "@/lib/pinata";
 import { toast } from "sonner";
 
 const ArtistSubscribeButton = ({ artist, isConnected, connectWallet, address }: any) => {
@@ -110,7 +111,7 @@ const ArtistsPage = () => {
         contractAddress: artist.contract_address || null,
         subscriptionPrice: artist.subscription_price,
         name: artist.name || "Untitled Artist",
-        avatar: artist.avatar_url || artist.banner_url || "",
+        avatar: resolveMediaUrl(artist.avatar_url, artist.banner_url),
         tag: artist.tag || "artist",
         drops: 0, // Will be fetched separately if needed
         bio: artist.bio || "This artist has not added a public bio yet.",
