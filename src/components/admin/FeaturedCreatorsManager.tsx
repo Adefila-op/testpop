@@ -120,9 +120,9 @@ export function FeaturedCreatorsManager() {
   return (
     <div className="space-y-4">
       <div className="rounded-2xl border border-border bg-card p-4">
-        <p className="text-sm font-semibold text-foreground">Featured Creator Carousel</p>
+        <p className="text-sm font-semibold text-foreground">Featured Homepage Carousel</p>
         <p className="mt-1 text-xs text-muted-foreground">
-          Configure up to two homepage feature slides. Each slide needs a title, creator name, and one main image.
+          Configure up to two homepage feature slides for artists, drops, or upcoming releases. Each slide needs a title, a label, and one main image.
         </p>
       </div>
 
@@ -156,7 +156,7 @@ export function FeaturedCreatorsManager() {
               <Input
                 value={slide.artistName}
                 onChange={(event) => updateSlide(index, "artistName", event.target.value)}
-                placeholder="Artist or collection name"
+                placeholder="Artist, drop, or collection name"
                 className="h-9 rounded-lg text-sm"
               />
             </div>
@@ -177,7 +177,7 @@ export function FeaturedCreatorsManager() {
                 <Input
                   value={slide.profilePath || ""}
                   onChange={(event) => updateSlide(index, "profilePath", event.target.value)}
-                  placeholder="/artists/artist-id"
+                  placeholder="/artists/artist-id or /drops/drop-id"
                   className="h-9 rounded-lg text-sm"
                 />
               </div>

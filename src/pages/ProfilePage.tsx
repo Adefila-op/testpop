@@ -54,8 +54,8 @@ const ProfilePage = () => {
     },
     {
       icon: Shield,
-      label: "Artist Studio",
-      desc: "Manage your artist profile",
+      label: "Creator Dashboard",
+      desc: "Manage your creator profile",
       path: "/studio",
     },
   ];
@@ -153,9 +153,9 @@ const ProfilePage = () => {
   }, [activeSection, address, artistApproved, isConnected, studioAuthAttempt]);
 
   const desktopNavItems = useMemo(() => {
-    const artistLabel = artistApproved ? "Artist Studio" : "Apply to Create";
+    const artistLabel = artistApproved ? "Creator Dashboard" : "Apply to Create";
     const artistDesc = artistApproved
-      ? "Manage your artist profile"
+      ? "Manage your creator profile"
       : artistApplicationStatus === "pending"
         ? "Application in review"
         : "Apply for creator access";

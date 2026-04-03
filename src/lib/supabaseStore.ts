@@ -413,6 +413,7 @@ export async function fetchProductByIdFromSupabase(productId: string) {
       .from("products")
       .select(PUBLIC_PRODUCT_SELECT)
       .eq("id", productId)
+      .in("status", ["published", "active"])
       .maybeSingle();
 
     if (error) {

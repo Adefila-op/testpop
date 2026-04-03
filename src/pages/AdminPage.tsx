@@ -1,4 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -297,7 +298,7 @@ const AddProductDialog = ({ onAdd, adminAddress }: { onAdd: (p: MarketProduct, w
         priceEth: form.priceEth,
         stock: Number(form.stock),
         sold: 0,
-        status: "draft",
+        status: "active",
         nftLink: form.nftLink || "#",
         uploadedAt: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short" }),
         description: sanitizeString(form.description),
@@ -318,7 +319,7 @@ const AddProductDialog = ({ onAdd, adminAddress }: { onAdd: (p: MarketProduct, w
       await Promise.resolve(onAdd(product, adminAddress));
       console.log("✅ Product successfully added!");
       
-      toast.success("Product added with Pinata image. Publish when ready.");
+      toast.success("Product added and published.");
       setOpen(false);
       resetForm();
     } catch (error: unknown) {
@@ -757,6 +758,7 @@ const OrderRow = memo(function OrderRow({
 
 const AdminPage = () => {
   const { address, disconnect } = useWallet();
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("whitelist");
   const { data: supabaseProducts, loading: productsLoading } = useSupabaseAllProducts();
   const { data: supabaseDrops } = useSupabaseAllDrops(activeTab === "analytics");
@@ -813,6 +815,12 @@ const AdminPage = () => {
   const { reject, isLoading: isRejecting, error: rejectionError } = useRejectArtist();
   const [newName, setNewName] = useState("");
   const [newTag, setNewTag] = useState("Digital Art");
+  const refreshPublicProductQueries = useCallback(async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["products"] }),
+      queryClient.invalidateQueries({ queryKey: ["productStore"] }),
+    ]);
+  }, [queryClient]);
 
   // Load products from Supabase when available
   useEffect(() => {
@@ -1115,15 +1123,17 @@ const AdminPage = () => {
         }
         const newStatus = prod.status === "active" ? "draft" : (prod.stock > 0 ? "active" : "out_of_stock") as "active" | "draft" | "out_of_stock";
         const updatedProduct = { ...prod, status: newStatus };
-        dbUpdateProduct(id, { status: newStatus === "active" ? "published" : newStatus }).catch(err =>
-          console.warn("Failed to update product status in Supabase:", err)
-        );
+        dbUpdateProduct(id, { status: newStatus === "active" ? "published" : newStatus })
+          .then(() => refreshPublicProductQueries())
+          .catch(err =>
+            console.warn("Failed to update product status in Supabase:", err)
+          );
         return updatedProduct;
       }
       return prod;
     }) as MarketProduct[];
     setProducts(updated);
-  }, [products]);
+  }, [products, refreshPublicProductQueries]);
   const removeProduct = useCallback((id: string) => {
     setProducts(p => p.filter(prod => prod.id !== id));
     // Optionally delete from Supabase too
@@ -1145,11 +1155,13 @@ const AdminPage = () => {
         contract_product_id: updated.contractProductId ?? null,
         metadata_uri: updated.metadataUri ?? null,
       }),
-    }).catch((error) => {
-      console.error("Failed to update product in Supabase:", error);
-      toast.error("Product update failed");
-    });
-  }, []);
+    })
+      .then(() => refreshPublicProductQueries())
+      .catch((error) => {
+        console.error("Failed to update product in Supabase:", error);
+        toast.error("Product update failed");
+      });
+  }, [refreshPublicProductQueries]);
 
   // Order actions
   const updateOrder = useCallback(async (id: string, status: Order["status"], trackingCode: string) => {
@@ -1416,6 +1428,7 @@ const AdminPage = () => {
                     })
                   : p;
                 setProducts(prev => prev.map(prod => prod.id === p.id ? normalizedCreated : prod));
+                await refreshPublicProductQueries();
                 toast.success("✅ Product saved to database");
               } catch (err: unknown) {
                 console.error("Failed to save product to database:", err);

@@ -638,7 +638,7 @@ export async function getProducts() {
     const { data, error } = await supabase
       .from("products")
       .select("*")
-      .eq("status", "published")
+      .in("status", ["published", "active"])
       .order("created_at", { ascending: false });
 
     if (error) {
