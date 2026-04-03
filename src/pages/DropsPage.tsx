@@ -1,9 +1,9 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, Clock, Filter, Loader2, Search, Sparkles } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { ChevronLeft, ChevronRight, Clock, Filter, Loader2, Search, Sparkles, X } from "lucide-react";
+import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { recordPageVisit } from "@/lib/analyticsStore";
+import { recordDropView, recordPageVisit } from "@/lib/analyticsStore";
 import { useSupabaseLiveDrops } from "@/hooks/useSupabase";
 import { type AssetType } from "@/lib/assetTypes";
 import { resolveMediaUrl } from "@/lib/pinata";
@@ -23,9 +23,11 @@ const filters = [
 const DropsPage = () => {
   const navigate = useNavigate();
   const [active, setActive] = useState<(typeof filters)[number]["value"]>("all");
+  const [query, setQuery] = useState("");
   const [featuredCarouselIndex, setFeaturedCarouselIndex] = useState(0);
   const [adminFeaturedSlides, setAdminFeaturedSlides] = useState<FeaturedCreatorSlide[]>([]);
   const { data: supabaseDrops, loading, error } = useSupabaseLiveDrops();
+  const deferredQuery = useDeferredValue(query.trim().toLowerCase());
 
   const allDrops = useMemo(() => {
     if (!supabaseDrops || supabaseDrops.length === 0) return [];
@@ -50,14 +52,27 @@ const DropsPage = () => {
     });
   }, [supabaseDrops]);
 
-  const filtered = active === "all" ? allDrops : allDrops.filter((drop) => drop.type === active);
+  const filtered = useMemo(() => {
+    const byType = active === "all" ? allDrops : allDrops.filter((drop) => drop.type === active);
+
+    if (!deferredQuery) {
+      return byType;
+    }
+
+    return byType.filter((drop) =>
+      [drop.title, drop.artist, drop.type, drop.assetType]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(deferredQuery))
+    );
+  }, [active, allDrops, deferredQuery]);
   const featuredDesktopDrop = allDrops[0] ?? null;
   const mobileHeroDrop = filtered[0] ?? allDrops[0] ?? null;
-  const mobileCollectionDrops = filtered.length > 0 ? filtered : allDrops;
+  const mobileCollectionDrops = filtered;
   const activeFeaturedSlide =
     adminFeaturedSlides.length > 0
       ? adminFeaturedSlides[featuredCarouselIndex % adminFeaturedSlides.length]
       : null;
+  const hasDiscoveryFilters = active !== "all" || Boolean(query.trim());
 
   useEffect(() => {
     recordPageVisit();
@@ -132,6 +147,7 @@ const DropsPage = () => {
                             if (activeFeaturedSlide.profilePath) {
                               navigate(activeFeaturedSlide.profilePath);
                             } else if (featuredDesktopDrop) {
+                              recordDropView(featuredDesktopDrop.id);
                               navigate(`/drops/${featuredDesktopDrop.id}`);
                             }
                           }}
@@ -188,6 +204,7 @@ const DropsPage = () => {
                       <Button
                         onClick={() => {
                           if (featuredDesktopDrop) {
+                            recordDropView(featuredDesktopDrop.id);
                             navigate(`/drops/${featuredDesktopDrop.id}`);
                           }
                         }}
@@ -212,6 +229,7 @@ const DropsPage = () => {
                           <Link
                             key={`desktop-drop-hero-${drop.id}`}
                             to={`/drops/${drop.id}`}
+                            onClick={() => recordDropView(drop.id)}
                             className="overflow-hidden rounded-[1.4rem] bg-white/65 p-2 shadow-sm transition-transform hover:-translate-y-1"
                           >
                             {drop.image ? (
@@ -253,6 +271,7 @@ const DropsPage = () => {
                     <Link
                       key={drop.id}
                       to={`/drops/${drop.id}`}
+                      onClick={() => recordDropView(drop.id)}
                       className="overflow-hidden rounded-[1.7rem] bg-white shadow-[0_18px_45px_rgba(37,99,235,0.08)] ring-1 ring-[#dbe7ff] transition-transform hover:-translate-y-1"
                     >
                       <div className="relative aspect-[1.05] overflow-hidden bg-secondary">
@@ -310,7 +329,17 @@ const DropsPage = () => {
               </h1>
             </div>
 
-            <div className="mt-1 flex h-11 w-11 items-center justify-center overflow-hidden rounded-full bg-white shadow-[0_12px_24px_rgba(15,23,42,0.08)] ring-1 ring-black/5">
+            <button
+              type="button"
+              onClick={() => {
+                if (mobileHeroDrop) {
+                  recordDropView(mobileHeroDrop.id);
+                  navigate(`/drops/${mobileHeroDrop.id}`);
+                }
+              }}
+              aria-label={mobileHeroDrop ? `Open ${mobileHeroDrop.title}` : "Featured drop"}
+              className="mt-1 flex h-11 w-11 items-center justify-center overflow-hidden rounded-full bg-white shadow-[0_12px_24px_rgba(15,23,42,0.08)] ring-1 ring-black/5"
+            >
               {mobileHeroDrop?.artistAvatar ? (
                 <img
                   src={mobileHeroDrop.artistAvatar}
@@ -326,24 +355,53 @@ const DropsPage = () => {
               ) : (
                 <Sparkles className="h-5 w-5 text-primary" />
               )}
-            </div>
+            </button>
           </div>
 
           <div className="mt-5 rounded-full bg-white/92 px-4 py-3 shadow-[0_12px_26px_rgba(15,23,42,0.08)] ring-1 ring-black/5">
-            <div className="flex items-center gap-3 text-sm text-muted-foreground">
+            <label className="flex items-center gap-3 text-sm text-muted-foreground">
               <Search className="h-4 w-4" />
-              <span>Start your collection search</span>
-            </div>
+              <input
+                type="text"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search drops, artists, auctions..."
+                className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
+              />
+              {query ? (
+                <button
+                  type="button"
+                  onClick={() => setQuery("")}
+                  aria-label="Clear drop search"
+                  className="rounded-full p-1 text-foreground/60 transition-colors hover:bg-secondary hover:text-foreground"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              ) : null}
+            </label>
           </div>
 
           <div className="mt-6 flex items-center justify-between">
             <h2 className="text-[1.45rem] font-bold tracking-[-0.03em] text-foreground">
-              Recommended for you
+              {deferredQuery ? "Search results" : "Recommended for you"}
             </h2>
-            <div className="rounded-full bg-white/80 p-2 text-foreground/70 shadow-sm ring-1 ring-black/5">
-              <ChevronRight className="h-4 w-4" />
-            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setActive("all");
+                setQuery("");
+              }}
+              className="rounded-full bg-white/80 p-2 text-foreground/70 shadow-sm ring-1 ring-black/5 transition-colors hover:bg-white"
+              aria-label={hasDiscoveryFilters ? "Reset drop filters" : "Browse all drops"}
+            >
+              {hasDiscoveryFilters ? <X className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+            </button>
           </div>
+
+          <p className="mt-2 text-sm text-foreground/55">
+            {mobileCollectionDrops.length} {mobileCollectionDrops.length === 1 ? "collection" : "collections"} available
+            {active !== "all" ? ` in ${active}` : ""}.
+          </p>
 
           <div className="mt-4 grid grid-cols-2 gap-3">
             {filters.map((filter) => {
@@ -382,6 +440,7 @@ const DropsPage = () => {
                 <Link
                   key={drop.id}
                   to={`/drops/${drop.id}`}
+                  onClick={() => recordDropView(drop.id)}
                   className="group min-w-[16.5rem] flex-shrink-0 animate-fade-in overflow-hidden rounded-[1.9rem] bg-[rgba(235,244,240,0.92)] shadow-[0_18px_36px_rgba(15,23,42,0.08)] ring-1 ring-black/5"
                   style={{ animationDelay: `${index * 70}ms` }}
                 >
