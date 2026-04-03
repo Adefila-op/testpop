@@ -84,6 +84,19 @@ function isBareIpfsCid(value: string): boolean {
   return /^(bafy[a-z2-7]+|bafk[a-z2-7]+|Qm[1-9A-HJ-NP-Za-km-z]{44,})$/i.test(value);
 }
 
+function isTransientOrInvalidMediaValue(value: string): boolean {
+  const normalized = value.trim().toLowerCase();
+  return (
+    !normalized ||
+    normalized === "null" ||
+    normalized === "undefined" ||
+    normalized === "[object object]" ||
+    normalized.startsWith("blob:") ||
+    normalized.startsWith("file:") ||
+    normalized.startsWith("about:")
+  );
+}
+
 export function ipfsToHttp(uri: string): string {
   const normalized = uri.trim();
   const httpGatewayMatch = normalized.match(/^https?:\/\/[^/]+\/ipfs\/(.+)$/i);
@@ -110,6 +123,7 @@ export function resolveMediaUrl(...candidates: Array<string | null | undefined>)
   for (const candidate of candidates) {
     const value = candidate?.trim();
     if (!value) continue;
+    if (isTransientOrInvalidMediaValue(value)) continue;
     return ipfsToHttp(value);
   }
 

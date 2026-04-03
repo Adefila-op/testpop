@@ -121,6 +121,8 @@ const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
 const toGatewayUrl = (cidOrUri: string) => ipfsToHttp(cidOrUri.startsWith("ipfs://") ? cidOrUri : `ipfs://${cidOrUri}`);
 const isDataUrl = (value?: string | null) => typeof value === "string" && value.startsWith("data:");
+const isTransientPreviewUrl = (value?: string | null) =>
+  typeof value === "string" && (value.startsWith("blob:") || value.startsWith("file:") || value.startsWith("about:"));
 
 const raiseStatusStyles: Record<string, string> = {
   review: "bg-amber-100 text-amber-800",
@@ -554,7 +556,7 @@ const CreateDropSheet = ({
             ? "draft"
             : "live";
 
-        const persistedImageUrl = isDataUrl(coverPreview)
+        const persistedImageUrl = isDataUrl(coverPreview) || isTransientPreviewUrl(coverPreview)
           ? (pendingResult.previewUri ? ipfsToHttp(pendingResult.previewUri) : ipfsToHttp(pendingResult.imageUri))
           : (coverPreview || undefined);
 
