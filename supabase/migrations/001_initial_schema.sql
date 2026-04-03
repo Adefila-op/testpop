@@ -197,10 +197,10 @@ CREATE POLICY "orders_update_all" ON orders FOR UPDATE USING (true);
 -- Whitelist: admin-only write access, public read
 CREATE POLICY "whitelist_read_all" ON whitelist FOR SELECT USING (true);
 CREATE POLICY "whitelist_write_admin_only" ON whitelist FOR INSERT WITH CHECK (
-  (auth.jwt() ->> 'wallet_address')::text = '0x4B393730eFc0E3C1E0C0944fbC05EdEF4eE58092'
+  (auth.jwt() ->> 'wallet_address')::text = '0x3d9A4F8E9bE795c7e82Da4FEd21cDD0D5234513E'
 );
 CREATE POLICY "whitelist_update_admin_only" ON whitelist FOR UPDATE USING (
-  (auth.jwt() ->> 'wallet_address')::text = '0x4B393730eFc0E3C1E0C0944fbC05EdEF4eE58092'
+  (auth.jwt() ->> 'wallet_address')::text = '0x3d9A4F8E9bE795c7e82Da4FEd21cDD0D5234513E'
 );
 
 -- Analytics: public insert (app tracks user behavior)

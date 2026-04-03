@@ -695,7 +695,8 @@ function getContractDeploymentReadiness() {
 //  Nonce Management (Supabase-backed for multi-instance support)
 // ──────────────────────────────────────────────
 async function issueNonce(wallet) {
-  const nonce = ethers.hexlify(ethers.randomBytes(16));
+  // The Supabase nonce schema expects 32 bytes of lowercase hex without a 0x prefix.
+  const nonce = ethers.hexlify(ethers.randomBytes(32)).slice(2).toLowerCase();
   const issuedAt = new Date().toISOString();
   const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString(); // 5 min
 

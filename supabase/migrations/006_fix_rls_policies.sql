@@ -205,17 +205,17 @@ USING (true);
 -- Only admin wallet can INSERT
 CREATE POLICY "whitelist_insert_admin_only" ON whitelist
 FOR INSERT
-WITH CHECK (auth.jwt() ->> 'sub' = '0x4B393730eFc0E3C1E0C0944fbC05EdEF4eE58092');
+WITH CHECK (auth.jwt() ->> 'sub' = '0x3d9A4F8E9bE795c7e82Da4FEd21cDD0D5234513E');
 
 -- Only admin wallet can UPDATE
 CREATE POLICY "whitelist_update_admin_only" ON whitelist
 FOR UPDATE
-USING (auth.jwt() ->> 'sub' = '0x4B393730eFc0E3C1E0C0944fbC05EdEF4eE58092');
+USING (auth.jwt() ->> 'sub' = '0x3d9A4F8E9bE795c7e82Da4FEd21cDD0D5234513E');
 
 -- Only admin wallet can DELETE
 CREATE POLICY "whitelist_delete_admin_only" ON whitelist
 FOR DELETE
-USING (auth.jwt() ->> 'sub' = '0x4B393730eFc0E3C1E0C0944fbC05EdEF4eE58092');
+USING (auth.jwt() ->> 'sub' = '0x3d9A4F8E9bE795c7e82Da4FEd21cDD0D5234513E');
 
 -- ─────────────────────────────────────────────────────────────────────────────────
 -- ANALYTICS TABLE - Controlled access
@@ -311,7 +311,7 @@ ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
 -- Audit logs - admin only can read
 CREATE POLICY "audit_logs_read_admin_only" ON audit_logs
 FOR SELECT
-USING (auth.jwt() ->> 'sub' = '0x4B393730eFc0E3C1E0C0944fbC05EdEF4eE58092');
+USING (auth.jwt() ->> 'sub' = '0x3d9A4F8E9bE795c7e82Da4FEd21cDD0D5234513E');
 
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- MIGRATION NOTES
