@@ -2,7 +2,7 @@
 // Deployed at: /api/pinata/json
 // Called by: src/lib/pinata.ts -> uploadMetadataToPinata()
 
-import { requirePinataAuth } from "../../server/pinataAuth.js";
+import { requirePinataAuthStrategies } from "../../server/pinataAuth.js";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -10,7 +10,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const pinataAuthHeaders = requirePinataAuth(process.env);
+    const pinataAuthStrategies = requirePinataAuthStrategies(process.env);
     let body = req.body;
 
     if (typeof body === "string") {
@@ -26,19 +26,33 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "metadata object is required" });
     }
 
-    const pinataResponse = await fetch("https://api.pinata.cloud/pinning/pinJSONToIPFS", {
-      method: "POST",
-      headers: {
-        ...pinataAuthHeaders,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(metadata),
-    });
+    const payload = JSON.stringify(metadata);
+    let pinataResponse = null;
+    let text = "";
+    let authMode = null;
 
-    const text = await pinataResponse.text();
+    for (let index = 0; index < pinataAuthStrategies.length; index += 1) {
+      const strategy = pinataAuthStrategies[index];
+      authMode = strategy.mode;
+      pinataResponse = await fetch("https://api.pinata.cloud/pinning/pinJSONToIPFS", {
+        method: "POST",
+        headers: {
+          ...strategy.headers,
+          "Content-Type": "application/json",
+        },
+        body: payload,
+      });
+
+      text = await pinataResponse.text();
+      if (pinataResponse.ok || pinataResponse.status !== 401 || index === pinataAuthStrategies.length - 1) {
+        break;
+      }
+
+      console.warn(`Pinata JSON upload auth failed with ${strategy.mode}, retrying with next credential.`);
+    }
 
     if (!pinataResponse.ok) {
-      console.error("Pinata JSON upload failed:", pinataResponse.status, text);
+      console.error("Pinata JSON upload failed:", authMode, pinataResponse.status, text);
       return res.status(pinataResponse.status).json({ error: text || "Pinata metadata upload failed" });
     }
 

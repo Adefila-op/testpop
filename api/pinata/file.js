@@ -2,7 +2,7 @@
 // Deployed at: /api/pinata/file
 // Called by: src/lib/pinata.ts -> uploadFileToPinata()
 
-import { requirePinataAuth } from "../../server/pinataAuth.js";
+import { requirePinataAuthStrategies } from "../../server/pinataAuth.js";
 
 export const config = {
   api: {
@@ -16,7 +16,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const pinataAuthHeaders = requirePinataAuth(process.env);
+    const pinataAuthStrategies = requirePinataAuthStrategies(process.env);
 
     const chunks = [];
     for await (const chunk of req) {
@@ -29,19 +29,32 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Expected multipart/form-data" });
     }
 
-    const pinataResponse = await fetch("https://uploads.pinata.cloud/v3/files", {
-      method: "POST",
-      headers: {
-        ...pinataAuthHeaders,
-        "Content-Type": contentType,
-      },
-      body: rawBody,
-    });
+    let pinataResponse = null;
+    let text = "";
+    let authMode = null;
 
-    const text = await pinataResponse.text();
+    for (let index = 0; index < pinataAuthStrategies.length; index += 1) {
+      const strategy = pinataAuthStrategies[index];
+      authMode = strategy.mode;
+      pinataResponse = await fetch("https://uploads.pinata.cloud/v3/files", {
+        method: "POST",
+        headers: {
+          ...strategy.headers,
+          "Content-Type": contentType,
+        },
+        body: rawBody,
+      });
+
+      text = await pinataResponse.text();
+      if (pinataResponse.ok || pinataResponse.status !== 401 || index === pinataAuthStrategies.length - 1) {
+        break;
+      }
+
+      console.warn(`Pinata file upload auth failed with ${strategy.mode}, retrying with next credential.`);
+    }
 
     if (!pinataResponse.ok) {
-      console.error("Pinata file upload failed:", pinataResponse.status, text);
+      console.error("Pinata file upload failed:", authMode, pinataResponse.status, text);
       return res.status(pinataResponse.status).json({ error: text || "Pinata upload failed" });
     }
 

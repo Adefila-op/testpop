@@ -10,7 +10,7 @@ import { ethers } from "ethers";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import { getPinataAuthMode, requirePinataAuth } from "./pinataAuth.js";
+import { getPinataAuthMode, requirePinataAuth, requirePinataAuthStrategies } from "./pinataAuth.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -2991,20 +2991,35 @@ registerRoute("post", "/ip-investments", authRequired, async (req, res) => {
 
 const pinataFileImpl = async (req, res) => {
   try {
-    const pinataAuthHeaders = requirePinataAuth(process.env);
+    const pinataAuthStrategies = requirePinataAuthStrategies(process.env);
     if (!req.file) return res.status(400).json({ error: "file is required" });
 
-    const form = new FormData();
-    form.append("file", new Blob([req.file.buffer]), req.file.originalname);
+    let response = null;
+    let text = "";
+    let authMode = null;
 
-    const response = await fetch("https://uploads.pinata.cloud/v3/files", {
-      method: "POST",
-      headers: pinataAuthHeaders,
-      body: form,
-    });
+    for (let index = 0; index < pinataAuthStrategies.length; index += 1) {
+      const strategy = pinataAuthStrategies[index];
+      authMode = strategy.mode;
+      const form = new FormData();
+      form.append("file", new Blob([req.file.buffer]), req.file.originalname);
 
-    const text = await response.text();
+      response = await fetch("https://uploads.pinata.cloud/v3/files", {
+        method: "POST",
+        headers: strategy.headers,
+        body: form,
+      });
+
+      text = await response.text();
+      if (response.ok || response.status !== 401 || index === pinataAuthStrategies.length - 1) {
+        break;
+      }
+
+      console.warn(`Pinata file upload auth failed with ${strategy.mode}, retrying with next credential.`);
+    }
+
     if (!response.ok) {
+      console.error("Pinata file upload failed:", authMode, response.status, text);
       return res.status(response.status).send(text);
     }
 
@@ -3020,23 +3035,41 @@ const pinataFileImpl = async (req, res) => {
 
 const pinataJsonImpl = async (req, res) => {
   try {
-    const pinataAuthHeaders = requirePinataAuth(process.env);
+    const pinataAuthStrategies = requirePinataAuthStrategies(process.env);
     const metadata = req.body?.metadata;
     if (!metadata || typeof metadata !== "object") {
       return res.status(400).json({ error: "metadata object is required" });
     }
 
-    const response = await fetch("https://api.pinata.cloud/pinning/pinJSONToIPFS", {
-      method: "POST",
-      headers: {
-        ...pinataAuthHeaders,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(metadata),
-    });
+    const payload = JSON.stringify(metadata);
+    let response = null;
+    let text = "";
+    let authMode = null;
 
-    const text = await response.text();
-    if (!response.ok) return res.status(response.status).send(text);
+    for (let index = 0; index < pinataAuthStrategies.length; index += 1) {
+      const strategy = pinataAuthStrategies[index];
+      authMode = strategy.mode;
+      response = await fetch("https://api.pinata.cloud/pinning/pinJSONToIPFS", {
+        method: "POST",
+        headers: {
+          ...strategy.headers,
+          "Content-Type": "application/json",
+        },
+        body: payload,
+      });
+
+      text = await response.text();
+      if (response.ok || response.status !== 401 || index === pinataAuthStrategies.length - 1) {
+        break;
+      }
+
+      console.warn(`Pinata JSON upload auth failed with ${strategy.mode}, retrying with next credential.`);
+    }
+
+    if (!response.ok) {
+      console.error("Pinata JSON upload failed:", authMode, response.status, text);
+      return res.status(response.status).send(text);
+    }
 
     const parsed = JSON.parse(text);
     return res.json({

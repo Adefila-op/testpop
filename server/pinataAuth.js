@@ -1,42 +1,55 @@
-function buildPinataAuthHeaders(env = process.env) {
+function getPinataAuthStrategies(env = process.env) {
+  const strategies = [];
   const jwt = env.PINATA_JWT?.trim();
   if (jwt) {
-    return { Authorization: `Bearer ${jwt}` };
+    strategies.push({
+      mode: "jwt",
+      headers: { Authorization: `Bearer ${jwt}` },
+    });
   }
 
   const apiKey = env.PINATA_API_KEY?.trim();
   const apiSecret = env.PINATA_API_SECRET?.trim();
   if (apiKey && apiSecret) {
-    return {
-      pinata_api_key: apiKey,
-      pinata_secret_api_key: apiSecret,
-    };
+    strategies.push({
+      mode: "apiKey",
+      headers: {
+        pinata_api_key: apiKey,
+        pinata_secret_api_key: apiSecret,
+      },
+    });
   }
 
-  return null;
+  return strategies;
+}
+
+function buildPinataAuthHeaders(env = process.env) {
+  return getPinataAuthStrategies(env)[0]?.headers ?? null;
 }
 
 function getPinataAuthMode(env = process.env) {
-  if (env.PINATA_JWT?.trim()) {
-    return "jwt";
-  }
-
-  if (env.PINATA_API_KEY?.trim() && env.PINATA_API_SECRET?.trim()) {
-    return "apiKey";
-  }
-
-  return null;
+  return getPinataAuthStrategies(env)[0]?.mode ?? null;
 }
 
-function requirePinataAuth(env = process.env) {
-  const headers = buildPinataAuthHeaders(env);
-  if (!headers) {
+function requirePinataAuthStrategies(env = process.env) {
+  const strategies = getPinataAuthStrategies(env);
+  if (!strategies.length) {
     throw new Error(
       "Pinata credentials are required. Set PINATA_JWT or PINATA_API_KEY and PINATA_API_SECRET."
     );
   }
 
-  return headers;
+  return strategies;
 }
 
-export { buildPinataAuthHeaders, getPinataAuthMode, requirePinataAuth };
+function requirePinataAuth(env = process.env) {
+  return requirePinataAuthStrategies(env)[0].headers;
+}
+
+export {
+  buildPinataAuthHeaders,
+  getPinataAuthMode,
+  getPinataAuthStrategies,
+  requirePinataAuth,
+  requirePinataAuthStrategies,
+};
