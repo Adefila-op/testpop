@@ -10,6 +10,7 @@ import { toast } from "sonner";
 let dropsColumnsMode: "full" | "legacy" | null = null;
 let dropsArtistRelationMode: "embedded" | "detached" | null = null;
 let artistsStatusMode: "native" | "legacy" | null = null;
+const LIVE_DROP_STATUSES = ["live", "active", "published"] as const;
 
 const PUBLIC_PRODUCT_SELECT = [
   "id",
@@ -53,6 +54,29 @@ function isMissingRelationError(
   );
 }
 
+function normalizeDropStatus(status?: string | null) {
+  const normalizedStatus = status?.toLowerCase?.() || "";
+
+  if (LIVE_DROP_STATUSES.includes(normalizedStatus as (typeof LIVE_DROP_STATUSES)[number])) {
+    return "live";
+  }
+
+  if (normalizedStatus === "draft" || normalizedStatus === "upcoming" || normalizedStatus === "pending") {
+    return "draft";
+  }
+
+  return "ended";
+}
+
+function normalizeDropType(type?: string | null) {
+  const normalizedType = type?.toLowerCase?.() || "";
+  if (normalizedType === "auction" || normalizedType === "campaign") {
+    return normalizedType;
+  }
+
+  return "drop";
+}
+
 function withDropDefaults<T extends Record<string, any> | null>(drop: T): T {
   if (!drop) return drop;
 
@@ -63,12 +87,17 @@ function withDropDefaults<T extends Record<string, any> | null>(drop: T): T {
     is_gated: false,
     contract_kind: null,
     ...drop,
+    status: normalizeDropStatus(drop.status),
+    type: normalizeDropType(drop.type),
   };
 }
 
 function filterNonExpiredLiveDrops<T extends Record<string, any>>(drops: T[]) {
   const now = Date.now();
   return (drops || []).filter((drop) => {
+    if (normalizeDropStatus(drop?.status) !== "live") {
+      return false;
+    }
     if (!drop?.ends_at) return true;
     const endsAt = new Date(drop.ends_at).getTime();
     if (!Number.isFinite(endsAt)) return true;
@@ -186,6 +215,7 @@ function updateDropSchemaModes(error: { message?: string } | null | undefined) {
 
   if (
     isMissingColumnError(error, "drops", "preview_uri") ||
+    isMissingColumnError(error, "drops", "is_gated") ||
     isMissingColumnError(error, "drops", "delivery_uri") ||
     isMissingColumnError(error, "drops", "asset_type") ||
     isMissingColumnError(error, "drops", "contract_kind")
@@ -219,6 +249,7 @@ function getLiveDropsSelectClause() {
 
   if (shouldUseFullDropColumns()) {
     columns.splice(7, 0, "preview_uri", "asset_type");
+    columns.splice(14, 0, "delivery_uri", "is_gated");
     columns.push("contract_kind");
   }
 
@@ -257,6 +288,7 @@ function getDropDetailSelectClause() {
 
   if (shouldUseFullDropColumns()) {
     columns.splice(10, 0, "preview_uri", "asset_type");
+    columns.splice(15, 0, "delivery_uri", "is_gated");
     columns.push("contract_kind");
   }
 
@@ -448,7 +480,7 @@ export async function fetchLiveDropsFromSupabase() {
     let { data, error } = await supabase
       .from("drops")
       .select(getLiveDropsSelectClause())
-      .eq("status", "live")
+      .in("status", [...LIVE_DROP_STATUSES])
       .order("created_at", { ascending: false });
 
     updateDropSchemaModes(error);
@@ -458,7 +490,7 @@ export async function fetchLiveDropsFromSupabase() {
       ({ data, error } = await supabase
         .from("drops")
         .select(getLiveDropsSelectClause())
-        .eq("status", "live")
+        .in("status", [...LIVE_DROP_STATUSES])
         .order("created_at", { ascending: false }));
 
       if (!error) {
