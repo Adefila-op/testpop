@@ -45,7 +45,7 @@ export function CheckoutPage() {
         <Card>
           <CardContent className="pt-12 pb-12 text-center">
             <p className="text-muted-foreground mb-4">Your cart is empty</p>
-            <Button onClick={() => navigate("/products")}>Continue Shopping</Button>
+            <Button onClick={() => navigate("/drops")}>Browse Drops</Button>
           </CardContent>
         </Card>
       </div>
@@ -250,7 +250,7 @@ export function CheckoutPage() {
                 variant="outline"
                 className="w-full"
               >
-                Continue Shopping
+                Browse Drops
               </Button>
               <Button
                 onClick={() => navigate("/orders")}

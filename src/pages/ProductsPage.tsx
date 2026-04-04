@@ -1,17 +1,10 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useMemo, useState } from "react";
-import { ArrowRight, Coins, Package, Search, ShoppingCart, Sparkles } from "lucide-react";
+import { ArrowRight, Coins, Search, Sparkles } from "lucide-react";
 import { useAccount } from "wagmi";
 import { useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ProductGrid } from "@/components/ProductCard";
-import { useProductStore } from "@/stores/productStore";
-import { useCartStore } from "@/stores/cartStore";
-import { useSupabasePublishedProducts } from "@/hooks/useSupabase";
-import { resolveMediaUrl } from "@/lib/pinata";
-import { resolveContractProductId, resolveProductMetadataUri } from "@/lib/productMetadata";
 import {
   getIPCampaigns,
   getInvestorPositions,
@@ -20,28 +13,6 @@ import {
   type RoyaltyDistribution,
 } from "@/lib/db";
 import { getRuntimeApiToken } from "@/lib/runtimeSession";
-
-function mapSupabaseProductToStoreProduct(product: any) {
-  return {
-    id: product.id,
-    creativeReleaseId: product.creative_release_id ?? null,
-    name: product.name,
-    image: resolveMediaUrl(product.image_url, product.image_ipfs_uri),
-    price: BigInt(Math.floor(parseFloat(product.price_eth || 0) * 1e18)),
-    creator: product.creator_wallet || "0x0",
-    description: product.description || "",
-    stock: product.stock || 0,
-    sold: product.sold || 0,
-    category: product.category || "Other",
-    releaseType: product.product_type || "physical",
-    contractKind: product.contract_kind || "productStore",
-    contractListingId: Number.isFinite(Number(product.contract_listing_id))
-      ? Number(product.contract_listing_id)
-      : null,
-    contractProductId: resolveContractProductId(product.metadata, product.contract_product_id),
-    metadataUri: resolveProductMetadataUri(product.metadata, product.metadata_uri),
-  };
-}
 
 function formatEthAmount(value: number) {
   if (!Number.isFinite(value) || value <= 0) return "0.00";
@@ -76,11 +47,6 @@ const SORT_OPTIONS = [
 export function ProductsPage() {
   const navigate = useNavigate();
   const { address } = useAccount();
-  const setProducts = useProductStore((state) => state.setProducts);
-  const totalCartItems = useCartStore((state) =>
-    state.items.reduce((total, item) => total + item.quantity, 0)
-  );
-  const { data: supabaseProducts, loading: productsLoading, error: productsError } = useSupabasePublishedProducts();
   const hasApiSession = Boolean(getRuntimeApiToken());
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -91,19 +57,6 @@ export function ProductsPage() {
   const [marketplaceError, setMarketplaceError] = useState<string | null>(null);
   const [investorPositions, setInvestorPositions] = useState<Record<string, number>>({});
   const [royaltyDistributions, setRoyaltyDistributions] = useState<RoyaltyDistribution[]>([]);
-
-  const standaloneProducts = useMemo(
-    () => (supabaseProducts || []).filter((product) => !product.creative_release_id),
-    [supabaseProducts]
-  );
-  const standaloneStoreProducts = useMemo(
-    () => standaloneProducts.map(mapSupabaseProductToStoreProduct),
-    [standaloneProducts]
-  );
-
-  useEffect(() => {
-    setProducts(standaloneStoreProducts);
-  }, [setProducts, standaloneStoreProducts]);
 
   useEffect(() => {
     let isMounted = true;
@@ -226,36 +179,18 @@ export function ProductsPage() {
               <div>
                 <h1 className="text-3xl font-black tracking-tight text-foreground">Marketplace</h1>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Creator investment cards live here. Release-backed products now surface in Drops.
+                  Creator investment cards live here. Drops now carry digital releases, hybrid collectibles, and merchandise discovery.
                 </p>
               </div>
 
-              <div className="flex flex-col gap-3 md:flex-row md:items-center">
-                <div className="relative min-w-[260px] flex-1">
-                  <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    placeholder="Search creators, rights, campaigns..."
-                    value={searchQuery}
-                    onChange={(event) => setSearchQuery(event.target.value)}
-                    className="h-12 rounded-full border-black/8 bg-white pl-11 pr-4"
-                  />
-                </div>
-
-                <div className="flex gap-3">
-                  <Button onClick={() => navigate("/orders")} variant="outline" className="h-12 rounded-full border-black/8 bg-white">
-                    <Package className="mr-2 h-4 w-4" />
-                    Orders
-                  </Button>
-                  <Button onClick={() => navigate("/cart")} variant="outline" className="relative h-12 rounded-full border-black/8 bg-white">
-                    <ShoppingCart className="mr-2 h-4 w-4" />
-                    Cart
-                    {totalCartItems > 0 && (
-                      <span className="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-black text-xs font-bold text-white">
-                        {totalCartItems}
-                      </span>
-                    )}
-                  </Button>
-                </div>
+              <div className="relative min-w-[260px] flex-1 lg:max-w-md">
+                <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Search creators, rights, campaigns..."
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  className="h-12 rounded-full border-black/8 bg-white pl-11 pr-4"
+                />
               </div>
             </div>
           </div>
@@ -280,7 +215,7 @@ export function ProductsPage() {
             ))}
 
             <div className="rounded-[1.5rem] border border-[#dbeafe] bg-[#f8fbff] p-4 text-sm text-muted-foreground">
-              The marketplace now prioritizes creator raise cards. If a release is collectible merchandise or art, you&apos;ll discover it under Drops first.
+              The marketplace is now the creator capital board. Browse Drops for collector releases and hybrid physical/digital editions.
             </div>
           </aside>
 
@@ -499,26 +434,6 @@ export function ProductsPage() {
                 <p className="text-lg font-semibold text-foreground">No creator cards match this view</p>
                 <p className="mt-2 text-sm text-muted-foreground">Try a different rights filter or search term.</p>
               </div>
-            )}
-
-            {standaloneStoreProducts.length > 0 && (
-              <section className="rounded-[1.8rem] border border-[#dbeafe] bg-white/85 p-5">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#1d4ed8]">Standalone Store Items</p>
-                <h3 className="mt-2 text-2xl font-black text-foreground">Non-drop merchandise</h3>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  Only standalone store items remain here. Release-linked catalog entries are now surfaced in Drops.
-                </p>
-
-                {productsLoading ? (
-                  <div className="py-12 text-center text-muted-foreground">Loading store items...</div>
-                ) : productsError ? (
-                  <div className="py-12 text-center text-destructive">Unable to load standalone store items.</div>
-                ) : (
-                  <div className="mt-5 rounded-[1.6rem] bg-white/80 p-4">
-                    <ProductGrid products={standaloneStoreProducts} />
-                  </div>
-                )}
-              </section>
             )}
           </main>
         </div>

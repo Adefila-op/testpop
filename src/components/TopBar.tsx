@@ -165,13 +165,13 @@ function SearchPanel({ onClose }: { onClose: () => void }) {
 
         {results.products.length > 0 && (
           <div>
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Products</p>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Releases</p>
             <div className="space-y-2">
               {results.products.map((product) => (
                 <button
                   key={product.id}
                   onClick={() => {
-                    navigate(`/products/${product.id}`);
+                    navigate(`/drops/${product.id}`);
                     onClose();
                   }}
                   className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-secondary transition-colors text-left"
@@ -182,7 +182,7 @@ function SearchPanel({ onClose }: { onClose: () => void }) {
                     )}
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-foreground">{product.name || "Untitled Product"}</p>
+                    <p className="text-sm font-medium text-foreground">{product.name || "Untitled Release"}</p>
                     <p className="text-xs text-muted-foreground">{product.price_eth ?? "0"} ETH</p>
                   </div>
                 </button>

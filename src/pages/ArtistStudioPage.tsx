@@ -56,9 +56,11 @@ import {
   getIPCampaigns,
   createIPCampaign,
   updateDrop as dbUpdateDrop,
+  updateProduct as dbUpdateProduct,
   type IPCampaign,
+  type Product,
 } from "@/lib/db";
-import { useSupabaseArtistByWallet, useSupabaseDropsByArtist } from "@/hooks/useSupabase";
+import { useSupabaseArtistByWallet, useSupabaseDropsByArtist, useSupabaseProductsByCreator } from "@/hooks/useSupabase";
 import { ADMIN_WALLET } from "@/lib/admin";
 import { createOnchainCreativeRelease } from "@/lib/creativeReleaseEscrowChain";
 import { CREATIVE_RELEASE_ESCROW_ADDRESS } from "@/lib/contracts/creativeReleaseEscrow";
@@ -1435,8 +1437,16 @@ const ArtistStudioPage = ({ embedded = false }: ArtistStudioPageProps) => {
   });
   const { data: artistProfileRecord, refetch: refetchArtistProfile } = useSupabaseArtistByWallet(address);
   const { data: artistDropRecords, refetch: refetchArtistDrops } = useSupabaseDropsByArtist(artistProfileRecord?.id);
+  const {
+    data: creatorProductRecords,
+    loading: creatorProductsLoading,
+    refetch: refetchCreatorProducts,
+  } = useSupabaseProductsByCreator(address);
   const refreshPublicDropQueries = useCallback(async () => {
     await queryClient.invalidateQueries({ queryKey: ["drops"] });
+  }, [queryClient]);
+  const refreshCreatorProductQueries = useCallback(async () => {
+    await queryClient.invalidateQueries({ queryKey: ["products"] });
   }, [queryClient]);
   const ensureArtistUploadSession = useCallback(async () => {
     if (!address) {
@@ -1858,6 +1868,10 @@ const ArtistStudioPage = ({ embedded = false }: ArtistStudioPageProps) => {
   const liveDrops = drops.filter(d => d.status === "live").length;
   const { count: totalSubscribers = 0 } = useGetSubscriberCountFromArtistContract(artistContractAddress);
   const totalCampaignDrops = drops.filter((d) => d.type === "campaign").length;
+  const creatorCatalogProducts = useMemo(
+    () => (creatorProductRecords || []).filter((product) => Boolean(product)),
+    [creatorProductRecords]
+  );
   const hasRaiseEligibility = totalSubscribers >= 100;
   const latestRaiseRequest = useMemo(() => raiseRequests[0] || null, [raiseRequests]);
   const pendingRaiseRequest = useMemo(
@@ -1984,6 +1998,23 @@ const ArtistStudioPage = ({ embedded = false }: ArtistStudioPageProps) => {
     { id: "analytics", icon: BarChart3, label: "Analytics" },
     { id: "profile", icon: Palette, label: "Profile" },
   ];
+
+  const toggleCreatorProductVisibility = async (product: Product) => {
+    const nextStatus = product.status === "draft" ? "published" : "draft";
+
+    try {
+      const updated = await dbUpdateProduct(product.id, { status: nextStatus });
+      if (!updated) {
+        throw new Error("Product visibility was not updated.");
+      }
+
+      toast.success(nextStatus === "published" ? "Release now appears on Drops." : "Release hidden from public Drops.");
+      await Promise.all([refetchCreatorProducts(), refreshCreatorProductQueries(), refreshPublicDropQueries()]);
+    } catch (error) {
+      console.error("Failed to update creator product:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to update release visibility");
+    }
+  };
 
   return (
     <div className={`${embedded ? "min-h-full bg-background relative" : "min-h-screen bg-background max-w-lg mx-auto relative"}`}>
@@ -2179,6 +2210,83 @@ const ArtistStudioPage = ({ embedded = false }: ArtistStudioPageProps) => {
                   {f}
                 </button>
               ))}
+            </div>
+
+            <div className="rounded-2xl border border-border bg-card p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-semibold text-foreground">Linked Release Catalog</h3>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Products now publish through Drops, so manage release visibility and collector links here inside the studio.
+                  </p>
+                </div>
+                <Badge variant="secondary" className="text-[10px] uppercase">
+                  Drops-first
+                </Badge>
+              </div>
+
+              {creatorProductsLoading ? (
+                <div className="flex items-center gap-2 py-6 text-xs text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Loading linked releases...
+                </div>
+              ) : creatorCatalogProducts.length === 0 ? (
+                <div className="py-6 text-xs text-muted-foreground">
+                  Release-linked products will appear here after you mint or create a catalog item from the studio.
+                </div>
+              ) : (
+                <div className="mt-4 space-y-3">
+                  {creatorCatalogProducts.map((product) => {
+                    const isLive = product.status === "published" || product.status === "active";
+                    const releaseLabel = product.product_type || (product.creative_release_id ? "collectible" : "physical");
+
+                    return (
+                      <div key={product.id} className="rounded-2xl border border-border bg-background/70 p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="truncate text-sm font-semibold text-foreground">{product.name || "Untitled Release"}</p>
+                              <Badge variant="outline" className="text-[10px] capitalize">
+                                {releaseLabel}
+                              </Badge>
+                              <Badge variant={isLive ? "default" : "secondary"} className="text-[10px] capitalize">
+                                {product.status || "draft"}
+                              </Badge>
+                            </div>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              {(product.description || "This release is managed from your studio and appears publicly on Drops.").slice(0, 180)}
+                            </p>
+                          </div>
+
+                          <div className="grid min-w-[150px] grid-cols-2 gap-2 text-center">
+                            <div className="rounded-xl bg-secondary p-2">
+                              <p className="text-xs font-bold text-foreground">{product.price_eth ?? 0} ETH</p>
+                              <p className="text-[9px] text-muted-foreground">Price</p>
+                            </div>
+                            <div className="rounded-xl bg-secondary p-2">
+                              <p className="text-xs font-bold text-foreground">{product.sold ?? 0}/{product.stock ?? 0}</p>
+                              <p className="text-[9px] text-muted-foreground">Sold</p>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="mt-3 flex flex-wrap gap-3">
+                          <Link to={`/drops/${product.id}`} className="text-[10px] text-primary">
+                            Open collector view
+                          </Link>
+                          <button
+                            type="button"
+                            onClick={() => toggleCreatorProductVisibility(product)}
+                            className="text-[10px] text-primary"
+                          >
+                            {isLive ? "Hide from Drops" : "Publish to Drops"}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             {drops.length === 0 && (

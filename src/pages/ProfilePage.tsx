@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Award, Gift, Loader2, LogOut, Package, ShoppingBag, Shield, Sparkles, Wallet } from "lucide-react";
+import { Award, Gift, Loader2, LogOut, Package, Shield, ShoppingBag, ShoppingCart, Sparkles, Wallet } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useWallet } from "@/hooks/useContracts";
 import { toast } from "sonner";
@@ -51,6 +51,12 @@ const ProfilePage = () => {
       label: "My Subscriptions",
       desc: "Artists you support",
       path: "/subscriptions",
+    },
+    {
+      icon: ShoppingCart,
+      label: "Cart",
+      desc: "Review items before checkout",
+      path: "/cart",
     },
     {
       icon: Package,
@@ -377,11 +383,11 @@ const ProfilePage = () => {
                 <p className="mt-1 text-xs text-muted-foreground">Track every purchase</p>
               </Link>
               <Link
-                to="/products"
+                to="/cart"
                 className="rounded-[1.3rem] border border-[#dbeafe] bg-[#f3f8ff] px-4 py-3 text-left transition-colors hover:bg-[#e8f1ff]"
               >
-                <p className="text-sm font-semibold text-foreground">Marketplace</p>
-                <p className="mt-1 text-xs text-muted-foreground">Shop new releases</p>
+                <p className="text-sm font-semibold text-foreground">Cart</p>
+                <p className="mt-1 text-xs text-muted-foreground">Review releases before checkout</p>
               </Link>
             </div>
 

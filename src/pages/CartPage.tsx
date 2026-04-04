@@ -1,5 +1,5 @@
 import { ShoppingCart } from "@/components/ShoppingCart";
-import { ArrowRight, Package, ShieldCheck, ShoppingBag } from "lucide-react";
+import { ArrowRight, Flame, Package, ShieldCheck, User } from "lucide-react";
 import { Link } from "react-router-dom";
 
 export function CartPage() {
@@ -12,18 +12,25 @@ export function CartPage() {
               <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#1d4ed8]">Cart</p>
-                  <h1 className="mt-2 text-3xl font-black tracking-tight text-foreground md:text-4xl">Complete your marketplace order</h1>
+                  <h1 className="mt-2 text-3xl font-black tracking-tight text-foreground md:text-4xl">Complete your collector order</h1>
                   <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-                    Review quantities, continue to checkout, or jump back into the marketplace without losing your basket.
+                    Review quantities, continue to checkout, or jump back into Drops without losing your basket.
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-3">
                   <Link
-                    to="/products"
+                    to="/profile"
                     className="inline-flex items-center gap-2 rounded-full border border-[#dbeafe] bg-[#f3f8ff] px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-[#e8f1ff]"
                   >
-                    <ShoppingBag className="h-4 w-4 text-[#1d4ed8]" />
-                    Marketplace
+                    <User className="h-4 w-4 text-[#1d4ed8]" />
+                    Profile
+                  </Link>
+                  <Link
+                    to="/drops"
+                    className="inline-flex items-center gap-2 rounded-full border border-[#dbeafe] bg-[#f3f8ff] px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-[#e8f1ff]"
+                  >
+                    <Flame className="h-4 w-4 text-[#1d4ed8]" />
+                    Drops
                   </Link>
                   <Link
                     to="/orders"

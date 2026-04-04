@@ -18,8 +18,8 @@ export function ShoppingCart() {
       <Card className="col-span-full">
         <CardContent className="pt-12 pb-12 text-center">
           <p className="text-muted-foreground mb-4">Your cart is empty</p>
-          <Button onClick={() => navigate("/products")} variant="default">
-            Continue Shopping
+          <Button onClick={() => navigate("/drops")} variant="default">
+            Browse Drops
           </Button>
         </CardContent>
       </Card>
@@ -110,10 +110,10 @@ export function ShoppingCart() {
       <div className="flex gap-3">
         <Button
           variant="outline"
-          onClick={() => navigate("/products")}
+          onClick={() => navigate("/drops")}
           className="flex-1"
         >
-          Continue Shopping
+          Back to Drops
         </Button>
         <Button
           onClick={() => navigate("/checkout")}

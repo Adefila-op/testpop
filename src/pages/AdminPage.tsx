@@ -1309,7 +1309,7 @@ const AdminPage = () => {
       <div className="max-w-2xl mx-auto px-4 pt-4 pb-2 grid grid-cols-4 gap-2">
         {[
           { label: "Whitelisted", value: approvedArtists, icon: Users },
-          { label: "Products", value: products.filter(p => p.status === "active").length, icon: ShoppingBag },
+          { label: "Catalog", value: products.filter(p => p.status === "active").length, icon: ShoppingBag },
           { label: "Orders", value: orders.length, icon: Package },
           { label: "Pending", value: pendingWhitelist + pendingOrders + pendingRaises, icon: AlertTriangle },
         ].map(s => (
@@ -1324,14 +1324,13 @@ const AdminPage = () => {
       {/* Tabs */}
       <div className="max-w-2xl mx-auto px-4 pb-12">
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="w-full bg-secondary rounded-xl h-10 grid grid-cols-6 mb-4">
+          <TabsList className="w-full bg-secondary rounded-xl h-10 grid grid-cols-5 mb-4">
             <TabsTrigger value="whitelist" className="rounded-lg text-xs">
               Artists
               {pendingWhitelist > 0 && (
                 <span className="ml-1.5 h-4 w-4 rounded-full bg-primary text-primary-foreground text-[9px] inline-flex items-center justify-center">{pendingWhitelist}</span>
               )}
             </TabsTrigger>
-            <TabsTrigger value="products" className="rounded-lg text-xs">Products</TabsTrigger>
             <TabsTrigger value="orders" className="rounded-lg text-xs">
               Orders
               {pendingOrders > 0 && (

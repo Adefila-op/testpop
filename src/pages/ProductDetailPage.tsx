@@ -162,11 +162,11 @@ export function ProductDetailPage() {
   }
 
   if (!product) {
-    return (
-      <div className="container mx-auto px-4 py-8">
-        <Button variant="ghost" onClick={() => navigate("/products")} className="mb-6 gap-2">
+      return (
+        <div className="container mx-auto px-4 py-8">
+        <Button variant="ghost" onClick={() => navigate("/drops")} className="mb-6 gap-2">
           <ArrowLeft className="h-4 w-4" />
-          Back to Marketplace
+          Back to Drops
         </Button>
         <p className="text-muted-foreground">Product not found</p>
       </div>
@@ -211,9 +211,9 @@ export function ProductDetailPage() {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <Button variant="ghost" onClick={() => navigate("/products")} className="mb-6 gap-2">
+      <Button variant="ghost" onClick={() => navigate("/drops")} className="mb-6 gap-2">
         <ArrowLeft className="h-4 w-4" />
-        Back to Marketplace
+        Back to Drops
       </Button>
 
       <div className="grid grid-cols-1 gap-10 lg:grid-cols-[1.1fr_0.9fr]">

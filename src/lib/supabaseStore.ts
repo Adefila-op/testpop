@@ -614,7 +614,7 @@ async function fetchCreativeReleasesByIdsFromSupabase(releaseIds: Array<string |
   return new Map((data || []).map((release) => [release.id, release]));
 }
 
-async function fetchReleaseLinkedProductsForDropSurface(options: { artistId?: string; productId?: string } = {}) {
+async function fetchCatalogProductsForDropSurface(options: { artistId?: string; productId?: string } = {}) {
   if (productColumnsMode === "legacy") {
     return [];
   }
@@ -623,7 +623,6 @@ async function fetchReleaseLinkedProductsForDropSurface(options: { artistId?: st
     .from("products")
     .select(getPublicProductSelectClause())
     .in("status", [...PUBLIC_PRODUCT_STATUSES])
-    .not("creative_release_id", "is", null)
     .order("created_at", { ascending: false });
 
   if (options.artistId) {
@@ -656,7 +655,7 @@ async function fetchReleaseLinkedProductsForDropSurface(options: { artistId?: st
   return Array.from(uniqueProducts.values());
 }
 
-function buildReleaseBackedSyntheticDrop(
+function buildProductBackedSyntheticDrop(
   product: Record<string, any>,
   release: Record<string, any> | null | undefined
 ) {
@@ -668,6 +667,8 @@ function buildReleaseBackedSyntheticDrop(
     release?.metadata && typeof release.metadata === "object" && !Array.isArray(release.metadata)
       ? release.metadata
       : {};
+  const sourceKind = product.creative_release_id ? "release_product" : "catalog_product";
+  const releaseType = release?.release_type || product.product_type || null;
 
   return withDropDefaults({
     id: product.id,
@@ -689,7 +690,9 @@ function buildReleaseBackedSyntheticDrop(
     delivery_uri:
       product.delivery_uri ||
       (typeof releaseMetadata.delivery_uri === "string" ? releaseMetadata.delivery_uri : null),
-    asset_type: product.asset_type || "image",
+    asset_type:
+      product.asset_type ||
+      (product.product_type === "digital" ? "digital" : product.product_type ? "merchandise" : "image"),
     is_gated: Boolean(product.is_gated),
     status: release?.status || product.status || "published",
     type: "drop",
@@ -698,16 +701,23 @@ function buildReleaseBackedSyntheticDrop(
       release?.contract_drop_id !== null && release?.contract_drop_id !== undefined
         ? Number(release.contract_drop_id)
         : null,
-    contract_kind: release?.contract_kind || product.contract_kind || "creativeReleaseEscrow",
+    contract_kind:
+      release?.contract_kind ||
+      product.contract_kind ||
+      (product.creative_release_id ? "creativeReleaseEscrow" : "productStore"),
     created_at: release?.published_at || product.created_at || release?.created_at || null,
     updated_at: product.updated_at || release?.updated_at || null,
     metadata: {
       ...releaseMetadata,
       ...productMetadata,
-      source_kind: "release_product",
+      source_kind: sourceKind,
       source_product_id: product.id,
+      release_type: releaseType,
+      product_type: product.product_type || null,
+      physical_details_jsonb: release?.physical_details_jsonb || null,
+      shipping_profile_jsonb: release?.shipping_profile_jsonb || null,
     },
-    source_kind: "release_product",
+    source_kind: sourceKind,
     source_product_id: product.id,
     linked_product: product,
     creative_release: release || null,
@@ -720,15 +730,15 @@ async function appendReleaseBackedDrops<T extends Record<string, any>>(
 ) {
   const baseDrops = [...(drops || [])];
 
-  let releaseProducts: Record<string, any>[] = [];
+  let catalogProducts: Record<string, any>[] = [];
   try {
-    releaseProducts = await fetchReleaseLinkedProductsForDropSurface({ artistId: options.artistId });
+    catalogProducts = await fetchCatalogProductsForDropSurface({ artistId: options.artistId });
   } catch (error: any) {
-    console.warn("Failed to fetch release-linked products for drop surface:", error?.message || error);
+    console.warn("Failed to fetch catalog products for drop surface:", error?.message || error);
     return sortDropsByNewest(baseDrops);
   }
 
-  if (releaseProducts.length === 0) {
+  if (catalogProducts.length === 0) {
     return sortDropsByNewest(baseDrops);
   }
 
@@ -737,27 +747,56 @@ async function appendReleaseBackedDrops<T extends Record<string, any>>(
       .map((drop) => drop.creative_release_id)
       .filter((releaseId): releaseId is string => Boolean(releaseId))
   );
+  const existingSourceProductIds = new Set(
+    baseDrops
+      .map((drop) => {
+        if (typeof drop.source_product_id === "string" && drop.source_product_id) {
+          return drop.source_product_id;
+        }
 
-  const missingReleaseProducts = releaseProducts.filter((product) => {
+        const metadata =
+          drop.metadata && typeof drop.metadata === "object" && !Array.isArray(drop.metadata)
+            ? (drop.metadata as Record<string, unknown>)
+            : null;
+
+        return typeof metadata?.source_product_id === "string" ? metadata.source_product_id : null;
+      })
+      .filter((productId): productId is string => Boolean(productId))
+  );
+
+  const missingProducts = catalogProducts.filter((product) => {
+    if (existingSourceProductIds.has(product.id)) {
+      return false;
+    }
+
     const releaseId = product.creative_release_id;
-    return releaseId ? !existingReleaseIds.has(releaseId) : false;
+    if (releaseId) {
+      return !existingReleaseIds.has(releaseId);
+    }
+
+    return !baseDrops.some((drop) => drop.id === product.id);
   });
 
-  if (missingReleaseProducts.length === 0) {
+  if (missingProducts.length === 0) {
     return sortDropsByNewest(baseDrops);
   }
 
   let releaseMap = new Map<string, Record<string, any>>();
   try {
     releaseMap = await fetchCreativeReleasesByIdsFromSupabase(
-      missingReleaseProducts.map((product) => product.creative_release_id)
+      missingProducts
+        .map((product) => product.creative_release_id)
+        .filter((releaseId): releaseId is string => Boolean(releaseId))
     );
   } catch (error: any) {
     console.warn("Failed to fetch creative releases for synthetic drops:", error?.message || error);
   }
 
-  let syntheticDrops = missingReleaseProducts.map((product) =>
-    buildReleaseBackedSyntheticDrop(product, releaseMap.get(product.creative_release_id) || null)
+  let syntheticDrops = missingProducts.map((product) =>
+    buildProductBackedSyntheticDrop(
+      product,
+      product.creative_release_id ? releaseMap.get(product.creative_release_id) || null : null
+    )
   );
 
   syntheticDrops = await attachArtistsToDrops(syntheticDrops);
@@ -779,20 +818,18 @@ async function fetchSyntheticDropByProductId(productId: string) {
     return null;
   }
 
-  if (!isReleaseBackedProduct(product)) {
-    return null;
-  }
-
   let release: Record<string, any> | null = null;
   try {
-    const releaseMap = await fetchCreativeReleasesByIdsFromSupabase([product?.creative_release_id]);
-    release = releaseMap.get(product?.creative_release_id) || null;
+    if (product?.creative_release_id) {
+      const releaseMap = await fetchCreativeReleasesByIdsFromSupabase([product.creative_release_id]);
+      release = releaseMap.get(product.creative_release_id) || null;
+    }
   } catch (error: any) {
     console.warn("Failed to fetch creative release for product-backed drop:", error?.message || error);
   }
 
   let [syntheticDrop] = await attachArtistsToDrops([
-    buildReleaseBackedSyntheticDrop(product, release),
+    buildProductBackedSyntheticDrop(product, release),
   ]);
   syntheticDrop = await enrichDropMediaFromMetadata(syntheticDrop);
   return syntheticDrop;

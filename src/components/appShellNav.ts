@@ -12,12 +12,16 @@ export function isAppShellNavActive(itemPath: string, pathname: string) {
     pathname === itemPath ||
     (itemPath === "/drops" && pathname.startsWith("/drops/")) ||
     (itemPath === "/profile" &&
-      (pathname.startsWith("/profile") || pathname.startsWith("/wallet"))) ||
-    (itemPath === "/products" &&
-      (pathname.startsWith("/invest") ||
-        pathname.startsWith("/products") ||
+      (pathname.startsWith("/profile") ||
+        pathname.startsWith("/wallet") ||
         pathname.startsWith("/cart") ||
         pathname.startsWith("/checkout") ||
-        pathname.startsWith("/orders")))
+        pathname.startsWith("/orders") ||
+        pathname.startsWith("/collection") ||
+        pathname.startsWith("/poaps") ||
+        pathname.startsWith("/subscriptions") ||
+        pathname.startsWith("/studio"))) ||
+    (itemPath === "/products" &&
+      (pathname.startsWith("/invest") || pathname.startsWith("/products")))
   );
 }

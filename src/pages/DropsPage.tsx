@@ -22,6 +22,15 @@ const filters = [
   { label: "Campaign", value: "campaign" },
 ] as const;
 
+function formatCatalogLabel(value?: string | null) {
+  const normalized = String(value || "").replace(/_/g, " ").trim();
+  if (!normalized) return "";
+  if (normalized === "hybrid" || normalized === "physical" || normalized === "digital") {
+    return `${normalized} release`;
+  }
+  return normalized;
+}
+
 const DropsPage = () => {
   const navigate = useNavigate();
   const [active, setActive] = useState<(typeof filters)[number]["value"]>("all");
@@ -48,6 +57,23 @@ const DropsPage = () => {
         deliveryUri: drop.delivery_uri,
         metadata: (drop.metadata as Record<string, unknown> | undefined) || null,
       });
+      const creativeRelease =
+        drop.creative_release && typeof drop.creative_release === "object" && !Array.isArray(drop.creative_release)
+          ? (drop.creative_release as { release_type?: string | null })
+          : null;
+      const linkedProduct =
+        drop.linked_product && typeof drop.linked_product === "object" && !Array.isArray(drop.linked_product)
+          ? (drop.linked_product as { product_type?: string | null })
+          : null;
+      const metadata =
+        drop.metadata && typeof drop.metadata === "object" && !Array.isArray(drop.metadata)
+          ? (drop.metadata as Record<string, unknown>)
+          : null;
+      const releaseType =
+        creativeRelease?.release_type ||
+        linkedProduct?.product_type ||
+        (typeof metadata?.release_type === "string" ? metadata.release_type : null) ||
+        (typeof metadata?.product_type === "string" ? metadata.product_type : null);
 
       return {
         id: drop.id,
@@ -65,11 +91,12 @@ const DropsPage = () => {
           ? `${Math.max(0, Math.floor((new Date(drop.ends_at).getTime() - Date.now()) / (1000 * 60 * 60)))}h`
           : "--",
         assetType: (drop.asset_type || "image") as AssetType,
+        releaseType,
       };
     });
   }, [supabaseDrops]);
 
-  const dropViewCounts = useMemo(() => getAnalyticsSnapshot().dropViews, [allDrops]);
+  const dropViewCounts = useMemo(() => getAnalyticsSnapshot().dropViews, []);
   const curatedDrops = useMemo(() => {
     return [...allDrops].sort((left, right) => {
       const leftScore = left.sold * 12 + (dropViewCounts[left.id] ?? 0) * 3;
@@ -90,7 +117,7 @@ const DropsPage = () => {
     }
 
     return byType.filter((drop) =>
-      [drop.title, drop.artist, drop.type, drop.assetType]
+      [drop.title, drop.artist, drop.type, drop.assetType, drop.releaseType]
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(deferredQuery))
     );
@@ -365,6 +392,11 @@ const DropsPage = () => {
                           <Badge className="bg-background/80 text-[10px] text-foreground backdrop-blur-sm">
                             {drop.type}
                           </Badge>
+                          {drop.releaseType && (
+                            <Badge className="bg-emerald-500/85 text-[10px] capitalize text-white backdrop-blur-sm">
+                              {formatCatalogLabel(drop.releaseType)}
+                            </Badge>
+                          )}
                           {drop.assetType && drop.assetType !== "image" && (
                             <Badge className="bg-primary/80 text-[10px] capitalize text-primary-foreground backdrop-blur-sm">
                               {drop.assetType}

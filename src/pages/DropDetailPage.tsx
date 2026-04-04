@@ -13,7 +13,14 @@ import { VideoViewer } from "@/components/collection/VideoViewer";
 import { AudioPlayer } from "@/components/collection/AudioPlayer";
 import { useCollectionStore } from "@/stores/collectionStore";
 import { CampaignArchitectureCard } from "@/components/campaign/CampaignArchitectureCard";
-import { getCreativeRelease, getProductsByCreativeRelease, type CreativeRelease, type Product } from "@/lib/db";
+import {
+  getCreativeRelease,
+  getProductAssets,
+  getProductsByCreativeRelease,
+  type CreativeRelease,
+  type Product,
+  type ProductAsset,
+} from "@/lib/db";
 
 const DropPrimaryActionCard = lazy(() => import("@/components/wallet/DropPrimaryActionCard"));
 
@@ -22,6 +29,25 @@ const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 const formatDropTypeLabel = (type: "drop" | "auction" | "campaign") =>
   type === "drop" ? "collect" : type;
 
+function formatDetailValue(value: unknown): string {
+  if (Array.isArray(value)) {
+    return value.filter(Boolean).join(", ");
+  }
+  if (typeof value === "number") {
+    return String(value);
+  }
+  if (typeof value === "string") {
+    return value;
+  }
+  return "";
+}
+
+function toRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
 const DropDetailPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -29,6 +55,8 @@ const DropDetailPage = () => {
   const { data: dropRecord, loading: dropsLoading, error: dropError, refetch: refetchDrop } = useSupabaseDropById(id);
   const [linkedRelease, setLinkedRelease] = useState<CreativeRelease | null>(null);
   const [linkedProduct, setLinkedProduct] = useState<Product | null>(null);
+  const [linkedAssets, setLinkedAssets] = useState<ProductAsset[]>([]);
+  const [linkedDetailsLoading, setLinkedDetailsLoading] = useState(false);
 
   const drop = useMemo(() => {
     if (!dropRecord) return null;
@@ -98,10 +126,17 @@ const DropDetailPage = () => {
       : null;
   const resolvedLinkedRelease = linkedRelease || inlineLinkedRelease;
   const resolvedLinkedProduct = linkedProduct || inlineLinkedProduct;
+  const linkedProductMetadata = toRecord(resolvedLinkedProduct?.metadata);
+  const releaseType =
+    resolvedLinkedRelease?.release_type ||
+    resolvedLinkedProduct?.product_type ||
+    (typeof linkedProductMetadata?.release_type === "string" ? linkedProductMetadata.release_type : null) ||
+    (typeof linkedProductMetadata?.product_type === "string" ? linkedProductMetadata.product_type : null);
   const isReleaseBackedDrop =
     dropRecord?.source_kind === "release_product" ||
+    dropRecord?.source_kind === "catalog_product" ||
     drop?.contractKind === "creativeReleaseEscrow" ||
-    (drop?.creativeReleaseId && Boolean(resolvedLinkedProduct?.id) && !drop?.contractDropId);
+    Boolean(resolvedLinkedProduct?.id);
   const mediaSrc = drop ? ipfsToHttp(drop.deliveryUri || drop.imageUri || drop.image || "") : "";
   const posterSrc = drop ? ipfsToHttp(drop.image || drop.previewUri || "") : "";
   const linkedReleaseCoverSrc = resolvedLinkedRelease?.cover_image_uri ? ipfsToHttp(resolvedLinkedRelease.cover_image_uri) : "";
@@ -114,24 +149,33 @@ const DropDetailPage = () => {
     let isMounted = true;
 
     async function loadLinkedCommerce() {
-      if (!dropRecord?.creative_release_id) {
+      if (!dropRecord?.creative_release_id && !inlineLinkedProduct?.id) {
         setLinkedRelease(null);
         setLinkedProduct(null);
+        setLinkedAssets([]);
         return;
       }
 
       try {
+        setLinkedDetailsLoading(true);
         const [release, products] = await Promise.all([
-          getCreativeRelease(dropRecord.creative_release_id),
-          getProductsByCreativeRelease(dropRecord.creative_release_id),
+          dropRecord?.creative_release_id ? getCreativeRelease(dropRecord.creative_release_id) : Promise.resolve(null),
+          dropRecord?.creative_release_id ? getProductsByCreativeRelease(dropRecord.creative_release_id) : Promise.resolve([]),
         ]);
+        const nextProduct = inlineLinkedProduct || products?.[0] || null;
+        const assets = nextProduct?.id ? await getProductAssets(nextProduct.id) : [];
 
         if (!isMounted) return;
         setLinkedRelease(release || null);
-        setLinkedProduct(products?.[0] || null);
+        setLinkedProduct(nextProduct);
+        setLinkedAssets(assets || []);
       } catch (error) {
         if (isMounted) {
-          console.warn("Failed to load linked marketplace release:", error);
+          console.warn("Failed to load linked release details:", error);
+        }
+      } finally {
+        if (isMounted) {
+          setLinkedDetailsLoading(false);
         }
       }
     }
@@ -141,13 +185,51 @@ const DropDetailPage = () => {
     return () => {
       isMounted = false;
     };
-  }, [dropRecord?.creative_release_id]);
+  }, [dropRecord?.creative_release_id, inlineLinkedProduct]);
 
   useEffect(() => {
     if (id) {
       recordDropView(id);
     }
   }, [id]);
+
+  const galleryImages = useMemo(() => {
+    const orderedUrls: string[] = [];
+    const seen = new Set<string>();
+
+    const pushUrl = (value?: string | null) => {
+      const resolved = value ? resolveMediaUrl(value) : "";
+      if (resolved && !seen.has(resolved)) {
+        seen.add(resolved);
+        orderedUrls.push(resolved);
+      }
+    };
+
+    pushUrl(resolvedLinkedRelease?.cover_image_uri || null);
+    pushUrl(linkedProductImageSrc);
+
+    for (const asset of linkedAssets) {
+      if (["hero_art", "gallery_photo", "physical_photo", "preview"].includes(String(asset.role || ""))) {
+        pushUrl(resolveMediaUrl(asset.preview_uri, asset.uri));
+      }
+    }
+
+    return orderedUrls;
+  }, [linkedAssets, linkedProductImageSrc, resolvedLinkedRelease?.cover_image_uri]);
+
+  const physicalDetails =
+    resolvedLinkedRelease?.physical_details_jsonb ||
+    toRecord(linkedProductMetadata?.physical_details_jsonb) ||
+    {};
+  const shippingProfile =
+    resolvedLinkedRelease?.shipping_profile_jsonb ||
+    toRecord(linkedProductMetadata?.shipping_profile_jsonb) ||
+    {};
+  const physicalDetailEntries = Object.entries(physicalDetails).filter(([, value]) => formatDetailValue(value));
+  const shippingEntries = Object.entries(shippingProfile).filter(([, value]) => formatDetailValue(value));
+  const creatorNotes =
+    resolvedLinkedRelease?.creator_notes ||
+    (typeof linkedProductMetadata?.creator_notes === "string" ? linkedProductMetadata.creator_notes : null);
 
   if (dropsLoading) {
     return (
@@ -248,13 +330,18 @@ const DropDetailPage = () => {
       <div className="px-4 pt-4 space-y-4">
         <div className="flex items-start justify-between">
           <div>
-            <div className="flex gap-1 mb-2 flex-wrap">
+            <div className="mb-2 flex flex-wrap gap-1">
               <Badge variant="secondary" className="text-[10px] capitalize">
                 {formatDropTypeLabel(drop.type)}
               </Badge>
               {drop.assetType !== "image" && (
                 <Badge variant="outline" className="text-[10px] capitalize">
                   {drop.assetType}
+                </Badge>
+              )}
+              {releaseType && (
+                <Badge variant="outline" className="text-[10px] capitalize">
+                  {releaseType} release
                 </Badge>
               )}
               {drop.contractKind && (
@@ -317,12 +404,12 @@ const DropDetailPage = () => {
           <div className="rounded-2xl border border-border bg-card/70 p-4 space-y-3">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-[10px] uppercase tracking-[0.24em] text-muted-foreground">Marketplace Release</p>
+                <p className="text-[10px] uppercase tracking-[0.24em] text-muted-foreground">Release Listing</p>
                 <h2 className="mt-1 text-base font-semibold text-foreground">
                   {resolvedLinkedProduct?.name || resolvedLinkedRelease?.title || drop.title}
                 </h2>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  This drop is linked to a marketplace release so collectors can discover the product context, media, and checkout path in one place.
+                  This drop is the public discovery page for the linked release, including checkout, media, and hybrid fulfillment details.
                 </p>
               </div>
               {resolvedLinkedProduct?.id ? (
@@ -331,7 +418,7 @@ const DropDetailPage = () => {
                   size="sm"
                   onClick={() => navigate(`/products/${resolvedLinkedProduct.id}`)}
                 >
-                  Open Marketplace
+                  Open Checkout
                 </Button>
               ) : null}
             </div>
@@ -349,6 +436,11 @@ const DropDetailPage = () => {
               {resolvedLinkedProduct?.contract_kind ? (
                 <Badge variant="outline" className="text-[10px]">
                   {resolvedLinkedProduct.contract_kind}
+                </Badge>
+              ) : null}
+              {releaseType === "hybrid" ? (
+                <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">
+                  Onchain art + physical delivery
                 </Badge>
               ) : null}
             </div>
@@ -382,6 +474,85 @@ const DropDetailPage = () => {
           >
             <DropPrimaryActionCard drop={drop} onCollectSuccess={handleCollectSuccess} />
           </Suspense>
+        )}
+
+        {(linkedDetailsLoading || galleryImages.length > 0 || physicalDetailEntries.length > 0 || shippingEntries.length > 0 || creatorNotes) && (
+          <div className="space-y-4">
+            {linkedDetailsLoading && (
+              <div className="rounded-2xl border border-border bg-card p-4 text-sm text-muted-foreground">
+                <Loader2 className="mr-2 inline h-4 w-4 animate-spin" />
+                Loading release details...
+              </div>
+            )}
+
+            {galleryImages.length > 0 && (
+              <div className="rounded-2xl border border-border bg-card p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">Gallery</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Preview the art, product photos, and collector-facing media attached to this release.
+                    </p>
+                  </div>
+                  {releaseType && (
+                    <Badge variant="secondary" className="text-[10px] uppercase">
+                      {releaseType}
+                    </Badge>
+                  )}
+                </div>
+
+                <div className="mt-4 grid grid-cols-2 gap-3">
+                  {galleryImages.map((image) => (
+                    <div key={image} className="overflow-hidden rounded-2xl border border-border bg-secondary">
+                      <img src={image} alt={drop.title} className="h-40 w-full object-cover" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {(physicalDetailEntries.length > 0 || creatorNotes) && (
+              <div className="rounded-2xl border border-border bg-card p-4">
+                <p className="text-sm font-semibold text-foreground">Physical Details</p>
+                {physicalDetailEntries.length > 0 ? (
+                  <div className="mt-4 grid gap-3 md:grid-cols-2">
+                    {physicalDetailEntries.map(([key, value]) => (
+                      <div key={key} className="rounded-2xl bg-secondary/60 p-4">
+                        <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+                          {key.replace(/_/g, " ")}
+                        </p>
+                        <p className="mt-2 text-sm leading-6 text-foreground">{formatDetailValue(value)}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-3 text-sm text-muted-foreground">No physical details have been added yet.</p>
+                )}
+                {creatorNotes && (
+                  <div className="mt-4 rounded-2xl border border-border p-4">
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Creator Notes</p>
+                    <p className="mt-2 text-sm leading-6 text-foreground">{creatorNotes}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {shippingEntries.length > 0 && (
+              <div className="rounded-2xl border border-border bg-card p-4">
+                <p className="text-sm font-semibold text-foreground">Shipping & Fulfillment</p>
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  {shippingEntries.map(([key, value]) => (
+                    <div key={key} className="rounded-2xl bg-secondary/60 p-4">
+                      <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+                        {key.replace(/_/g, " ")}
+                      </p>
+                      <p className="mt-2 text-sm leading-6 text-foreground">{formatDetailValue(value)}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         )}
 
         {drop.poap && (
