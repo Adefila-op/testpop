@@ -12,7 +12,7 @@ import { createClient } from "@supabase/supabase-js";
 import { ethers } from "ethers";
 import { dropUpdateSchema, validateInput } from "./validation.js";
 import { appJwtSecret } from "./config.js";
-import { getPinataAuthMode } from "./pinataAuth.js";
+import { getPinataAuthMode, requirePinataAuthStrategies } from "./pinataAuth.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

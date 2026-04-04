@@ -2881,7 +2881,19 @@ END $$;
 
 -- Ensure orders have either drop or product
 DO $$ BEGIN
-  IF NOT EXISTS (
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'orders'
+      AND column_name = 'drop_id'
+  ) AND EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'orders'
+      AND column_name = 'product_id'
+  ) AND NOT EXISTS (
     SELECT 1 FROM pg_constraint c
     WHERE c.conname = 'check_drop_or_product' AND c.conrelid = 'orders'::regclass
   ) THEN
