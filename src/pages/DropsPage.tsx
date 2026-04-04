@@ -25,7 +25,10 @@ const filters = [
 function formatCatalogLabel(value?: string | null) {
   const normalized = String(value || "").replace(/_/g, " ").trim();
   if (!normalized) return "";
-  if (normalized === "hybrid" || normalized === "physical" || normalized === "digital") {
+  if (normalized === "hybrid") {
+    return "physical release";
+  }
+  if (normalized === "physical" || normalized === "digital") {
     return `${normalized} release`;
   }
   return normalized;

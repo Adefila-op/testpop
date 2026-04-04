@@ -21,14 +21,70 @@ export const PdfReader: FC<PdfReaderProps> = ({ src, title, onClose }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [containerWidth, setContainerWidth] = useState(0);
+  const [pdfSource, setPdfSource] = useState<Uint8Array | string | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+
+  const resolvedSourceUrl = (() => {
+    const trimmed = src.trim();
+    if (!trimmed) return "";
+    if (trimmed.startsWith("blob:") || trimmed.startsWith("data:") || trimmed.startsWith("/")) {
+      return trimmed;
+    }
+    if (trimmed.startsWith("http://") || trimmed.startsWith("https://") || trimmed.startsWith("ipfs://")) {
+      return `/api/media/proxy?url=${encodeURIComponent(trimmed)}`;
+    }
+    return trimmed;
+  })();
 
   useEffect(() => {
     setPageNumber(1);
     setTotalPages(1);
     setIsLoading(true);
     setError(null);
+    setPdfSource(null);
   }, [src]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const abortController = new AbortController();
+
+    const loadPdfSource = async () => {
+      if (!resolvedSourceUrl) {
+        setError("This PDF source could not be reached.");
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        const response = await fetch(resolvedSourceUrl, {
+          signal: abortController.signal,
+          credentials: "same-origin",
+          headers: {
+            Accept: "application/pdf,application/octet-stream;q=0.9,*/*;q=0.8",
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const bytes = new Uint8Array(await response.arrayBuffer());
+        if (cancelled) return;
+        setPdfSource(bytes);
+      } catch (fetchError) {
+        console.warn("Falling back to direct PDF URL loading:", fetchError);
+        if (cancelled) return;
+        setPdfSource(resolvedSourceUrl);
+      }
+    };
+
+    void loadPdfSource();
+
+    return () => {
+      cancelled = true;
+      abortController.abort();
+    };
+  }, [resolvedSourceUrl]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -85,9 +141,9 @@ export const PdfReader: FC<PdfReaderProps> = ({ src, title, onClose }) => {
 
       <div ref={containerRef} className="relative min-h-0 flex-1 overflow-auto bg-[#111827] px-4 py-4 sm:px-8">
         <div className="mx-auto w-fit rounded-[1.5rem] bg-white p-3 shadow-[0_30px_80px_rgba(15,23,42,0.45)]">
-          {!error && (
+          {!error && pdfSource && (
             <Document
-              file={src}
+              file={pdfSource}
               loading=""
               onLoadSuccess={({ numPages }) => {
                 setTotalPages(numPages);

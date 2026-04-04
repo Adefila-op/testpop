@@ -72,6 +72,8 @@ const DROP_UPDATE_COLUMNS = new Set([
 ]);
 const LIVE_DROP_STATUSES = ["live", "active", "published"];
 const PUBLIC_PRODUCT_STATUSES = ["published", "active"];
+const DEFAULT_IPFS_GATEWAY_BASE = "https://gateway.pinata.cloud/ipfs";
+const IPFS_GATEWAY_BASE = (process.env.VITE_IPFS_GATEWAY_URL || DEFAULT_IPFS_GATEWAY_BASE).replace(/\/$/, "");
 
 const ARTIST_SUBSCRIPTION_ABI = [
   "function getSubscriberCount() view returns (uint256)",
@@ -114,6 +116,43 @@ function isMissingDropColumnError(message = "") {
     normalized.includes("schema cache") ||
     normalized.includes("column") && normalized.includes("drops")
   );
+}
+
+function isBareIpfsCid(value = "") {
+  return /^(bafy[a-z2-7]+|bafk[a-z2-7]+|Qm[1-9A-HJ-NP-Za-km-z]{44,})$/i.test(value.trim());
+}
+
+function resolveMediaProxyTarget(value = "") {
+  const normalized = String(value || "").trim();
+  if (!normalized) return null;
+
+  const httpGatewayMatch = normalized.match(/^https?:\/\/[^/]+\/ipfs\/(.+)$/i);
+  if (httpGatewayMatch?.[1]) {
+    return `${IPFS_GATEWAY_BASE}/${httpGatewayMatch[1]}`;
+  }
+
+  if (normalized.startsWith("ipfs://ipfs/")) {
+    return `${IPFS_GATEWAY_BASE}/${normalized.slice("ipfs://ipfs/".length)}`;
+  }
+
+  if (normalized.startsWith("ipfs://")) {
+    return `${IPFS_GATEWAY_BASE}/${normalized.slice(7)}`;
+  }
+
+  if (isBareIpfsCid(normalized)) {
+    return `${IPFS_GATEWAY_BASE}/${normalized}`;
+  }
+
+  try {
+    const parsed = new URL(normalized);
+    if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+      return parsed.toString();
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
 }
 
 function loadEnvFile(envPath) {
@@ -3842,6 +3881,44 @@ app.post("/pinata/file", authRequired, upload.single("file"), pinataFileImpl);
 app.post("/api/pinata/file", authRequired, upload.single("file"), pinataFileImpl);
 app.post("/pinata/json", authRequired, pinataJsonImpl);
 app.post("/api/pinata/json", authRequired, pinataJsonImpl);
+
+const mediaProxyImpl = async (req, res) => {
+  try {
+    const target = resolveMediaProxyTarget(req.query?.url || req.query?.uri || "");
+    if (!target) {
+      return res.status(400).json({ error: "A valid media URL or IPFS URI is required." });
+    }
+
+    const upstream = await fetch(target, {
+      method: "GET",
+      headers: {
+        Accept: req.headers.accept || "*/*",
+      },
+    });
+
+    if (!upstream.ok) {
+      return res.status(upstream.status).json({
+        error: `Upstream media request failed with ${upstream.status} ${upstream.statusText}`,
+      });
+    }
+
+    const contentType = upstream.headers.get("content-type") || "application/octet-stream";
+    const cacheControl = upstream.headers.get("cache-control") || "public, max-age=3600";
+    const arrayBuffer = await upstream.arrayBuffer();
+
+    res.setHeader("Content-Type", contentType);
+    res.setHeader("Cache-Control", cacheControl);
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    return res.status(200).send(Buffer.from(arrayBuffer));
+  } catch (error) {
+    return res.status(500).json({
+      error: error.message || "Failed to proxy media",
+    });
+  }
+};
+
+app.get("/media/proxy", mediaProxyImpl);
+app.get("/api/media/proxy", mediaProxyImpl);
 
 /**
  * ═════════════════════════════════════════════════════════════

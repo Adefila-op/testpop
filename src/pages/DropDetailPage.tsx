@@ -29,6 +29,9 @@ const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 const formatDropTypeLabel = (type: "drop" | "auction" | "campaign") =>
   type === "drop" ? "collect" : type;
 
+const formatReleaseListingLabel = (value?: string | null) =>
+  value === "hybrid" ? "physical" : value || "";
+
 function formatDetailValue(value: unknown): string {
   if (Array.isArray(value)) {
     return value.filter(Boolean).join(", ");
@@ -341,7 +344,7 @@ const DropDetailPage = () => {
               )}
               {releaseType && (
                 <Badge variant="outline" className="text-[10px] capitalize">
-                  {releaseType} release
+                  {formatReleaseListingLabel(releaseType)} release
                 </Badge>
               )}
               {drop.contractKind && (
@@ -425,12 +428,12 @@ const DropDetailPage = () => {
             <div className="flex flex-wrap gap-2">
               {resolvedLinkedRelease?.release_type ? (
                 <Badge variant="secondary" className="text-[10px] uppercase">
-                  {resolvedLinkedRelease.release_type}
+                  {formatReleaseListingLabel(resolvedLinkedRelease.release_type)}
                 </Badge>
               ) : null}
               {resolvedLinkedProduct?.product_type ? (
                 <Badge variant="outline" className="text-[10px] uppercase">
-                  {resolvedLinkedProduct.product_type}
+                  {formatReleaseListingLabel(resolvedLinkedProduct.product_type)}
                 </Badge>
               ) : null}
               {resolvedLinkedProduct?.contract_kind ? (
@@ -438,9 +441,9 @@ const DropDetailPage = () => {
                   {resolvedLinkedProduct.contract_kind}
                 </Badge>
               ) : null}
-              {releaseType === "hybrid" ? (
+              {resolvedLinkedProduct?.delivery_uri ? (
                 <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">
-                  Onchain art + physical delivery
+                  Includes gated delivery
                 </Badge>
               ) : null}
             </div>
@@ -496,7 +499,7 @@ const DropDetailPage = () => {
                   </div>
                   {releaseType && (
                     <Badge variant="secondary" className="text-[10px] uppercase">
-                      {releaseType}
+                      {formatReleaseListingLabel(releaseType)}
                     </Badge>
                   )}
                 </div>

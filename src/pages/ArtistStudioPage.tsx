@@ -112,6 +112,9 @@ type DropMode = Drop["type"];
 type DropContentKind = "artwork" | "ebook" | "downloadable";
 type StudioReleaseType = "collectible" | "physical" | "hybrid";
 
+const getListingReleaseLabel = (value?: string | null) =>
+  value === "hybrid" ? "physical" : value || "collectible";
+
 const toStoredDropType = (mode: DropMode): "drop" | "auction" | "campaign" =>
   mode === "buy" ? "drop" : mode;
 
@@ -693,8 +696,8 @@ const CreateDropSheet = ({
           creator_wallet: address.toLowerCase(),
           name: form.title,
           description: form.description,
-          category: releaseType === "hybrid" ? "Hybrid Release" : "Physical Release",
-          product_type: releaseType,
+          category: "Physical Release",
+          product_type: releaseType === "hybrid" ? "physical" : releaseType,
           asset_type: "image",
           price_eth: Number(form.price),
           stock: Number(form.supply),
@@ -1093,7 +1096,7 @@ const CreateDropSheet = ({
                   {([
                     ["collectible", "Collectible"],
                     ["physical", "Physical"],
-                    ["hybrid", "Hybrid"],
+                    ["hybrid", "Physical + gated file"],
                   ] as const).map(([value, label]) => (
                     <button
                       key={value}
@@ -1332,7 +1335,7 @@ const CreateDropSheet = ({
                   <p className="font-bold text-sm text-foreground">{form.title}</p>
                   <p className="text-xs text-muted-foreground line-clamp-2">{form.description}</p>
                   <div className="flex gap-1.5 mt-2">
-                    <Badge variant="secondary" className="text-[10px] capitalize">{releaseType}</Badge>
+                    <Badge variant="secondary" className="text-[10px] capitalize">{getListingReleaseLabel(releaseType)}</Badge>
                     <Badge variant="secondary" className="text-[10px] capitalize">{contentKind}</Badge>
                     <Badge variant="secondary" className="text-[10px]">
                       {form.type === "campaign" && !isPhysicalRelease ? `${form.entryMode} entry` : `${form.price} ETH`}
@@ -1359,12 +1362,23 @@ const CreateDropSheet = ({
               {uploadErr && <div className="flex gap-2 p-3 rounded-xl bg-destructive/10 text-destructive text-xs"><AlertTriangle className="h-4 w-4 shrink-0" />{uploadErr}</div>}
               {form.type === "campaign" && !isPhysicalRelease && <div className="flex gap-2 p-3 rounded-xl bg-primary/5 text-foreground text-xs"><AlertTriangle className="h-4 w-4 shrink-0 text-primary" />Campaign timing, ETH entry credits, artist-approved content credits, and redemption all run through the V2 campaign contract. App-side editing only changes the collector-facing detail card.</div>}
               {activePublishError && <p className="text-xs text-destructive">{(activePublishError as Web3Error).shortMessage ?? (activePublishError as Web3Error).message}</p>}
-              <Button onClick={handlePublish} disabled={busy} className="w-full rounded-xl gradient-primary text-primary-foreground font-bold h-11">
-                {isUploading ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Uploading to IPFSâ€¦</>
-                  : isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Confirm in walletâ€¦</>
-                  : isConfirming ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Mintingâ€¦</>
-                  : isPhysicalRelease ? <><Package className="h-4 w-4 mr-2" />Create Release</> : <><Zap className="h-4 w-4 mr-2" />Mint & Publish</>}
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex-1 rounded-xl"
+                  onClick={() => setStep(1)}
+                  disabled={busy}
+                >
+                  Back to details
+                </Button>
+                <Button onClick={handlePublish} disabled={busy} className="flex-1 rounded-xl gradient-primary text-primary-foreground font-bold h-11">
+                  {isUploading ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Uploading to IPFSâ€¦</>
+                    : isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Confirm in walletâ€¦</>
+                    : isConfirming ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Mintingâ€¦</>
+                    : isPhysicalRelease ? <><Package className="h-4 w-4 mr-2" />Create Release</> : <><Zap className="h-4 w-4 mr-2" />Mint & Publish</>}
+                </Button>
+              </div>
             </div>
           )}
 
@@ -2238,7 +2252,7 @@ const ArtistStudioPage = ({ embedded = false }: ArtistStudioPageProps) => {
                 <div className="mt-4 space-y-3">
                   {creatorCatalogProducts.map((product) => {
                     const isLive = product.status === "published" || product.status === "active";
-                    const releaseLabel = product.product_type || (product.creative_release_id ? "collectible" : "physical");
+                    const releaseLabel = getListingReleaseLabel(product.product_type || (product.creative_release_id ? "collectible" : "physical"));
 
                     return (
                       <div key={product.id} className="rounded-2xl border border-border bg-background/70 p-4">

@@ -290,7 +290,7 @@ export function ProductsPage() {
               )}
             </section>
 
-            <section className="grid gap-3 md:grid-cols-3">
+            <section className="hidden gap-3 md:grid md:grid-cols-3">
               <div className="rounded-[1.4rem] border border-[#dbeafe] bg-white/90 px-4 py-4">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#1d4ed8]">Live Creator Cards</p>
                 <p className="mt-2 text-2xl font-black text-foreground">{publicCampaigns.length}</p>
