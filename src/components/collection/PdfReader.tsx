@@ -3,10 +3,11 @@ import { ChevronLeft, ChevronRight, ExternalLink, Loader2, X } from "lucide-reac
 import { Document, Page, pdfjs } from "react-pdf";
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
-import pdfjsWorker from "pdfjs-dist/build/pdf.worker.min.js?url";
 
-// Configure PDF.js worker for Vite
-pdfjs.GlobalWorkerOptions.workerSrc = pdfjsWorker;
+// Configure PDF.js worker - use CDN as fallback for Vite builds
+if (typeof window !== 'undefined') {
+  pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
+}
 
 interface PdfReaderProps {
   src: string;
