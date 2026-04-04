@@ -26,10 +26,13 @@ function formatCatalogLabel(value?: string | null) {
   const normalized = String(value || "").replace(/_/g, " ").trim();
   if (!normalized) return "";
   if (normalized === "hybrid") {
-    return "physical release";
+    return "hybrid collectible";
   }
-  if (normalized === "physical" || normalized === "digital") {
-    return `${normalized} release`;
+  if (normalized === "physical") {
+    return "merchandise";
+  }
+  if (normalized === "digital") {
+    return "digital release";
   }
   return normalized;
 }

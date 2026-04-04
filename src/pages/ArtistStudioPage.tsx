@@ -112,14 +112,36 @@ type DropMode = Drop["type"];
 type DropContentKind = "artwork" | "ebook" | "downloadable";
 type StudioReleaseType = "collectible" | "physical" | "hybrid";
 
-const getListingReleaseLabel = (value?: string | null) =>
-  value === "hybrid" ? "physical" : value || "collectible";
+const getListingReleaseLabel = (value?: string | null) => {
+  if (value === "hybrid") return "hybrid collectible";
+  if (value === "digital") return "digital release";
+  if (value === "physical") return "merchandise";
+  return value || "collectible";
+};
 
 const toStoredDropType = (mode: DropMode): "drop" | "auction" | "campaign" =>
   mode === "buy" ? "drop" : mode;
 
 const fromStoredDropType = (type?: string | null): DropMode =>
   type === "auction" ? "auction" : type === "campaign" ? "campaign" : "buy";
+
+function isReleaseBackedSyntheticDrop(value: unknown) {
+  if (!value || typeof value !== "object") return false;
+
+  const record = value as {
+    source_kind?: unknown;
+    metadata?: unknown;
+  };
+  const sourceKind = typeof record.source_kind === "string" ? record.source_kind : "";
+  const metadata =
+    record.metadata && typeof record.metadata === "object" && !Array.isArray(record.metadata)
+      ? (record.metadata as Record<string, unknown>)
+      : null;
+  const metadataSourceKind = typeof metadata?.source_kind === "string" ? metadata.source_kind : "";
+  const normalizedSourceKind = (sourceKind || metadataSourceKind).toLowerCase();
+
+  return normalizedSourceKind === "release_product" || normalizedSourceKind === "catalog_product";
+}
 
 type Notification = {
   id: string;
@@ -696,8 +718,8 @@ const CreateDropSheet = ({
           creator_wallet: address.toLowerCase(),
           name: form.title,
           description: form.description,
-          category: "Physical Release",
-          product_type: releaseType === "hybrid" ? "physical" : releaseType,
+          category: releaseType === "hybrid" ? "Hybrid Collectible" : "Merchandise",
+          product_type: releaseType,
           asset_type: "image",
           price_eth: Number(form.price),
           stock: Number(form.supply),
@@ -766,7 +788,10 @@ const CreateDropSheet = ({
             ? "Hybrid release minted, linked to the product catalog, and published."
             : "Physical release minted and published."
         );
-        await queryClient.invalidateQueries({ queryKey: ["products"] });
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ["products"] }),
+          queryClient.invalidateQueries({ queryKey: ["drops"] }),
+        ]);
         resetComposerState();
         onClose();
         return;
@@ -1095,8 +1120,8 @@ const CreateDropSheet = ({
                 <div className="grid grid-cols-3 gap-2 mt-1">
                   {([
                     ["collectible", "Collectible"],
-                    ["physical", "Physical"],
-                    ["hybrid", "Physical + gated file"],
+                    ["physical", "Merchandise"],
+                    ["hybrid", "Hybrid collectible"],
                   ] as const).map(([value, label]) => (
                     <button
                       key={value}
@@ -1515,6 +1540,10 @@ const ArtistStudioPage = ({ embedded = false }: ArtistStudioPageProps) => {
   const deploymentHash = null;
   const deploy = async (_wallet: string) => {};
   const setDeployingArtistWallet = (_wallet: string | null) => {};
+  const actualArtistDropRecords = useMemo(
+    () => (artistDropRecords || []).filter((drop) => !isReleaseBackedSyntheticDrop(drop)),
+    [artistDropRecords]
+  );
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
@@ -1574,7 +1603,7 @@ const ArtistStudioPage = ({ embedded = false }: ArtistStudioPageProps) => {
       : fallbackArtist;
 
     const artistDrops = artistProfileRecord?.id
-      ? (artistDropRecords || []).map((drop) => ({
+      ? actualArtistDropRecords.map((drop) => ({
           id: drop.id,
           title: drop.title || "Untitled Drop",
           price: String(drop.price_eth || 0),
@@ -1645,7 +1674,7 @@ const ArtistStudioPage = ({ embedded = false }: ArtistStudioPageProps) => {
     });
     setDrops(artistDrops);
     setProfileComplete(Boolean(artist.name && artist.handle));
-  }, [address, artistProfileRecord, artistDropRecords, fallbackArtist]);
+  }, [address, artistProfileRecord, actualArtistDropRecords, fallbackArtist]);
 
   useEffect(() => {
     if (!artistProfileRecord?.id) {
@@ -1883,7 +1912,13 @@ const ArtistStudioPage = ({ embedded = false }: ArtistStudioPageProps) => {
   const { count: totalSubscribers = 0 } = useGetSubscriberCountFromArtistContract(artistContractAddress);
   const totalCampaignDrops = drops.filter((d) => d.type === "campaign").length;
   const creatorCatalogProducts = useMemo(
-    () => (creatorProductRecords || []).filter((product) => Boolean(product)),
+    () =>
+      (creatorProductRecords || [])
+        .filter((product) => Boolean(product))
+        .filter((product, index, collection) => {
+          const uniqueKey = product.creative_release_id || product.id;
+          return collection.findIndex((candidate) => (candidate.creative_release_id || candidate.id) === uniqueKey) === index;
+        }),
     [creatorProductRecords]
   );
   const hasRaiseEligibility = totalSubscribers >= 100;

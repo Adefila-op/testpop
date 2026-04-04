@@ -29,8 +29,12 @@ const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 const formatDropTypeLabel = (type: "drop" | "auction" | "campaign") =>
   type === "drop" ? "collect" : type;
 
-const formatReleaseListingLabel = (value?: string | null) =>
-  value === "hybrid" ? "physical" : value || "";
+const formatReleaseListingLabel = (value?: string | null) => {
+  if (value === "hybrid") return "hybrid collectible";
+  if (value === "digital") return "digital release";
+  if (value === "physical") return "merchandise";
+  return value || "";
+};
 
 function formatDetailValue(value: unknown): string {
   if (Array.isArray(value)) {
