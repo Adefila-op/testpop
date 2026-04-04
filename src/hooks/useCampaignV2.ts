@@ -92,9 +92,12 @@ export function useCreateCampaignV2() {
             data: log.data,
             topics: log.topics,
           });
-          if (decoded.eventName !== "CampaignCreated") return null;
-          return Number(decoded.args.campaignId);
-        } catch {
+          if (decoded.eventName === "CampaignCreated") {
+            return Number(decoded.args.campaignId);
+          }
+          return null;
+        } catch (error) {
+          console.warn("Failed to decode log:", error, log);
           return null;
         }
       })

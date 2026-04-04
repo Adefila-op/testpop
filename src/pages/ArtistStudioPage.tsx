@@ -969,7 +969,8 @@ const CreateDropSheet = ({
     if (
       !publishSucceeded ||
       !pendingResult?.metadataUri ||
-      (pendingResult.mode !== "campaign" && (publishedId === null || publishedId === undefined))
+      publishedId === null ||
+      publishedId === undefined
     ) return;
     
     (async () => {

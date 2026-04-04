@@ -8,5 +8,6 @@
     "founderWallet": "0x04dE2EE1cF5A46539d1dbED0eC8f2A541Ac5412C",
     "network": "Base Sepolia"
   },
-  "POAPCampaignV2": "0x532dd9e3232B59eDc62B82e4822482696e49A627"
+  "POAPCampaignV2": "0x532dd9e3232B59eDc62B82e4822482696e49A627",
+  "CreativeReleaseEscrow": "0xf95505B5c4738dc39250f32DeFd3E1FC3196C478"
 }

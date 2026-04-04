@@ -6,10 +6,7 @@ import multer from "multer";
 import jwt from "jsonwebtoken";
 import rateLimit from "express-rate-limit";
 import { createClient } from "@supabase/supabase-js";
-import { ethers } from "ethers";
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
+import { dropUpdateSchema, validateInput } from "./validation.js";
 import { getPinataAuthMode, requirePinataAuth, requirePinataAuthStrategies } from "./pinataAuth.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -208,7 +205,7 @@ const {
   ART_DROP_FACTORY_ADDRESS: rawArtDropFactoryAddress = "0x2d044a0AFAbE0C07Ee12b8f4c18691b82fb6cF01",
   POAP_CAMPAIGN_V2_ADDRESS: rawPoapCampaignV2Address = "0x532dd9e3232B59eDc62B82e4822482696e49A627",
   PRODUCT_STORE_ADDRESS: rawProductStoreAddress = "0x58BB50b4370898dED4d5d724E4A521825a4B0cE6",
-  CREATIVE_RELEASE_ESCROW_ADDRESS: rawCreativeReleaseEscrowAddress = "0x0000000000000000000000000000000000000000",
+  CREATIVE_RELEASE_ESCROW_ADDRESS: rawCreativeReleaseEscrowAddress = "0xf95505B5c4738dc39250f32DeFd3E1FC3196C478",
   DEPLOYER_PRIVATE_KEY: rawDeployerPrivateKey,
   NODE_ENV = "development",
 } = process.env;
@@ -1888,6 +1885,13 @@ app.post("/drops", authRequired, async (req, res) => {
 
 app.patch("/drops/:id", authRequired, async (req, res) => {
   const id = req.params.id;
+  const { signature, signatureMessage } = req.body;
+
+  // Require signature for drop updates
+  if (!signature || !signatureMessage) {
+    return res.status(400).json({ error: "Signature and signatureMessage are required for drop updates" });
+  }
+
   const { data: existing, error: existingError } = await supabase
     .from("drops")
     .select("id, artist_id, artists!inner(wallet)")
@@ -1896,12 +1900,29 @@ app.patch("/drops/:id", authRequired, async (req, res) => {
 
   if (existingError) return res.status(404).json({ error: existingError.message });
   const ownerWallet = existing.artists.wallet;
+
+  // Verify signature
+  try {
+    const recoveredAddress = ethers.verifyMessage(signatureMessage, signature);
+    if (normalizeWallet(recoveredAddress) !== normalizeWallet(ownerWallet)) {
+      return res.status(403).json({ error: "Invalid signature for drop update" });
+    }
+  } catch (sigError) {
+    return res.status(400).json({ error: "Invalid signature format" });
+  }
+
   if (!sameWalletOrAdmin(ownerWallet, req.auth)) {
     return res.status(403).json({ error: "Cannot update another artist drop" });
   }
 
+  // Validate input
+  const validation = validateInput(dropUpdateSchema, req.body);
+  if (!validation.success) {
+    return res.status(400).json({ error: "Invalid input", details: validation.error });
+  }
+
   const updates = {
-    ...sanitizeDropPayload(req.body || {}),
+    ...sanitizeDropPayload(validation.data),
     updated_at: new Date().toISOString(),
   };
 
@@ -3952,11 +3973,26 @@ const mediaProxyImpl = async (req, res) => {
 
     const contentType = upstream.headers.get("content-type") || "application/octet-stream";
     const cacheControl = upstream.headers.get("cache-control") || "public, max-age=3600";
+    const contentLength = upstream.headers.get("content-length");
     const arrayBuffer = await upstream.arrayBuffer();
 
     res.setHeader("Content-Type", contentType);
     res.setHeader("Cache-Control", cacheControl);
     res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, Accept");
+    res.setHeader("Access-Control-Allow-Credentials", "false");
+
+    // For PDFs, ensure proper headers
+    if (contentType.includes("pdf")) {
+      res.setHeader("Content-Disposition", "inline");
+    }
+
+    if (contentLength) {
+      res.setHeader("Content-Length", contentLength);
+    }
+
     return res.status(200).send(Buffer.from(arrayBuffer));
   } catch (error) {
     return res.status(500).json({

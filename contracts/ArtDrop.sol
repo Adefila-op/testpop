@@ -71,6 +71,8 @@ contract ArtDrop is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
     // ──────────────────────────────────────────────
     //  Constructor
     // ──────────────────────────────────────────────
+    /// @notice Initializes the ArtDrop contract
+    /// @param _feeRecipient Address that receives platform fees
     constructor(address _feeRecipient)
         ERC721("ArtDrop", "ADROP")
         Ownable(msg.sender)
@@ -81,6 +83,13 @@ contract ArtDrop is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
     // ──────────────────────────────────────────────
     //  Artist actions
     // ──────────────────────────────────────────────
+    /// @notice Creates a new art drop
+    /// @param _metadataURI IPFS URI pointing to the drop's metadata
+    /// @param _priceWei Price in wei to mint one token
+    /// @param _maxSupply Maximum number of tokens that can be minted (0 = unlimited)
+    /// @param _startTime Unix timestamp when minting opens
+    /// @param _endTime Unix timestamp when minting closes (0 = no end time)
+    /// @return dropId The unique identifier of the created drop
     function createDrop(
         string calldata _metadataURI,
         uint256 _priceWei,
@@ -189,6 +198,9 @@ contract ArtDrop is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
     // ──────────────────────────────────────────────
     //  Collector actions
     // ──────────────────────────────────────────────
+    /// @notice Mints a token from an active drop
+    /// @param _dropId The ID of the drop to mint from
+    /// @return tokenId The ID of the minted token
     function mint(uint256 _dropId) external payable nonReentrant returns (uint256 tokenId) {
         Drop storage d = drops[_dropId];
         require(!d.paused, "Paused");

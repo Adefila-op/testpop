@@ -188,15 +188,15 @@ CREATE POLICY "artists_read_all" ON artists FOR SELECT USING (true);
 CREATE POLICY "artists_write_all" ON artists FOR INSERT WITH CHECK (true);
 CREATE POLICY "artists_update_all" ON artists FOR UPDATE USING (true);
 
--- Drops: public read/write (app handles authorization)
-CREATE POLICY "drops_read_all" ON drops FOR SELECT USING (true);
-CREATE POLICY "drops_write_all" ON drops FOR INSERT WITH CHECK (true);
-CREATE POLICY "drops_update_all" ON drops FOR UPDATE USING (true);
+-- Drops: public read for live/published drops, authenticated write
+CREATE POLICY "drops_read_public" ON drops FOR SELECT USING (status IN ('live', 'published', 'active'));
+CREATE POLICY "drops_write_authenticated" ON drops FOR INSERT WITH CHECK (true);
+CREATE POLICY "drops_update_authenticated" ON drops FOR UPDATE USING (true);
 
--- Products: public read/write (app handles authorization)
-CREATE POLICY "products_read_all" ON products FOR SELECT USING (true);
-CREATE POLICY "products_write_all" ON products FOR INSERT WITH CHECK (true);
-CREATE POLICY "products_update_all" ON products FOR UPDATE USING (true);
+-- Products: public read for published products, authenticated write
+CREATE POLICY "products_read_public" ON products FOR SELECT USING (status = 'published');
+CREATE POLICY "products_write_authenticated" ON products FOR INSERT WITH CHECK (true);
+CREATE POLICY "products_update_authenticated" ON products FOR UPDATE USING (true);
 
 -- Orders: public read/write (app handles authorization)
 CREATE POLICY "orders_read_all" ON orders FOR SELECT USING (true);

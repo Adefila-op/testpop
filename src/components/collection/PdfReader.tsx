@@ -4,10 +4,8 @@ import { Document, Page, pdfjs } from "react-pdf";
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
 
-pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-  "pdfjs-dist/build/pdf.worker.min.mjs",
-  import.meta.url,
-).toString();
+// Configure PDF.js worker for Vite
+pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 interface PdfReaderProps {
   src: string;
@@ -56,25 +54,12 @@ export const PdfReader: FC<PdfReaderProps> = ({ src, title, onClose }) => {
       }
 
       try {
-        const response = await fetch(resolvedSourceUrl, {
-          signal: abortController.signal,
-          credentials: "same-origin",
-          headers: {
-            Accept: "application/pdf,application/octet-stream;q=0.9,*/*;q=0.8",
-          },
-        });
-
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
-        }
-
-        const bytes = new Uint8Array(await response.arrayBuffer());
-        if (cancelled) return;
-        setPdfSource(bytes);
-      } catch (fetchError) {
-        console.warn("Falling back to direct PDF URL loading:", fetchError);
-        if (cancelled) return;
+        // For PDFs, always use the proxy URL directly to avoid CORS issues
         setPdfSource(resolvedSourceUrl);
+      } catch (error) {
+        console.warn("Failed to load PDF:", error);
+        setError("This PDF could not be loaded.");
+        setIsLoading(false);
       }
     };
 
