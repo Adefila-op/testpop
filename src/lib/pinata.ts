@@ -2,7 +2,7 @@ import { getRuntimeApiToken } from "@/lib/runtimeSession";
 
 const DEFAULT_PINATA_API_BASE = "/api/pinata";
 const PINATA_API_BASE = (import.meta.env.VITE_PINATA_API_BASE_URL || DEFAULT_PINATA_API_BASE).replace(/\/$/, "");
-const DEFAULT_IPFS_GATEWAY_BASE = "https://gateway.pinata.cloud/ipfs";
+const DEFAULT_IPFS_GATEWAY_BASE = "https://ipfs.io/ipfs";
 const IPFS_GATEWAY_BASE = (import.meta.env.VITE_IPFS_GATEWAY_URL || DEFAULT_IPFS_GATEWAY_BASE).replace(/\/$/, "");
 
 type PinataUploadResponse = {

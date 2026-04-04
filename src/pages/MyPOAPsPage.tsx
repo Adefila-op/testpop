@@ -36,7 +36,7 @@ function CampaignCreditCard({
   } = useCampaignV2State(drop.contract_drop_id, wallet, drop.contract_address);
   const { redeem, isPending, isConfirming } = useRedeemCampaignV2();
 
-  if (!drop.contract_drop_id) {
+  if (drop.contract_drop_id === null || drop.contract_drop_id === undefined) {
     return null;
   }
 

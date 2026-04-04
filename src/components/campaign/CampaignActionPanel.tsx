@@ -91,6 +91,7 @@ export function CampaignActionPanel({
     isSuccess: isRedeemSuccess,
     error: redeemError,
   } = useRedeemCampaignV2();
+  const hasContractCampaignId = contractCampaignId !== null && contractCampaignId !== undefined;
 
   const status = getCampaignDisplayStatus(campaign);
   const entryModeLabel =
@@ -178,7 +179,7 @@ export function CampaignActionPanel({
     [contentCredits, ethCredits, redeemedCredits, redeemableCredits]
   );
 
-  if (!contractCampaignId) {
+  if (!hasContractCampaignId) {
     return (
       <div className="rounded-xl border border-border bg-secondary/40 p-4 text-sm text-muted-foreground">
         Campaign settings for {fallbackTitle} are still syncing onchain.
