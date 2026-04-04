@@ -169,6 +169,7 @@ const {
   ART_DROP_FACTORY_ADDRESS: rawArtDropFactoryAddress = "0x2d044a0AFAbE0C07Ee12b8f4c18691b82fb6cF01",
   POAP_CAMPAIGN_V2_ADDRESS: rawPoapCampaignV2Address = "0x532dd9e3232B59eDc62B82e4822482696e49A627",
   PRODUCT_STORE_ADDRESS: rawProductStoreAddress = "0x58BB50b4370898dED4d5d724E4A521825a4B0cE6",
+  CREATIVE_RELEASE_ESCROW_ADDRESS: rawCreativeReleaseEscrowAddress = "0x0000000000000000000000000000000000000000",
   DEPLOYER_PRIVATE_KEY: rawDeployerPrivateKey,
   NODE_ENV = "development",
 } = process.env;
@@ -177,6 +178,7 @@ const BASE_SEPOLIA_RPC_URL = rawBaseSepoliaRpcUrl.trim();
 const ART_DROP_FACTORY_ADDRESS = rawArtDropFactoryAddress.trim();
 const POAP_CAMPAIGN_V2_ADDRESS = rawPoapCampaignV2Address.trim();
 const PRODUCT_STORE_ADDRESS = rawProductStoreAddress.trim();
+const CREATIVE_RELEASE_ESCROW_ADDRESS = rawCreativeReleaseEscrowAddress.trim();
 const DEPLOYER_PRIVATE_KEY = rawDeployerPrivateKey?.trim();
 const SUPABASE_SERVER_KEY = SUPABASE_SECRET_KEY?.trim() || SUPABASE_SERVICE_ROLE_KEY?.trim();
 const EXPIRED_DROP_RETENTION_HOURS = Math.max(24, Number(process.env.EXPIRED_DROP_RETENTION_HOURS || 24 * 30));
@@ -324,6 +326,9 @@ const POAP_CAMPAIGN_V2_ABI = [
 const PRODUCT_STORE_INTERFACE = new ethers.Interface([
   "event PurchaseCompleted(uint256 indexed orderId, address indexed buyer, uint256 indexed productId, uint256 quantity, uint256 totalPrice)",
 ]);
+const CREATIVE_RELEASE_ESCROW_INTERFACE = new ethers.Interface([
+  "event ReleasePurchased(uint256 indexed orderId, uint256 indexed listingId, address indexed buyer, uint256 quantity, uint256 totalPrice)",
+]);
 
 async function ensureArtistContractColumnsReady() {
   if (artistContractColumnsReady !== null) {
@@ -443,7 +448,7 @@ async function loadCheckoutProducts(productIds) {
 
   const { data, error } = await supabase
     .from("products")
-    .select("id, name, price_eth, stock, sold, status, product_type, asset_type, preview_uri, delivery_uri, image_url, image_ipfs_uri, is_gated, creator_wallet, metadata, contract_product_id")
+    .select("id, creative_release_id, name, price_eth, stock, sold, status, product_type, asset_type, preview_uri, delivery_uri, image_url, image_ipfs_uri, is_gated, creator_wallet, metadata, contract_kind, contract_listing_id, contract_product_id")
     .in("id", uniqueIds);
 
   if (error) {
@@ -533,6 +538,96 @@ async function verifyProductPurchaseTx({ txHash, buyerWallet, normalizedItems, p
 
   for (const [productId, quantity] of expectedItems.entries()) {
     if ((purchasedItems.get(productId) || 0) !== quantity) {
+      throw new Error("Purchase transaction quantities do not match the requested checkout items");
+    }
+  }
+
+  return normalizedTxHash;
+}
+
+async function verifyCreativeReleasePurchaseTx({ txHash, buyerWallet, normalizedItems, productsById }) {
+  const normalizedTxHash = normalizeTxHash(txHash);
+  if (!normalizedTxHash) {
+    throw new Error("A valid tx_hash is required");
+  }
+
+  const provider = getProductStoreProvider();
+  const [transaction, receipt] = await Promise.all([
+    provider.getTransaction(normalizedTxHash),
+    provider.getTransactionReceipt(normalizedTxHash),
+  ]);
+
+  if (!transaction || !receipt) {
+    throw new Error("Purchase transaction could not be found onchain");
+  }
+
+  if (receipt.status !== 1) {
+    throw new Error("Purchase transaction did not succeed onchain");
+  }
+
+  const expectedTo = normalizeWallet(CREATIVE_RELEASE_ESCROW_ADDRESS);
+  const actualTo = normalizeWallet(receipt.to || transaction.to || "");
+  if (!expectedTo || expectedTo === normalizeWallet("0x0000000000000000000000000000000000000000")) {
+    throw new Error("CREATIVE_RELEASE_ESCROW_ADDRESS is not configured");
+  }
+  if (actualTo !== expectedTo) {
+    throw new Error("Purchase transaction was not sent to the creative release escrow contract");
+  }
+
+  if (normalizeWallet(transaction.from || "") !== normalizeWallet(buyerWallet)) {
+    throw new Error("Purchase transaction does not belong to the connected buyer wallet");
+  }
+
+  const expectedItems = new Map();
+  for (const item of normalizedItems) {
+    const product = productsById.get(item.product_id);
+    if (!product) {
+      throw new Error("One or more checkout products could not be found");
+    }
+
+    const contractListingId = Number(product.contract_listing_id);
+    if (!Number.isFinite(contractListingId) || contractListingId < 0) {
+      throw new Error(`${product.name || "A release"} is missing its escrow listing ID`);
+    }
+
+    expectedItems.set(String(contractListingId), Number(item.quantity) || 1);
+  }
+
+  const purchasedItems = new Map();
+  for (const log of receipt.logs || []) {
+    if (normalizeWallet(log.address || "") !== expectedTo) {
+      continue;
+    }
+
+    try {
+      const decoded = CREATIVE_RELEASE_ESCROW_INTERFACE.parseLog(log);
+      if (!decoded || decoded.name !== "ReleasePurchased") {
+        continue;
+      }
+
+      const eventBuyer = normalizeWallet(decoded.args.buyer);
+      if (eventBuyer !== normalizeWallet(buyerWallet)) {
+        continue;
+      }
+
+      const eventListingId = String(Number(decoded.args.listingId));
+      const eventQuantity = Number(decoded.args.quantity);
+      purchasedItems.set(eventListingId, (purchasedItems.get(eventListingId) || 0) + eventQuantity);
+    } catch {
+      // Ignore unrelated logs.
+    }
+  }
+
+  if (purchasedItems.size === 0) {
+    throw new Error("Purchase transaction did not emit a matching creative release escrow purchase event");
+  }
+
+  if (purchasedItems.size !== expectedItems.size) {
+    throw new Error("Purchase transaction does not match the requested checkout items");
+  }
+
+  for (const [listingId, quantity] of expectedItems.entries()) {
+    if ((purchasedItems.get(listingId) || 0) !== quantity) {
       throw new Error("Purchase transaction quantities do not match the requested checkout items");
     }
   }
@@ -930,6 +1025,86 @@ function normalizeIPCampaignPayload(payload = {}) {
     cover_image_uri: trimOrNull(payload.cover_image_uri),
     metadata: typeof payload.metadata === "object" && payload.metadata !== null ? payload.metadata : {},
   };
+}
+
+function normalizeCreativeReleasePayload(payload = {}) {
+  const trimOrNull = (value) => {
+    if (typeof value !== "string") return null;
+    const trimmed = value.trim();
+    return trimmed ? trimmed : null;
+  };
+
+  const numberOrNull = (value) => {
+    if (value === null || value === undefined || value === "") return null;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+
+  const jsonObject = (value) =>
+    value && typeof value === "object" && !Array.isArray(value) ? value : {};
+
+  const releaseType = trimOrNull(payload.release_type) || "collectible";
+  const status = trimOrNull(payload.status) || "draft";
+  const contractKind =
+    trimOrNull(payload.contract_kind) ||
+    (releaseType === "collectible" ? "artDrop" : "creativeReleaseEscrow");
+
+  return {
+    artist_id: trimOrNull(payload.artist_id),
+    release_type: releaseType,
+    title: trimOrNull(payload.title),
+    description: trimOrNull(payload.description),
+    status,
+    price_eth: numberOrNull(payload.price_eth) ?? 0,
+    supply: Math.max(1, Math.floor(numberOrNull(payload.supply) ?? 1)),
+    sold: Math.max(0, Math.floor(numberOrNull(payload.sold) ?? 0)),
+    art_metadata_uri: trimOrNull(payload.art_metadata_uri),
+    cover_image_uri: trimOrNull(payload.cover_image_uri),
+    contract_kind: contractKind,
+    contract_address:
+      trimOrNull(payload.contract_address) ||
+      (contractKind === "creativeReleaseEscrow" ? CREATIVE_RELEASE_ESCROW_ADDRESS : null),
+    contract_listing_id: numberOrNull(payload.contract_listing_id),
+    contract_drop_id: numberOrNull(payload.contract_drop_id),
+    creator_notes: trimOrNull(payload.creator_notes),
+    physical_details_jsonb: jsonObject(payload.physical_details_jsonb),
+    shipping_profile_jsonb: jsonObject(payload.shipping_profile_jsonb),
+    metadata: jsonObject(payload.metadata),
+    published_at: trimOrNull(payload.published_at),
+  };
+}
+
+function isMissingCreativeReleaseSchemaError(error) {
+  const message = error?.message || "";
+  return (
+    typeof message === "string" &&
+    (
+      message.includes("creative_releases") ||
+      message.includes("creative_release_id")
+    )
+  );
+}
+
+async function writeAdminAuditLog({
+  adminWallet,
+  action,
+  targetWallet = null,
+  status = null,
+  details = null,
+}) {
+  if (!adminWallet || !action) return;
+
+  try {
+    await supabase.from("admin_audit_log").insert({
+      admin_wallet: normalizeWallet(adminWallet),
+      action,
+      target_wallet: targetWallet ? normalizeWallet(targetWallet) : null,
+      status,
+      details,
+    });
+  } catch (error) {
+    console.warn("Admin audit log insert failed:", error?.message || error);
+  }
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -1924,6 +2099,140 @@ const reviewCampaignSubmissionImpl = async (req, res) => {
 
 registerRoute("post", "/campaigns/:dropId/submissions/:submissionId/review", authRequired, reviewCampaignSubmissionImpl);
 
+registerRoute("get", "/creative-releases", async (req, res) => {
+  try {
+    let query = supabase
+      .from("creative_releases")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (typeof req.query.artist_id === "string" && req.query.artist_id.trim()) {
+      query = query.eq("artist_id", req.query.artist_id.trim());
+    }
+
+    if (typeof req.query.release_type === "string" && req.query.release_type.trim()) {
+      query = query.eq("release_type", req.query.release_type.trim());
+    }
+
+    if (typeof req.query.status === "string" && req.query.status.trim()) {
+      query = query.eq("status", req.query.status.trim());
+    } else if (!(typeof req.query.artist_id === "string" && req.query.artist_id.trim())) {
+      query = query.in("status", ["published", "live"]);
+    }
+
+    const { data, error } = await query;
+    if (error) return res.status(400).json({ error: error.message });
+    return res.json(data || []);
+  } catch (error) {
+    return res.status(500).json({ error: error.message || "Failed to load creative releases" });
+  }
+});
+
+registerRoute("get", "/creative-releases/:id", async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from("creative_releases")
+      .select("*")
+      .eq("id", req.params.id)
+      .maybeSingle();
+
+    if (error) return res.status(400).json({ error: error.message });
+    if (!data) return res.status(404).json({ error: "Creative release not found" });
+    return res.json(data);
+  } catch (error) {
+    return res.status(500).json({ error: error.message || "Failed to load creative release" });
+  }
+});
+
+registerRoute("post", "/creative-releases", authRequired, async (req, res) => {
+  try {
+    const payload = normalizeCreativeReleasePayload(req.body || {});
+    if (!payload.title) {
+      return res.status(400).json({ error: "title is required" });
+    }
+
+    let artistRecord = null;
+    if (payload.artist_id && req.auth.role === "admin") {
+      const { data, error } = await supabase
+        .from("artists")
+        .select("id, wallet")
+        .eq("id", payload.artist_id)
+        .maybeSingle();
+      if (error) return res.status(400).json({ error: error.message });
+      artistRecord = data;
+    } else {
+      artistRecord = await getArtistRecordByWallet(req.auth.wallet);
+    }
+
+    if (!artistRecord?.id) {
+      return res.status(400).json({ error: "Artist profile not found. Complete your profile first." });
+    }
+
+    if (!sameWalletOrAdmin(artistRecord.wallet, req.auth)) {
+      return res.status(403).json({ error: "Cannot create releases for another artist" });
+    }
+
+    const now = new Date().toISOString();
+    const insertPayload = {
+      ...payload,
+      artist_id: artistRecord.id,
+      published_at: payload.status === "published" || payload.status === "live"
+        ? payload.published_at || now
+        : payload.published_at,
+      created_at: now,
+      updated_at: now,
+    };
+
+    const { data, error } = await supabase
+      .from("creative_releases")
+      .insert(insertPayload)
+      .select("*")
+      .single();
+
+    if (error) return res.status(400).json({ error: error.message });
+    return res.json(data);
+  } catch (error) {
+    return res.status(500).json({ error: error.message || "Failed to create creative release" });
+  }
+});
+
+registerRoute("patch", "/creative-releases/:id", authRequired, async (req, res) => {
+  try {
+    const { data: existing, error: existingError } = await supabase
+      .from("creative_releases")
+      .select("id, artist_id, artists(wallet)")
+      .eq("id", req.params.id)
+      .single();
+
+    if (existingError || !existing) {
+      return res.status(404).json({ error: existingError?.message || "Creative release not found" });
+    }
+
+    const ownerWallet = Array.isArray(existing.artists) ? existing.artists[0]?.wallet : existing.artists?.wallet;
+    if (!sameWalletOrAdmin(ownerWallet, req.auth)) {
+      return res.status(403).json({ error: "Only the artist or admin can update this release" });
+    }
+
+    const payload = normalizeCreativeReleasePayload(req.body || {});
+    const updates = {
+      ...payload,
+      updated_at: new Date().toISOString(),
+    };
+
+    const { data, error } = await supabase
+      .from("creative_releases")
+      .update(updates)
+      .eq("id", req.params.id)
+      .select("*")
+      .single();
+
+    if (error) return res.status(400).json({ error: error.message });
+    return res.json(data);
+  } catch (error) {
+    return res.status(500).json({ error: error.message || "Failed to update creative release" });
+  }
+});
+
 app.post("/products", authRequired, async (req, res) => {
   const product = req.body || {};
   const creatorWallet = normalizeWallet(product.creator_wallet);
@@ -2051,6 +2360,7 @@ function normalizeShippingAddress(rawShipping) {
 const LEGACY_ORDER_SELECT = `
   id,
   product_id,
+  creative_release_id,
   buyer_wallet,
   quantity,
   currency,
@@ -2062,6 +2372,11 @@ const LEGACY_ORDER_SELECT = `
   shipping_address,
   shipping_address_jsonb,
   tracking_code,
+  tx_hash,
+  contract_kind,
+  contract_order_id,
+  payout_status,
+  approval_status,
   paid_at,
   shipped_at,
   delivered_at,
@@ -2086,6 +2401,7 @@ const ORDER_SELECT = `
   order_items(
     id,
     product_id,
+    creative_release_id,
     quantity,
     unit_price_eth,
     line_total_eth,
@@ -2223,6 +2539,8 @@ async function createLegacyCheckoutOrders({
   currency,
   trackingCode,
   txHash,
+  contractKind = "productStore",
+  contractOrderId = null,
   skipAvailabilityValidation = false,
 }) {
   const createdOrderIds = [];
@@ -2262,6 +2580,7 @@ async function createLegacyCheckoutOrders({
       .insert({
         buyer_wallet: buyerWallet,
         product_id: product.id,
+        creative_release_id: product.creative_release_id || null,
         quantity,
         currency,
         subtotal_eth: totalPrice,
@@ -2273,6 +2592,16 @@ async function createLegacyCheckoutOrders({
         shipping_address_jsonb: shippingAddressJsonb,
         tracking_code: trackingCode,
         tx_hash: txHash,
+        contract_kind: product.contract_kind || contractKind,
+        contract_order_id: contractOrderId,
+        payout_status:
+          String(product.contract_kind || contractKind) === "creativeReleaseEscrow"
+            ? "unreleased"
+            : "released",
+        approval_status:
+          String(product.contract_kind || contractKind) === "creativeReleaseEscrow"
+            ? "pending"
+            : "approved",
         paid_at: paidAt,
       })
       .select("id")
@@ -2283,6 +2612,49 @@ async function createLegacyCheckoutOrders({
     }
 
     createdOrderIds.push(insertedOrder.id);
+
+    const orderItemPayload = {
+      order_id: insertedOrder.id,
+      product_id: product.id,
+      creative_release_id: product.creative_release_id || null,
+      quantity,
+      unit_price_eth: unitPrice,
+      line_total_eth: totalPrice,
+      fulfillment_type: product.product_type === "digital" ? "digital" : "physical",
+      delivery_status: txHash ? "paid" : "pending",
+    };
+
+    const { data: orderItem, error: orderItemError } = await supabase
+      .from("order_items")
+      .insert(orderItemPayload)
+      .select("id")
+      .single();
+
+    if (orderItemError) {
+      throw new Error(orderItemError.message || "Failed to create order item");
+    }
+
+    if (product.product_type === "physical" || product.product_type === "hybrid") {
+      const { error: fulfillmentError } = await supabase
+        .from("fulfillments")
+        .insert({
+          order_id: insertedOrder.id,
+          order_item_id: orderItem?.id || null,
+          product_id: product.id,
+          creator_wallet: product.creator_wallet || null,
+          fulfillment_type: product.product_type === "hybrid" ? "hybrid" : "physical",
+          status: "pending",
+          shipping_address_jsonb: shippingAddressJsonb,
+          metadata: {
+            contract_kind: product.contract_kind || contractKind,
+            tx_hash: txHash,
+          },
+        });
+
+      if (fulfillmentError && !String(fulfillmentError.message || "").toLowerCase().includes("does not exist")) {
+        throw new Error(fulfillmentError.message || "Failed to create fulfillment");
+      }
+    }
 
     if (txHash) {
       const nextStock = currentStock === null ? null : Math.max(currentStock - quantity, 0);
@@ -2310,6 +2682,194 @@ async function createLegacyCheckoutOrders({
 
   return createdOrderIds;
 }
+
+registerRoute("get", "/products/:id/assets", authRequired, async (req, res) => {
+  try {
+    const { data: product, error: productError } = await supabase
+      .from("products")
+      .select("id, creator_wallet")
+      .eq("id", req.params.id)
+      .single();
+
+    if (productError || !product) {
+      return res.status(404).json({ error: productError?.message || "Product not found" });
+    }
+
+    const { data: ownedOrder } = await supabase
+      .from("orders")
+      .select("id")
+      .eq("buyer_wallet", req.auth.wallet)
+      .eq("product_id", product.id)
+      .in("status", ["paid", "processing", "shipped", "delivered"])
+      .maybeSingle();
+
+    const canViewPrivate =
+      req.auth.role === "admin" ||
+      normalizeWallet(product.creator_wallet) === req.auth.wallet ||
+      Boolean(ownedOrder?.id);
+
+    let query = supabase
+      .from("product_assets")
+      .select("*")
+      .eq("product_id", product.id)
+      .order("is_primary", { ascending: false })
+      .order("sort_order", { ascending: true });
+
+    if (!canViewPrivate) {
+      query = query.eq("visibility", "public");
+    }
+
+    const { data, error } = await query;
+    if (error) return res.status(400).json({ error: error.message });
+    return res.json(data || []);
+  } catch (error) {
+    return res.status(500).json({ error: error.message || "Failed to load product assets" });
+  }
+});
+
+registerRoute("post", "/product-assets", authRequired, async (req, res) => {
+  try {
+    const payload = req.body || {};
+    const productId = typeof payload.product_id === "string" ? payload.product_id.trim() : "";
+    if (!productId) {
+      return res.status(400).json({ error: "product_id is required" });
+    }
+
+    const { data: product, error: productError } = await supabase
+      .from("products")
+      .select("id, creator_wallet")
+      .eq("id", productId)
+      .single();
+
+    if (productError || !product) {
+      return res.status(404).json({ error: productError?.message || "Product not found" });
+    }
+
+    if (!sameWalletOrAdmin(product.creator_wallet, req.auth)) {
+      return res.status(403).json({ error: "Only the creator or admin can attach product assets" });
+    }
+
+    const assets = Array.isArray(payload.assets) ? payload.assets : [payload];
+    const sanitizedAssets = assets
+      .map((asset) => ({
+        product_id: productId,
+        role: typeof asset.role === "string" ? asset.role.trim() : "gallery_photo",
+        visibility: typeof asset.visibility === "string" ? asset.visibility.trim() : "public",
+        asset_type: typeof asset.asset_type === "string" ? asset.asset_type.trim() : "image",
+        storage_provider: typeof asset.storage_provider === "string" ? asset.storage_provider.trim() : "ipfs",
+        uri: typeof asset.uri === "string" ? asset.uri.trim() : "",
+        preview_uri: typeof asset.preview_uri === "string" ? asset.preview_uri.trim() : null,
+        mime_type: typeof asset.mime_type === "string" ? asset.mime_type.trim() : null,
+        file_name: typeof asset.file_name === "string" ? asset.file_name.trim() : null,
+        file_size_bytes: Number.isFinite(Number(asset.file_size_bytes)) ? Number(asset.file_size_bytes) : null,
+        sort_order: Number.isFinite(Number(asset.sort_order)) ? Number(asset.sort_order) : 0,
+        is_primary: Boolean(asset.is_primary),
+        requires_signed_url: Boolean(asset.requires_signed_url),
+        metadata: asset.metadata && typeof asset.metadata === "object" && !Array.isArray(asset.metadata) ? asset.metadata : {},
+      }))
+      .filter((asset) => asset.uri);
+
+    if (sanitizedAssets.length === 0) {
+      return res.status(400).json({ error: "At least one asset with a uri is required" });
+    }
+
+    const { data, error } = await supabase
+      .from("product_assets")
+      .insert(sanitizedAssets)
+      .select("*");
+
+    if (error) return res.status(400).json({ error: error.message });
+    return res.json(data || []);
+  } catch (error) {
+    return res.status(500).json({ error: error.message || "Failed to create product assets" });
+  }
+});
+
+registerRoute("get", "/entitlements", authRequired, async (req, res) => {
+  try {
+    const requestedWallet =
+      typeof req.query.buyer_wallet === "string" && req.query.buyer_wallet.trim()
+        ? normalizeWallet(req.query.buyer_wallet)
+        : req.auth.wallet;
+
+    if (!sameWalletOrAdmin(requestedWallet, req.auth)) {
+      return res.status(403).json({ error: "Cannot view another wallet's entitlements" });
+    }
+
+    const { data, error } = await supabase
+      .from("entitlements")
+      .select("*")
+      .eq("buyer_wallet", requestedWallet)
+      .order("created_at", { ascending: false });
+
+    if (error) return res.status(400).json({ error: error.message });
+    return res.json(data || []);
+  } catch (error) {
+    return res.status(500).json({ error: error.message || "Failed to load entitlements" });
+  }
+});
+
+registerRoute("get", "/orders/:id/fulfillments", authRequired, async (req, res) => {
+  try {
+    const order = await getOrderById(req.params.id);
+    if (!order) {
+      return res.status(404).json({ error: "Order not found" });
+    }
+
+    const creatorWallets = new Set();
+    const directCreatorWallet = order.products?.creator_wallet;
+    if (directCreatorWallet) creatorWallets.add(normalizeWallet(directCreatorWallet));
+    for (const item of order.order_items || []) {
+      const itemProduct = Array.isArray(item.products) ? item.products[0] : item.products;
+      if (itemProduct?.creator_wallet) {
+        creatorWallets.add(normalizeWallet(itemProduct.creator_wallet));
+      }
+    }
+
+    if (
+      req.auth.role !== "admin" &&
+      normalizeWallet(order.buyer_wallet) !== req.auth.wallet &&
+      !creatorWallets.has(req.auth.wallet)
+    ) {
+      return res.status(403).json({ error: "You do not have access to this order's fulfillments" });
+    }
+
+    const { data, error } = await supabase
+      .from("fulfillments")
+      .select("*")
+      .eq("order_id", req.params.id)
+      .order("created_at", { ascending: true });
+
+    if (error) return res.status(400).json({ error: error.message });
+    return res.json(data || []);
+  } catch (error) {
+    return res.status(500).json({ error: error.message || "Failed to load fulfillments" });
+  }
+});
+
+registerRoute("get", "/royalty-distributions", authRequired, async (req, res) => {
+  try {
+    const requestedWallet =
+      typeof req.query.recipient_wallet === "string" && req.query.recipient_wallet.trim()
+        ? normalizeWallet(req.query.recipient_wallet)
+        : req.auth.wallet;
+
+    if (!sameWalletOrAdmin(requestedWallet, req.auth)) {
+      return res.status(403).json({ error: "Cannot view another wallet's distributions" });
+    }
+
+    const { data, error } = await supabase
+      .from("royalty_distributions")
+      .select("*")
+      .eq("recipient_wallet", requestedWallet)
+      .order("created_at", { ascending: false });
+
+    if (error) return res.status(400).json({ error: error.message });
+    return res.json(data || []);
+  } catch (error) {
+    return res.status(500).json({ error: error.message || "Failed to load royalty distributions" });
+  }
+});
 
 app.get("/orders", authRequired, async (req, res) => {
   const requestedWallet = normalizeWallet(typeof req.query.buyer_wallet === "string" ? req.query.buyer_wallet : req.auth.wallet);
@@ -2406,18 +2966,39 @@ app.post("/orders", authRequired, async (req, res) => {
       error: productsError?.message || "Failed to load checkout products",
     });
   }
+  const normalizedContractKinds = new Set(
+    Array.from(productsById.values()).map((product) => String(product.contract_kind || "productStore"))
+  );
+  if (normalizedContractKinds.size > 1) {
+    return res.status(400).json({
+      error: "Orders must use a single contract kind. Split mixed carts into separate checkouts.",
+    });
+  }
+  const orderContractKind = Array.from(normalizedContractKinds)[0] || "productStore";
+  const contractOrderId = Number.isFinite(Number(order.contract_order_id))
+    ? Number(order.contract_order_id)
+    : null;
   let txHash = null;
   let createdOrderIds = [];
   let orderError = null;
 
   try {
     if (rawTxHash) {
-      txHash = await verifyProductPurchaseTx({
-        txHash: rawTxHash,
-        buyerWallet,
-        normalizedItems,
-        productsById,
-      });
+      if (orderContractKind === "creativeReleaseEscrow") {
+        txHash = await verifyCreativeReleasePurchaseTx({
+          txHash: rawTxHash,
+          buyerWallet,
+          normalizedItems,
+          productsById,
+        });
+      } else {
+        txHash = await verifyProductPurchaseTx({
+          txHash: rawTxHash,
+          buyerWallet,
+          normalizedItems,
+          productsById,
+        });
+      }
     }
   } catch (verificationError) {
     return res.status(400).json({
@@ -2437,6 +3018,8 @@ app.post("/orders", authRequired, async (req, res) => {
         currency,
         trackingCode,
         txHash,
+        contractKind: orderContractKind,
+        contractOrderId,
         skipAvailabilityValidation: true,
       });
     } catch (legacyError) {
@@ -2466,6 +3049,8 @@ app.post("/orders", authRequired, async (req, res) => {
           currency,
           trackingCode,
           txHash,
+          contractKind: orderContractKind,
+          contractOrderId,
         });
       } catch (legacyError) {
         orderError = legacyError;
@@ -2517,14 +3102,14 @@ app.post("/orders", authRequired, async (req, res) => {
 app.patch("/orders/:id", authRequired, async (req, res) => {
   let { data: existing, error: existingError } = await supabase
     .from("orders")
-    .select("id, buyer_wallet, product_id, products(creator_wallet), order_items(product_id, products(creator_wallet))")
+    .select("id, buyer_wallet, product_id, status, paid_at, approval_status, payout_status, products(creator_wallet), order_items(product_id, products(creator_wallet))")
     .eq("id", req.params.id)
     .single();
 
   if (existingError && isMissingOrderSchemaCompatError(existingError)) {
     ({ data: existing, error: existingError } = await supabase
       .from("orders")
-      .select("id, buyer_wallet, product_id, products(creator_wallet)")
+      .select("id, buyer_wallet, product_id, status, paid_at, approval_status, payout_status, products(creator_wallet)")
       .eq("id", req.params.id)
       .single());
   }
@@ -2578,9 +3163,59 @@ app.patch("/orders/:id", authRequired, async (req, res) => {
     hasAllowedUpdate = true;
   }
 
+  if (Object.prototype.hasOwnProperty.call(req.body || {}, "approval_status")) {
+    if (req.auth.role !== "admin") {
+      return res.status(403).json({ error: "Only admin can change approval_status" });
+    }
+
+    const nextApprovalStatus =
+      typeof req.body?.approval_status === "string" ? req.body.approval_status.trim().toLowerCase() : "";
+    const allowedApprovalStatuses = new Set([
+      "pending",
+      "approved",
+      "rejected",
+      "production_accepted",
+      "shipped",
+      "delivered",
+      "refunded",
+    ]);
+
+    if (!allowedApprovalStatuses.has(nextApprovalStatus)) {
+      return res.status(400).json({ error: "Invalid approval_status" });
+    }
+
+    updates.approval_status = nextApprovalStatus;
+    hasAllowedUpdate = true;
+
+    if (nextApprovalStatus === "approved") {
+      updates.payout_status = "approved";
+    }
+    if (nextApprovalStatus === "refunded") {
+      updates.payout_status = "refunded";
+      updates.status = "refunded";
+    }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(req.body || {}, "payout_status")) {
+    if (req.auth.role !== "admin") {
+      return res.status(403).json({ error: "Only admin can change payout_status" });
+    }
+
+    const nextPayoutStatus =
+      typeof req.body?.payout_status === "string" ? req.body.payout_status.trim().toLowerCase() : "";
+    const allowedPayoutStatuses = new Set(["unreleased", "approved", "released", "refunded", "failed"]);
+
+    if (!allowedPayoutStatuses.has(nextPayoutStatus)) {
+      return res.status(400).json({ error: "Invalid payout_status" });
+    }
+
+    updates.payout_status = nextPayoutStatus;
+    hasAllowedUpdate = true;
+  }
+
   if (!hasAllowedUpdate) {
     return res.status(400).json({
-      error: "Only status and tracking_code can be updated via this endpoint",
+      error: "Only status, tracking_code, approval_status, and payout_status can be updated via this endpoint",
     });
   }
 
@@ -2592,6 +3227,108 @@ app.patch("/orders/:id", authRequired, async (req, res) => {
     .single();
 
   if (error) return res.status(400).json({ error: error.message });
+
+  if (updates.status || updates.tracking_code || updates.approval_status) {
+    const fulfillmentUpdates = { updated_at: now };
+    let shouldUpdateFulfillments = false;
+
+    if (updates.tracking_code !== undefined) {
+      fulfillmentUpdates.tracking_code = updates.tracking_code;
+      shouldUpdateFulfillments = true;
+    }
+    if (updates.status === "shipped") {
+      fulfillmentUpdates.status = "shipped";
+      fulfillmentUpdates.shipped_at = now;
+      shouldUpdateFulfillments = true;
+    }
+    if (updates.status === "delivered") {
+      fulfillmentUpdates.status = "delivered";
+      fulfillmentUpdates.delivered_at = now;
+      shouldUpdateFulfillments = true;
+    }
+    if (updates.approval_status === "production_accepted") {
+      fulfillmentUpdates.status = "processing";
+      shouldUpdateFulfillments = true;
+    }
+    if (updates.approval_status === "refunded") {
+      fulfillmentUpdates.status = "cancelled";
+      shouldUpdateFulfillments = true;
+    }
+
+    if (shouldUpdateFulfillments) {
+      await supabase
+        .from("fulfillments")
+        .update(fulfillmentUpdates)
+        .eq("order_id", req.params.id);
+    }
+  }
+
+  if (req.auth.role === "admin") {
+    if (updates.approval_status === "approved") {
+      await writeAdminAuditLog({
+        adminWallet: req.auth.wallet,
+        targetWallet: existing.buyer_wallet,
+        action: "approve_release_order",
+        status: "approved",
+        details: { order_id: req.params.id },
+      });
+    }
+    if (updates.approval_status === "production_accepted") {
+      await writeAdminAuditLog({
+        adminWallet: req.auth.wallet,
+        targetWallet: existing.buyer_wallet,
+        action: "mark_production_accepted",
+        status: "approved",
+        details: { order_id: req.params.id },
+      });
+    }
+    if (updates.tracking_code !== undefined) {
+      await writeAdminAuditLog({
+        adminWallet: req.auth.wallet,
+        targetWallet: existing.buyer_wallet,
+        action: "attach_tracking",
+        status: "approved",
+        details: { order_id: req.params.id, tracking_code: updates.tracking_code },
+      });
+    }
+    if (updates.status === "shipped") {
+      await writeAdminAuditLog({
+        adminWallet: req.auth.wallet,
+        targetWallet: existing.buyer_wallet,
+        action: "mark_shipped",
+        status: "shipped",
+        details: { order_id: req.params.id },
+      });
+    }
+    if (updates.status === "delivered") {
+      await writeAdminAuditLog({
+        adminWallet: req.auth.wallet,
+        targetWallet: existing.buyer_wallet,
+        action: "mark_delivered",
+        status: "delivered",
+        details: { order_id: req.params.id },
+      });
+    }
+    if (updates.payout_status === "released") {
+      await writeAdminAuditLog({
+        adminWallet: req.auth.wallet,
+        targetWallet: existing.buyer_wallet,
+        action: "release_creator_payout",
+        status: "released",
+        details: { order_id: req.params.id },
+      });
+    }
+    if (updates.payout_status === "refunded" || updates.approval_status === "refunded") {
+      await writeAdminAuditLog({
+        adminWallet: req.auth.wallet,
+        targetWallet: existing.buyer_wallet,
+        action: "refund_release_order",
+        status: "refunded",
+        details: { order_id: req.params.id },
+      });
+    }
+  }
+
   return res.json(data);
 });
 

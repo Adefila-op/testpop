@@ -14,6 +14,7 @@ import { resolveContractProductId, resolveProductMetadataUri } from "@/lib/produ
 function mapSupabaseProductToStoreProduct(p: any) {
   return {
     id: p.id,
+    creativeReleaseId: p.creative_release_id ?? null,
     name: p.name,
     image: resolveMediaUrl(p.image_url, p.image_ipfs_uri),
     price: BigInt(Math.floor(parseFloat(p.price_eth) * 1e18)),
@@ -22,6 +23,9 @@ function mapSupabaseProductToStoreProduct(p: any) {
     stock: p.stock || 0,
     sold: p.sold || 0,
     category: p.category || "Other",
+    releaseType: p.product_type || "physical",
+    contractKind: p.contract_kind || "productStore",
+    contractListingId: Number.isFinite(Number(p.contract_listing_id)) ? Number(p.contract_listing_id) : null,
     contractProductId: resolveContractProductId(p.metadata, p.contract_product_id),
     metadataUri: resolveProductMetadataUri(p.metadata, p.metadata_uri),
   };

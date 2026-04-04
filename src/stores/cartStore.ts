@@ -3,6 +3,9 @@ import { persist, createJSONStorage } from "zustand/middleware";
 
 export interface CartItem {
   productId: string;
+  creativeReleaseId?: string | null;
+  contractKind?: "artDrop" | "productStore" | "creativeReleaseEscrow" | null;
+  contractListingId?: number | null;
   contractProductId?: number | null;
   quantity: number;
   price: string;
@@ -15,6 +18,9 @@ interface CartStore {
   isLoading: boolean;
   addItem: (
     productId: string,
+    creativeReleaseId: string | null,
+    contractKind: "artDrop" | "productStore" | "creativeReleaseEscrow" | null,
+    contractListingId: number | null,
     contractProductId: number | null,
     quantity: number,
     price: bigint,
@@ -37,7 +43,7 @@ export const useCartStore = create<CartStore>()(
       items: [],
       isLoading: false,
 
-      addItem: (productId, contractProductId, quantity, price, name, image) => {
+      addItem: (productId, creativeReleaseId, contractKind, contractListingId, contractProductId, quantity, price, name, image) => {
         const { items } = get();
         const priceStr = price.toString();
         const existingItem = items.find((item) => item.productId === productId);
@@ -46,7 +52,17 @@ export const useCartStore = create<CartStore>()(
           set({
             items: items.map((item) =>
               item.productId === productId
-                ? { ...item, quantity: item.quantity + quantity, contractProductId, price: priceStr, name, image }
+                ? {
+                    ...item,
+                    quantity: item.quantity + quantity,
+                    creativeReleaseId,
+                    contractKind,
+                    contractListingId,
+                    contractProductId,
+                    price: priceStr,
+                    name,
+                    image,
+                  }
                 : item
             ),
           });
@@ -56,7 +72,17 @@ export const useCartStore = create<CartStore>()(
         set({
           items: [
             ...items,
-            { productId, contractProductId, quantity, price: priceStr, name, image },
+            {
+              productId,
+              creativeReleaseId,
+              contractKind,
+              contractListingId,
+              contractProductId,
+              quantity,
+              price: priceStr,
+              name,
+              image,
+            },
           ],
         });
       },

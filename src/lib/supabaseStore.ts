@@ -23,6 +23,7 @@ const metadataJsonCache = new Map<string, Promise<Record<string, any> | null>>()
 const FULL_PUBLIC_PRODUCT_SELECT = [
   "id",
   "artist_id",
+  "creative_release_id",
   "creator_wallet",
   "name",
   "description",
@@ -39,6 +40,8 @@ const FULL_PUBLIC_PRODUCT_SELECT = [
   "nft_link",
   "status",
   "metadata",
+  "contract_kind",
+  "contract_listing_id",
   "contract_product_id",
   "metadata_uri",
   "created_at",
@@ -69,11 +72,14 @@ function getPublicProductSelectClause() {
 function updateProductSchemaMode(error: { message?: string } | null | undefined) {
   const legacyOnlyColumns = [
     "artist_id",
+    "creative_release_id",
     "product_type",
     "asset_type",
     "preview_uri",
     "is_gated",
     "nft_link",
+    "contract_kind",
+    "contract_listing_id",
     "contract_product_id",
     "metadata_uri",
   ];

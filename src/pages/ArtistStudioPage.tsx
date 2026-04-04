@@ -49,6 +49,9 @@ import {
 } from "@/lib/artistStore";
 import {
   createDrop as dbCreateDrop,
+  createCreativeRelease,
+  createProduct as dbCreateProduct,
+  createProductAssets,
   getArtistProfile as dbGetArtistProfile,
   getIPCampaigns,
   createIPCampaign,
@@ -56,6 +59,9 @@ import {
   type IPCampaign,
 } from "@/lib/db";
 import { useSupabaseArtistByWallet, useSupabaseDropsByArtist } from "@/hooks/useSupabase";
+import { ADMIN_WALLET } from "@/lib/admin";
+import { createOnchainCreativeRelease } from "@/lib/creativeReleaseEscrowChain";
+import { CREATIVE_RELEASE_ESCROW_ADDRESS } from "@/lib/contracts/creativeReleaseEscrow";
 
 // â”€â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 type StudioArtistProfile = {
@@ -102,6 +108,7 @@ type Drop = {
 
 type DropMode = Drop["type"];
 type DropContentKind = "artwork" | "ebook" | "downloadable";
+type StudioReleaseType = "collectible" | "physical" | "hybrid";
 
 const toStoredDropType = (mode: DropMode): "drop" | "auction" | "campaign" =>
   mode === "buy" ? "drop" : mode;
@@ -227,11 +234,15 @@ const CreateDropSheet = ({
   };
   withArtistUploadSession: <T>(task: () => Promise<T>) => Promise<T>;
 }) => {
+  const queryClient = useQueryClient();
   const [step, setStep] = useState(0);
+  const [releaseType, setReleaseType] = useState<StudioReleaseType>("collectible");
   const [contentKind, setContentKind] = useState<DropContentKind>("artwork");
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [deliveryFile, setDeliveryFile] = useState<File | null>(null);
+  const [galleryFiles, setGalleryFiles] = useState<File[]>([]);
   const [coverPreview, setCoverPreview] = useState<string | null>(null);
+  const [galleryPreviews, setGalleryPreviews] = useState<string[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadErr, setUploadErr] = useState<string | null>(null);
   const [pendingResult, setPendingResult] = useState<{
@@ -252,6 +263,23 @@ const CreateDropSheet = ({
   } | null>(null);
   const coverFileRef = useRef<HTMLInputElement>(null);
   const deliveryFileRef = useRef<HTMLInputElement>(null);
+  const galleryFilesRef = useRef<HTMLInputElement>(null);
+  const [physicalDetails, setPhysicalDetails] = useState({
+    materials: "",
+    dimensions: "",
+    edition_notes: "",
+    condition: "",
+    shipping_regions: "",
+    care_instructions: "",
+    extra_notes: "",
+  });
+  const [shippingProfile, setShippingProfile] = useState({
+    origin: "",
+    processing_window: "",
+    carrier_preferences: "",
+    approval_required: true,
+  });
+  const [creatorNotes, setCreatorNotes] = useState("");
   const setFile = setCoverFile;
   const preview = coverPreview;
   const setPreview = setCoverPreview;
@@ -294,10 +322,19 @@ const CreateDropSheet = ({
   });
 
   const requiresSeparateDelivery = contentKind !== "artwork";
+  const isPhysicalRelease = releaseType === "physical" || releaseType === "hybrid";
   const coverLabel =
-    contentKind === "ebook" ? "Upload cover image" : contentKind === "downloadable" ? "Upload cover or mockup" : "Upload artwork";
+    isPhysicalRelease
+      ? "Upload onchain art cover"
+      : contentKind === "ebook"
+      ? "Upload cover image"
+      : contentKind === "downloadable"
+      ? "Upload cover or mockup"
+      : "Upload artwork";
   const coverHelpText =
-    contentKind === "ebook"
+    isPhysicalRelease
+      ? "This becomes the public art hero for the release."
+      : contentKind === "ebook"
       ? "JPG or PNG cover shown before purchase"
       : contentKind === "downloadable"
       ? "JPG or PNG preview for your downloadable tool"
@@ -317,6 +354,16 @@ const CreateDropSheet = ({
       }
     };
   }, [coverPreview]);
+
+  useEffect(() => {
+    return () => {
+      for (const previewUri of galleryPreviews) {
+        if (previewUri.startsWith("blob:")) {
+          URL.revokeObjectURL(previewUri);
+        }
+      }
+    };
+  }, [galleryPreviews]);
 
   const renderCoverPreview = (mode: "full" | "compact" = "full") => {
     if (!coverFile || !selectedCoverAssetType) return null;
@@ -402,6 +449,63 @@ const CreateDropSheet = ({
     setDeliveryFile(f);
   };
 
+  const handleGalleryFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    const oversized = files.find((file) => file.size > 10 * 1024 * 1024);
+    if (oversized) {
+      toast.error(`"${oversized.name}" is larger than 10MB`);
+      return;
+    }
+
+    setGalleryFiles(files);
+    setGalleryPreviews(files.map((file) => URL.createObjectURL(file)));
+  };
+
+  const resetComposerState = () => {
+    setForm({
+      title: "",
+      description: "",
+      price: "",
+      duration: "24",
+      supply: "1",
+      type: "buy",
+      entryMode: "both",
+      startAt: "",
+      endAt: "",
+    });
+    setReleaseType("collectible");
+    setCoverPreview(null);
+    setCoverFile(null);
+    setDeliveryFile(null);
+    setGalleryFiles([]);
+    setGalleryPreviews([]);
+    setContentKind("artwork");
+    setPhysicalDetails({
+      materials: "",
+      dimensions: "",
+      edition_notes: "",
+      condition: "",
+      shipping_regions: "",
+      care_instructions: "",
+      extra_notes: "",
+    });
+    setShippingProfile({
+      origin: "",
+      processing_window: "",
+      carrier_preferences: "",
+      approval_required: true,
+    });
+    setCreatorNotes("");
+    if (coverFileRef.current) coverFileRef.current.value = "";
+    if (deliveryFileRef.current) deliveryFileRef.current.value = "";
+    if (galleryFilesRef.current) galleryFilesRef.current.value = "";
+    setStep(0);
+    setUploadErr(null);
+    setIsUploading(false);
+  };
+
   const handlePublish = async () => {
     if (!coverFile) {
       toast.error("Add a cover or artwork file before publishing.");
@@ -465,7 +569,11 @@ const CreateDropSheet = ({
       }
     }
 
-    if (form.type === "buy" && (!artistContractAddress || artistContractAddress === ZERO_ADDRESS)) {
+    if (
+      releaseType === "collectible" &&
+      form.type === "buy" &&
+      (!artistContractAddress || artistContractAddress === ZERO_ADDRESS)
+    ) {
       alert("Your artist contract has not been deployed yet. Please ask an admin to approve and deploy your contract first.");
       return;
     }
@@ -476,6 +584,189 @@ const CreateDropSheet = ({
     }
     setIsUploading(true); setUploadErr(null);
     try {
+      if (isPhysicalRelease) {
+        if (!coverFile) {
+          throw new Error("Add the onchain art cover before publishing.");
+        }
+        if (!ADMIN_WALLET) {
+          throw new Error("VITE_ADMIN_WALLET is required for escrow release creation.");
+        }
+        if (!CREATIVE_RELEASE_ESCROW_ADDRESS || CREATIVE_RELEASE_ESCROW_ADDRESS === ZERO_ADDRESS) {
+          throw new Error("VITE_CREATIVE_RELEASE_ESCROW_ADDRESS is not configured yet.");
+        }
+
+        const persistedArtist = await dbGetArtistProfile(address);
+        if (!persistedArtist?.id) {
+          throw new Error("Artist profile was not found in the database. Save your profile and try again.");
+        }
+
+        const uploadResult = await withArtistUploadSession(async () => {
+          toast.info("Uploading onchain art cover...");
+          const imageCid = await uploadFileToPinata(coverFile);
+          const imageUri = `ipfs://${imageCid}`;
+          const galleryUris: string[] = [];
+
+          for (const file of galleryFiles) {
+            const galleryCid = await uploadFileToPinata(file);
+            galleryUris.push(`ipfs://${galleryCid}`);
+          }
+
+          let nextDeliveryUri: string | null = null;
+          if (releaseType === "hybrid" && deliveryFile) {
+            toast.info("Uploading gated delivery asset...");
+            const deliveryCid = await uploadFileToPinata(deliveryFile);
+            nextDeliveryUri = `ipfs://${deliveryCid}`;
+          }
+
+          toast.info("Pinning release metadata...");
+          const metadataUri = await uploadMetadataToPinata({
+            name: form.title,
+            description: form.description,
+            image: imageUri,
+            properties: {
+              releaseType,
+              contentKind,
+              galleryUris,
+              coverImageUri: imageUri,
+              deliveryUri: nextDeliveryUri,
+              physicalDetails: physicalDetails,
+              shippingProfile: shippingProfile,
+              creatorNotes,
+            },
+          });
+
+          return {
+            metadataUri,
+            imageUri,
+            galleryUris,
+            deliveryUri: nextDeliveryUri,
+          };
+        });
+
+        toast.info("Creating onchain escrow listing...");
+        const onchainRelease = await createOnchainCreativeRelease({
+          artist: address as `0x${string}`,
+          metadataUri: uploadResult.metadataUri,
+          priceEth: form.price,
+          supply: Number(form.supply),
+          adminWallet: ADMIN_WALLET as `0x${string}`,
+          account: address as `0x${string}`,
+        });
+
+        const releaseRecord = await createCreativeRelease({
+          artist_id: persistedArtist.id,
+          release_type: releaseType,
+          title: form.title,
+          description: form.description,
+          status: "published",
+          price_eth: Number(form.price),
+          supply: Number(form.supply),
+          sold: 0,
+          art_metadata_uri: uploadResult.metadataUri,
+          cover_image_uri: uploadResult.imageUri,
+          contract_kind: "creativeReleaseEscrow",
+          contract_address: CREATIVE_RELEASE_ESCROW_ADDRESS,
+          contract_listing_id: onchainRelease.contractListingId,
+          physical_details_jsonb: {
+            ...physicalDetails,
+            gallery_count: uploadResult.galleryUris.length,
+          },
+          shipping_profile_jsonb: shippingProfile,
+          creator_notes: creatorNotes,
+          metadata: {
+            release_source: "artist_studio",
+            delivery_uri: uploadResult.deliveryUri,
+            content_kind: contentKind,
+          },
+          published_at: new Date().toISOString(),
+        });
+
+        if (!releaseRecord?.id) {
+          throw new Error("Failed to save the creative release record.");
+        }
+
+        const createdProduct = await dbCreateProduct({
+          artist_id: persistedArtist.id,
+          creative_release_id: releaseRecord.id,
+          creator_wallet: address.toLowerCase(),
+          name: form.title,
+          description: form.description,
+          category: releaseType === "hybrid" ? "Hybrid Release" : "Physical Release",
+          product_type: releaseType,
+          asset_type: "image",
+          price_eth: Number(form.price),
+          stock: Number(form.supply),
+          sold: 0,
+          image_url: ipfsToHttp(uploadResult.imageUri),
+          image_ipfs_uri: uploadResult.imageUri,
+          preview_uri: uploadResult.imageUri,
+          delivery_uri: uploadResult.deliveryUri,
+          is_gated: Boolean(uploadResult.deliveryUri),
+          status: "published",
+          contract_kind: "creativeReleaseEscrow",
+          contract_listing_id: onchainRelease.contractListingId,
+          metadata_uri: uploadResult.metadataUri,
+          metadata: {
+            release_type: releaseType,
+            contract_listing_id: onchainRelease.contractListingId,
+            art_metadata_uri: uploadResult.metadataUri,
+          },
+        });
+
+        if (!createdProduct?.id) {
+          throw new Error("Failed to create the linked product row.");
+        }
+
+        const productAssetsPayload = [
+          {
+            product_id: createdProduct.id,
+            role: "hero_art",
+            visibility: "public",
+            asset_type: "image",
+            uri: uploadResult.imageUri,
+            preview_uri: uploadResult.imageUri,
+            is_primary: true,
+            sort_order: 0,
+            metadata: {
+              release_type: releaseType,
+            },
+          },
+          ...uploadResult.galleryUris.map((uri, index) => ({
+            product_id: createdProduct.id,
+            role: "physical_photo",
+            visibility: "public",
+            asset_type: "image",
+            uri,
+            preview_uri: uri,
+            is_primary: false,
+            sort_order: index + 1,
+          })),
+          ...(uploadResult.deliveryUri
+            ? [{
+                product_id: createdProduct.id,
+                role: "delivery",
+                visibility: "gated",
+                asset_type: "other",
+                uri: uploadResult.deliveryUri,
+                preview_uri: uploadResult.imageUri,
+                is_primary: false,
+                sort_order: uploadResult.galleryUris.length + 1,
+              }]
+            : []),
+        ];
+        await createProductAssets(productAssetsPayload);
+
+        toast.success(
+          releaseType === "hybrid"
+            ? "Hybrid release minted, linked to the product catalog, and published."
+            : "Physical release minted and published."
+        );
+        await queryClient.invalidateQueries({ queryKey: ["products"] });
+        resetComposerState();
+        onClose();
+        return;
+      }
+
       const { uri, imageUri, deliveryUri, previewUri, assetType } = await withArtistUploadSession(async () => {
         toast.info(requiresSeparateDelivery ? "Uploading cover artwork to IPFS..." : "Uploading artwork to IPFS...");
         const assetFile = deliveryFile || coverFile;
@@ -714,26 +1005,7 @@ const CreateDropSheet = ({
           
           // Clear pending mint state so this effect cannot replay on rerender.
           setPendingResult(null);
-          setForm({
-            title: "",
-            description: "",
-            price: "",
-            duration: "24",
-            supply: "1",
-            type: "buy",
-            entryMode: "both",
-            startAt: "",
-            endAt: "",
-          });
-          setCoverPreview(null);
-          setCoverFile(null);
-          setDeliveryFile(null);
-          setContentKind("artwork");
-          if (coverFileRef.current) coverFileRef.current.value = "";
-          if (deliveryFileRef.current) deliveryFileRef.current.value = "";
-          setStep(0);
-          setUploadErr(null);
-          setIsUploading(false);
+          resetComposerState();
           onClose();
         }
       } catch (dbError) {
@@ -781,6 +1053,8 @@ const CreateDropSheet = ({
     ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Confirm in wallet...</>
     : isCreateDropConfirming || isCreateCampaignConfirming || isCreateCampaignV2Confirming
     ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Publishing...</>
+    : isPhysicalRelease
+    ? <><Package className="h-4 w-4 mr-2" />Create Release</>
     : form.type === "buy"
     ? <><Zap className="h-4 w-4 mr-2" />Mint & Publish</>
     : form.type === "campaign"
@@ -792,10 +1066,10 @@ const CreateDropSheet = ({
     : Boolean(form.title && form.price);
 
   return (
-    <Dialog open={open} onOpenChange={v => !v && onClose()}>
+      <Dialog open={open} onOpenChange={v => !v && onClose()}>
       <DialogContent className="max-w-sm rounded-2xl">
         <DialogHeader>
-          <DialogTitle>New Drop</DialogTitle>
+          <DialogTitle>Create Release</DialogTitle>
           {/* Step dots */}
           <div className="flex gap-2 mt-2">
             {["Content", "Details", "Publish"].map((s, i) => (
@@ -811,6 +1085,26 @@ const CreateDropSheet = ({
         <div className="space-y-4 mt-1">
           {step === 0 && (
             <div>
+              <div className="mb-4">
+                <Label className="text-xs">Release type</Label>
+                <div className="grid grid-cols-3 gap-2 mt-1">
+                  {([
+                    ["collectible", "Collectible"],
+                    ["physical", "Physical"],
+                    ["hybrid", "Hybrid"],
+                  ] as const).map(([value, label]) => (
+                    <button
+                      key={value}
+                      onClick={() => setReleaseType(value)}
+                      className={`py-2 rounded-xl text-xs font-semibold border transition-colors ${
+                        releaseType === value ? "border-primary bg-primary/10 text-primary" : "border-border bg-secondary/50 text-muted-foreground"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <div className="mb-4">
                 <Label className="text-xs">What are you publishing?</Label>
                 <div className="grid grid-cols-3 gap-2 mt-1">
@@ -852,6 +1146,14 @@ const CreateDropSheet = ({
                 className="hidden"
                 onChange={handleDeliveryFile}
               />
+              <input
+                ref={galleryFilesRef}
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={handleGalleryFiles}
+              />
               <div className="mb-3 rounded-xl border border-border bg-secondary/20 p-3">
                 <p className="text-sm font-semibold text-foreground">{coverLabel}</p>
                 <p className="text-xs text-muted-foreground mt-1">{coverHelpText}</p>
@@ -890,6 +1192,24 @@ const CreateDropSheet = ({
                   </p>
                 </button>
               )}
+              {isPhysicalRelease && (
+                <button
+                  onClick={() => galleryFilesRef.current?.click()}
+                  className="mt-3 w-full rounded-xl border border-dashed border-border bg-secondary/20 p-4 text-left hover:bg-secondary/40 transition-colors"
+                >
+                  <p className="text-sm font-semibold text-foreground">Upload physical gallery photos</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {galleryFiles.length > 0 ? `${galleryFiles.length} gallery image(s) selected` : "Add extra real-world product pictures for collectors."}
+                  </p>
+                </button>
+              )}
+              {isPhysicalRelease && galleryPreviews.length > 0 && (
+                <div className="mt-3 grid grid-cols-3 gap-2">
+                  {galleryPreviews.map((previewUri, index) => (
+                    <img key={`${previewUri}-${index}`} src={previewUri} alt={`Gallery preview ${index + 1}`} className="h-20 w-full rounded-xl object-cover" />
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -901,17 +1221,19 @@ const CreateDropSheet = ({
                 </div>
               )}
               {coverFile && renderCoverPreview("compact")}
-              <div>
-                <Label className="text-xs">Drop type</Label>
-                <div className="grid grid-cols-3 gap-2 mt-1">
-                  {(["buy", "auction", "campaign"] as Drop["type"][]).map(t => (
-                    <button key={t} onClick={() => setForm({ ...form, type: t })}
-                      className={`py-2 rounded-xl text-xs font-semibold capitalize border transition-colors ${form.type === t ? "border-primary bg-primary/10 text-primary" : "border-border bg-secondary/50 text-muted-foreground"}`}>
-                      {t}
-                    </button>
-                  ))}
+              {!isPhysicalRelease && (
+                <div>
+                  <Label className="text-xs">Drop type</Label>
+                  <div className="grid grid-cols-3 gap-2 mt-1">
+                    {(["buy", "auction", "campaign"] as Drop["type"][]).map(t => (
+                      <button key={t} onClick={() => setForm({ ...form, type: t })}
+                        className={`py-2 rounded-xl text-xs font-semibold capitalize border transition-colors ${form.type === t ? "border-primary bg-primary/10 text-primary" : "border-border bg-secondary/50 text-muted-foreground"}`}>
+                        {t}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
               <div>
                 <Label className="text-xs">Title</Label>
                 <Input placeholder="e.g. Chromatic Dreams" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} className="h-9 rounded-lg text-sm mt-1" />
@@ -922,7 +1244,7 @@ const CreateDropSheet = ({
                   placeholder="Tell collectors about this pieceâ€¦"
                   className="w-full mt-1 px-3 py-2 rounded-lg border border-border bg-background text-sm resize-none min-h-[72px]" />
               </div>
-              {form.type === "campaign" ? (
+              {form.type === "campaign" && !isPhysicalRelease ? (
                 <>
                   <div>
                     <Label className="text-xs">Entry mode</Label>
@@ -956,12 +1278,40 @@ const CreateDropSheet = ({
               ) : (
                 <div className="grid grid-cols-3 gap-2">
                   <div><Label className="text-xs">Price (ETH)</Label><Input placeholder="0.1" value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} className="h-9 rounded-lg text-sm mt-1" /></div>
-                  <div><Label className="text-xs">Duration (h)</Label><Input placeholder="24" value={form.duration} onChange={e => setForm({ ...form, duration: e.target.value })} className="h-9 rounded-lg text-sm mt-1" /></div>
+                  <div><Label className="text-xs">{isPhysicalRelease ? "Processing (h)" : "Duration (h)"}</Label><Input placeholder="24" value={form.duration} onChange={e => setForm({ ...form, duration: e.target.value })} className="h-9 rounded-lg text-sm mt-1" /></div>
                   <div><Label className="text-xs">Supply</Label><Input placeholder="1" value={form.supply} onChange={e => setForm({ ...form, supply: e.target.value })} className="h-9 rounded-lg text-sm mt-1" /></div>
                 </div>
               )}
+              {isPhysicalRelease && (
+                <>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div><Label className="text-xs">Materials</Label><Input value={physicalDetails.materials} onChange={e => setPhysicalDetails((prev) => ({ ...prev, materials: e.target.value }))} className="h-9 rounded-lg text-sm mt-1" placeholder="Canvas, resin, oak..." /></div>
+                    <div><Label className="text-xs">Dimensions</Label><Input value={physicalDetails.dimensions} onChange={e => setPhysicalDetails((prev) => ({ ...prev, dimensions: e.target.value }))} className="h-9 rounded-lg text-sm mt-1" placeholder="40 x 60 cm" /></div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div><Label className="text-xs">Condition</Label><Input value={physicalDetails.condition} onChange={e => setPhysicalDetails((prev) => ({ ...prev, condition: e.target.value }))} className="h-9 rounded-lg text-sm mt-1" placeholder="New, signed, framed..." /></div>
+                    <div><Label className="text-xs">Shipping regions</Label><Input value={physicalDetails.shipping_regions} onChange={e => setPhysicalDetails((prev) => ({ ...prev, shipping_regions: e.target.value }))} className="h-9 rounded-lg text-sm mt-1" placeholder="US, EU, Worldwide..." /></div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div><Label className="text-xs">Edition notes</Label><Input value={physicalDetails.edition_notes} onChange={e => setPhysicalDetails((prev) => ({ ...prev, edition_notes: e.target.value }))} className="h-9 rounded-lg text-sm mt-1" placeholder="1/25, hand-finished..." /></div>
+                    <div><Label className="text-xs">Care instructions</Label><Input value={physicalDetails.care_instructions} onChange={e => setPhysicalDetails((prev) => ({ ...prev, care_instructions: e.target.value }))} className="h-9 rounded-lg text-sm mt-1" placeholder="Keep dry, avoid direct sun..." /></div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div><Label className="text-xs">Ships from</Label><Input value={shippingProfile.origin} onChange={e => setShippingProfile((prev) => ({ ...prev, origin: e.target.value }))} className="h-9 rounded-lg text-sm mt-1" placeholder="Lagos, Nigeria" /></div>
+                    <div><Label className="text-xs">Carrier preferences</Label><Input value={shippingProfile.carrier_preferences} onChange={e => setShippingProfile((prev) => ({ ...prev, carrier_preferences: e.target.value }))} className="h-9 rounded-lg text-sm mt-1" placeholder="DHL, FedEx..." /></div>
+                  </div>
+                  <div>
+                    <Label className="text-xs">Creator notes</Label>
+                    <textarea value={creatorNotes} onChange={e => setCreatorNotes(e.target.value)}
+                      placeholder="Tell collectors what makes the physical object special."
+                      className="w-full mt-1 px-3 py-2 rounded-lg border border-border bg-background text-sm resize-none min-h-[72px]" />
+                  </div>
+                </>
+              )}
               <div className="rounded-xl border border-border bg-secondary/20 p-3 text-xs text-muted-foreground">
-                {form.type === "campaign"
+                {isPhysicalRelease
+                  ? "This release will mint the art onchain, show physical details on the product page, route checkout into escrow, and hold payout until admin approval."
+                  : form.type === "campaign"
                   ? "Campaign rewards are credit-based: each approved content entry and each ETH purchase writes one redeemable credit into the V2 campaign flow."
                   : contentKind === "artwork"
                   ? "Artwork drops use the same media for preview and collector access."
@@ -980,12 +1330,13 @@ const CreateDropSheet = ({
                   <p className="font-bold text-sm text-foreground">{form.title}</p>
                   <p className="text-xs text-muted-foreground line-clamp-2">{form.description}</p>
                   <div className="flex gap-1.5 mt-2">
+                    <Badge variant="secondary" className="text-[10px] capitalize">{releaseType}</Badge>
                     <Badge variant="secondary" className="text-[10px] capitalize">{contentKind}</Badge>
                     <Badge variant="secondary" className="text-[10px]">
-                      {form.type === "campaign" ? `${form.entryMode} entry` : `${form.price} ETH`}
+                      {form.type === "campaign" && !isPhysicalRelease ? `${form.entryMode} entry` : `${form.price} ETH`}
                     </Badge>
                     <Badge variant="secondary" className="text-[10px]">
-                      {form.type === "campaign"
+                      {form.type === "campaign" && !isPhysicalRelease
                         ? `${form.startAt ? new Date(form.startAt).toLocaleDateString() : "--"} to ${form.endAt ? new Date(form.endAt).toLocaleDateString() : "--"}`
                         : `${form.duration}h`}
                     </Badge>
@@ -995,22 +1346,22 @@ const CreateDropSheet = ({
               </div>
               <div className="rounded-xl bg-card border border-border p-3 text-xs space-y-2">
                 {[
-                  ["Network", form.type === "campaign" ? "App campaign flow" : "Base Sepolia"],
+                  ["Network", form.type === "campaign" && !isPhysicalRelease ? "App campaign flow" : "Base Sepolia"],
                   ["Storage", "IPFS via Pinata"],
-                  ["Platform fee", "2.5%"],
-                  ["Redemption", form.type === "campaign" ? "End + 24 hours" : "Immediate after collect"],
+                  ["Settlement", isPhysicalRelease ? "Escrow until admin approval" : "Immediate creator claim"],
+                  ["Redemption", form.type === "campaign" && !isPhysicalRelease ? "End + 24 hours" : "Immediate after collect"],
                 ].map(([k, v]) => (
                   <div key={k} className="flex justify-between text-muted-foreground"><span>{k}</span><span className="font-semibold text-foreground">{v}</span></div>
                 ))}
               </div>
               {uploadErr && <div className="flex gap-2 p-3 rounded-xl bg-destructive/10 text-destructive text-xs"><AlertTriangle className="h-4 w-4 shrink-0" />{uploadErr}</div>}
-              {form.type === "campaign" && <div className="flex gap-2 p-3 rounded-xl bg-primary/5 text-foreground text-xs"><AlertTriangle className="h-4 w-4 shrink-0 text-primary" />Campaign timing, ETH entry credits, artist-approved content credits, and redemption all run through the V2 campaign contract. App-side editing only changes the collector-facing detail card.</div>}
+              {form.type === "campaign" && !isPhysicalRelease && <div className="flex gap-2 p-3 rounded-xl bg-primary/5 text-foreground text-xs"><AlertTriangle className="h-4 w-4 shrink-0 text-primary" />Campaign timing, ETH entry credits, artist-approved content credits, and redemption all run through the V2 campaign contract. App-side editing only changes the collector-facing detail card.</div>}
               {activePublishError && <p className="text-xs text-destructive">{(activePublishError as Web3Error).shortMessage ?? (activePublishError as Web3Error).message}</p>}
               <Button onClick={handlePublish} disabled={busy} className="w-full rounded-xl gradient-primary text-primary-foreground font-bold h-11">
                 {isUploading ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Uploading to IPFSâ€¦</>
                   : isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Confirm in walletâ€¦</>
                   : isConfirming ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Mintingâ€¦</>
-                  : <><Zap className="h-4 w-4 mr-2" />Mint & Publish</>}
+                  : isPhysicalRelease ? <><Package className="h-4 w-4 mr-2" />Create Release</> : <><Zap className="h-4 w-4 mr-2" />Mint & Publish</>}
               </Button>
             </div>
           )}

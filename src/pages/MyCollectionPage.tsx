@@ -8,7 +8,14 @@ import { ImageViewer, VideoViewer, AudioPlayer, PdfReader, DownloadPanel } from 
 import { ipfsToHttp } from "@/lib/pinata";
 import { resolveDropCoverImage } from "@/lib/mediaPreview";
 import { useCollectionStore, type CollectedDropItem } from "@/stores/collectionStore";
-import { getOrdersByBuyer, type OrderWithItems } from "@/lib/db";
+import {
+  getEntitlementsByBuyer,
+  getFulfillmentsByOrder,
+  getOrdersByBuyer,
+  type Entitlement,
+  type Fulfillment,
+  type OrderWithItems,
+} from "@/lib/db";
 import { detectAssetTypeFromUri, type AssetType } from "@/lib/assetTypes";
 
 const ACCESSIBLE_ORDER_STATUSES = new Set(["paid", "processing", "shipped", "delivered"]);
@@ -119,6 +126,8 @@ function toOrderCollectionItems(order: OrderWithItems, ownerWallet: string): Col
     return {
       id: `${typedOrder.id}:${item.id || item.product_id || index}`,
       ownerWallet,
+      creativeReleaseId: typedOrder.creative_release_id ?? null,
+      productId: item.product_id || typedOrder.product_id || null,
       title: product?.name?.trim() || `Order item ${index + 1}`,
       artist: product?.creator_wallet || "Marketplace",
       imageUrl,
@@ -126,6 +135,7 @@ function toOrderCollectionItems(order: OrderWithItems, ownerWallet: string): Col
       deliveryUri,
       assetType,
       isGated: Boolean(product?.is_gated),
+      contractKind: typedOrder.contract_kind ?? null,
       orderStatus: typedOrder.status || undefined,
       collectedAt: typedOrder.created_at || new Date().toISOString(),
     } satisfies CollectedDropItem;
@@ -208,7 +218,44 @@ const MyCollectionPage = ({ embedded = false }: MyCollectionPageProps) => {
         const orders = await getOrdersByBuyer(address.toLowerCase(), { accessibleOnly: true });
         if (!active) return;
 
-        const mappedItems = (orders || []).flatMap((order) => toOrderCollectionItems(order as OrderWithItems, address));
+        const [entitlements, fulfillmentGroups] = await Promise.all([
+          getEntitlementsByBuyer(address.toLowerCase()),
+          Promise.all(
+            (orders || []).map(async (order) => ({
+              orderId: order.id,
+              fulfillments: await getFulfillmentsByOrder(order.id),
+            })),
+          ),
+        ]);
+        if (!active) return;
+
+        const entitlementsByOrderAndProduct = new Map<string, Entitlement[]>();
+        for (const entitlement of entitlements || []) {
+          const key = `${entitlement.order_id || ""}:${entitlement.product_id || ""}`;
+          const group = entitlementsByOrderAndProduct.get(key) || [];
+          group.push(entitlement);
+          entitlementsByOrderAndProduct.set(key, group);
+        }
+
+        const fulfillmentsByOrder = new Map<string, Fulfillment[]>(
+          fulfillmentGroups.map((entry) => [entry.orderId, entry.fulfillments || []]),
+        );
+
+        const mappedItems = (orders || []).flatMap((order) =>
+          toOrderCollectionItems(order as OrderWithItems, address).map((item) => {
+            const productId = item.productId || order.product_id || null;
+            const entitlementKey = `${order.id}:${productId || ""}`;
+            const itemEntitlements = entitlementsByOrderAndProduct.get(entitlementKey) || [];
+            const orderFulfillments = fulfillmentsByOrder.get(order.id) || [];
+            const itemFulfillment = orderFulfillments.find((fulfillment) => fulfillment.product_id === productId) || orderFulfillments[0];
+
+            return {
+              ...item,
+              entitlementCount: itemEntitlements.length,
+              fulfillmentStatus: itemFulfillment?.status || undefined,
+            };
+          }),
+        );
 
         setPurchasedCollection(mappedItems);
       } catch (error) {
@@ -518,6 +565,13 @@ const MyCollectionPage = ({ embedded = false }: MyCollectionPageProps) => {
                     <p className="text-xs text-primary mt-1 uppercase tracking-wide">
                       {drop.assetType || "image"}
                     </p>
+                    {(drop.fulfillmentStatus || drop.entitlementCount) && (
+                      <p className="mt-1 text-[10px] text-muted-foreground">
+                        {drop.fulfillmentStatus ? `Fulfillment: ${drop.fulfillmentStatus}` : null}
+                        {drop.fulfillmentStatus && drop.entitlementCount ? " · " : null}
+                        {drop.entitlementCount ? `${drop.entitlementCount} gated asset${drop.entitlementCount === 1 ? "" : "s"}` : null}
+                      </p>
+                    )}
                   </div>
                 </div>
               );

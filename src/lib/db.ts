@@ -59,6 +59,7 @@ export interface Drop {
 export interface Product {
   id: string;
   artist_id?: string | null;
+  creative_release_id?: string | null;
   creator_wallet: string;
   name: string;
   description?: string;
@@ -76,8 +77,35 @@ export interface Product {
   nft_link?: string;
   status?: "draft" | "published" | "active" | "out_of_stock";
   metadata?: Record<string, unknown>;
+  contract_kind?: "artDrop" | "productStore" | "creativeReleaseEscrow" | null;
+  contract_listing_id?: number | null;
   contract_product_id?: number | null;
   metadata_uri?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface CreativeRelease {
+  id: string;
+  artist_id: string;
+  release_type: "collectible" | "physical" | "hybrid";
+  title: string;
+  description?: string | null;
+  status?: "draft" | "review" | "published" | "live" | "paused" | "ended" | "archived";
+  price_eth?: number;
+  supply?: number;
+  sold?: number;
+  art_metadata_uri?: string | null;
+  cover_image_uri?: string | null;
+  contract_kind?: "artDrop" | "productStore" | "creativeReleaseEscrow";
+  contract_address?: string | null;
+  contract_listing_id?: number | null;
+  contract_drop_id?: number | null;
+  physical_details_jsonb?: Record<string, unknown>;
+  shipping_profile_jsonb?: Record<string, unknown>;
+  creator_notes?: string | null;
+  metadata?: Record<string, unknown>;
+  published_at?: string | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -85,7 +113,14 @@ export interface Product {
 export interface ProductAsset {
   id: string;
   product_id: string;
-  role?: "preview" | "delivery" | "source" | "attachment";
+  role?:
+    | "hero_art"
+    | "gallery_photo"
+    | "physical_photo"
+    | "preview"
+    | "delivery"
+    | "source"
+    | "attachment";
   visibility?: "public" | "gated" | "private";
   asset_type?: "image" | "video" | "audio" | "pdf" | "epub" | "archive" | "software" | "document" | "other";
   storage_provider?: string | null;
@@ -107,6 +142,7 @@ export interface OrderItem {
   id: string;
   order_id: string;
   product_id: string;
+  creative_release_id?: string | null;
   quantity: number;
   unit_price_eth: number;
   line_total_eth: number;
@@ -119,6 +155,7 @@ export interface OrderItem {
 export interface Order {
   id: string;
   product_id?: string | null;
+  creative_release_id?: string | null;
   buyer_wallet: string;
   quantity?: number;
   currency?: string;
@@ -131,6 +168,18 @@ export interface Order {
   shipping_address_jsonb?: Record<string, unknown> | null;
   tracking_code?: string;
   tx_hash?: string;
+  contract_kind?: "artDrop" | "productStore" | "creativeReleaseEscrow" | null;
+  contract_order_id?: number | null;
+  payout_status?: "unreleased" | "approved" | "released" | "refunded" | "failed" | null;
+  approval_status?:
+    | "pending"
+    | "approved"
+    | "rejected"
+    | "production_accepted"
+    | "shipped"
+    | "delivered"
+    | "refunded"
+    | null;
   paid_at?: string;
   shipped_at?: string;
   delivered_at?: string;
@@ -633,6 +682,93 @@ export async function deleteDrop(dropId: string) {
 //  Product Operations
 // ──────────────────────────────────────────────
 
+export async function getCreativeReleases(
+  options: {
+    artistId?: string;
+    releaseType?: CreativeRelease["release_type"];
+    status?: CreativeRelease["status"];
+  } = {},
+): Promise<CreativeRelease[]> {
+  try {
+    const params = new URLSearchParams();
+    if (options.artistId) params.set("artist_id", options.artistId);
+    if (options.releaseType) params.set("release_type", options.releaseType);
+    if (options.status) params.set("status", options.status);
+    const queryString = params.toString();
+    if (secureApiBaseUrl) {
+      const response = await fetch(
+        `${secureApiBaseUrl}/creative-releases${queryString ? `?${queryString}` : ""}`,
+        {
+          credentials: "include",
+        },
+      );
+
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+
+      return await response.json();
+    }
+
+    return [];
+  } catch (error: any) {
+    console.error("getCreativeReleases failed:", error.message);
+    return [];
+  }
+}
+
+export async function getCreativeRelease(releaseId: string): Promise<CreativeRelease | null> {
+  try {
+    if (!releaseId) return null;
+    if (secureApiBaseUrl) {
+      const response = await fetch(`${secureApiBaseUrl}/creative-releases/${releaseId}`, {
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+
+      return await response.json();
+    }
+
+    return null;
+  } catch (error: any) {
+    console.error("getCreativeRelease failed:", error.message);
+    return null;
+  }
+}
+
+export async function createCreativeRelease(
+  payload: Partial<CreativeRelease>,
+): Promise<CreativeRelease | null> {
+  try {
+    return await secureApiRequest<CreativeRelease | null>("/creative-releases", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  } catch (error: any) {
+    console.error("createCreativeRelease failed:", error.message);
+    return null;
+  }
+}
+
+export async function updateCreativeRelease(
+  releaseId: string,
+  payload: Partial<CreativeRelease>,
+): Promise<CreativeRelease | null> {
+  try {
+    if (!releaseId) return null;
+    return await secureApiRequest<CreativeRelease | null>(`/creative-releases/${releaseId}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+  } catch (error: any) {
+    console.error("updateCreativeRelease failed:", error.message);
+    return null;
+  }
+}
+
 export async function getProducts() {
   try {
     if (!supabaseUrl || !supabaseAnonKey) return [];
@@ -701,6 +837,21 @@ export async function updateProduct(productId: string, updates: Partial<Product>
 //  Order Operations
 // ──────────────────────────────────────────────
 
+export async function createProductAssets(
+  assets: Array<Partial<ProductAsset>> | Partial<ProductAsset>,
+): Promise<ProductAsset[]> {
+  try {
+    const payload = Array.isArray(assets) ? { assets } : assets;
+    return await secureApiRequest<ProductAsset[]>("/product-assets", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  } catch (error: any) {
+    console.error("createProductAssets failed:", error.message);
+    return [];
+  }
+}
+
 export async function createOrder(order: Partial<Order>): Promise<Order | null> {
   console.log(`💾 Creating order for ${order.buyer_wallet}`);
 
@@ -718,6 +869,7 @@ export async function createOrder(order: Partial<Order>): Promise<Order | null> 
 const LEGACY_ORDER_SELECT = `
   id,
   product_id,
+  creative_release_id,
   buyer_wallet,
   quantity,
   currency,
@@ -729,6 +881,11 @@ const LEGACY_ORDER_SELECT = `
   shipping_address,
   shipping_address_jsonb,
   tracking_code,
+  tx_hash,
+  contract_kind,
+  contract_order_id,
+  payout_status,
+  approval_status,
   paid_at,
   shipped_at,
   delivered_at,
@@ -753,6 +910,7 @@ const ORDER_SELECT = `
   order_items(
     id,
     product_id,
+    creative_release_id,
     quantity,
     unit_price_eth,
     line_total_eth,

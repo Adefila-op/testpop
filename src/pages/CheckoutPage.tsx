@@ -12,6 +12,7 @@ import { formatEther } from "viem";
 import { toast } from "sonner";
 import { createOrder as dbCreateOrder } from "@/lib/db";
 import { buyOnchainProduct, getOnchainProduct } from "@/lib/productStoreChain";
+import { buyOnchainCreativeRelease, getOnchainCreativeRelease } from "@/lib/creativeReleaseEscrowChain";
 import {
   CHECKOUT_COUNTRIES,
   detectCheckoutCountry,
@@ -70,7 +71,7 @@ export function CheckoutPage() {
       return;
     }
 
-    const completedPurchases: Array<{ productId: string; name: string; txHash: `0x${string}` }> = [];
+      const completedPurchases: Array<{ productId: string; name: string; txHash: `0x${string}` }> = [];
 
     try {
       checkoutInFlightRef.current = true;
@@ -78,33 +79,7 @@ export function CheckoutPage() {
       const formattedPhone = formatCheckoutPhone(country, phone);
 
       for (const item of items) {
-        if (!item.contractProductId || item.contractProductId < 1) {
-          throw new Error(`"${item.name}" is not linked to the onchain product store yet.`);
-        }
-
         setCheckoutProgress(`Purchasing ${item.name} onchain...`);
-        const onchainProduct = await getOnchainProduct(item.contractProductId);
-        if (!onchainProduct.active) {
-          throw new Error(`"${item.name}" is no longer active onchain.`);
-        }
-
-        if (onchainProduct.stock > 0n) {
-          const remaining = onchainProduct.stock - onchainProduct.sold;
-          if (remaining <= 0n) {
-            throw new Error(`"${item.name}" is sold out onchain. Remove it from your cart and try again.`);
-          }
-
-          if (BigInt(item.quantity) > remaining) {
-            throw new Error(
-              `Only ${remaining.toString()} "${item.name}" left onchain. Reduce the quantity in your cart and try again.`
-            );
-          }
-        }
-
-        if (BigInt(item.price) !== onchainProduct.price) {
-          throw new Error(`"${item.name}" changed price onchain. Refresh the cart and review the new total before retrying.`);
-        }
-
         const orderMetadata = JSON.stringify({
           email,
           phone: formattedPhone,
@@ -115,17 +90,86 @@ export function CheckoutPage() {
           country,
           notes,
           db_product_id: item.productId,
+          creative_release_id: item.creativeReleaseId,
+          contract_kind: item.contractKind,
+          contract_listing_id: item.contractListingId,
           contract_product_id: item.contractProductId,
           quantity: item.quantity,
         });
 
-        const purchase = await buyOnchainProduct({
-          contractProductId: item.contractProductId,
-          quantity: item.quantity,
-          unitPriceWei: onchainProduct.price,
-          orderMetadata,
-          account: address as `0x${string}`,
-        });
+        let purchase: {
+          hash: `0x${string}`;
+          contractOrderId: number | null;
+        };
+
+        if (item.contractKind === "creativeReleaseEscrow") {
+          if (item.contractListingId === null || item.contractListingId === undefined) {
+            throw new Error(`"${item.name}" is not linked to the creative release escrow yet.`);
+          }
+
+          const onchainRelease = await getOnchainCreativeRelease(item.contractListingId);
+          if (!onchainRelease.active) {
+            throw new Error(`"${item.name}" is no longer active onchain.`);
+          }
+
+          const remaining = onchainRelease.supply - onchainRelease.sold;
+          if (remaining <= 0n) {
+            throw new Error(`"${item.name}" is sold out onchain. Remove it from your cart and try again.`);
+          }
+
+          if (BigInt(item.quantity) > remaining) {
+            throw new Error(
+              `Only ${remaining.toString()} "${item.name}" left onchain. Reduce the quantity in your cart and try again.`,
+            );
+          }
+
+          if (BigInt(item.price) !== onchainRelease.unitPrice) {
+            throw new Error(`"${item.name}" changed price onchain. Refresh the cart and review the new total before retrying.`);
+          }
+
+          purchase = await buyOnchainCreativeRelease({
+            listingId: item.contractListingId,
+            quantity: item.quantity,
+            unitPriceWei: onchainRelease.unitPrice,
+            orderMetadata,
+            account: address as `0x${string}`,
+          });
+        } else {
+          if (!item.contractProductId || item.contractProductId < 1) {
+            throw new Error(`"${item.name}" is not linked to the onchain product store yet.`);
+          }
+
+          const onchainProduct = await getOnchainProduct(item.contractProductId);
+          if (!onchainProduct.active) {
+            throw new Error(`"${item.name}" is no longer active onchain.`);
+          }
+
+          if (onchainProduct.stock > 0n) {
+            const remaining = onchainProduct.stock - onchainProduct.sold;
+            if (remaining <= 0n) {
+              throw new Error(`"${item.name}" is sold out onchain. Remove it from your cart and try again.`);
+            }
+
+            if (BigInt(item.quantity) > remaining) {
+              throw new Error(
+                `Only ${remaining.toString()} "${item.name}" left onchain. Reduce the quantity in your cart and try again.`,
+              );
+            }
+          }
+
+          if (BigInt(item.price) !== onchainProduct.price) {
+            throw new Error(`"${item.name}" changed price onchain. Refresh the cart and review the new total before retrying.`);
+          }
+
+          purchase = await buyOnchainProduct({
+            contractProductId: item.contractProductId,
+            quantity: item.quantity,
+            unitPriceWei: onchainProduct.price,
+            orderMetadata,
+            account: address as `0x${string}`,
+          });
+        }
+
         completedPurchases.push({ productId: item.productId, name: item.name, txHash: purchase.hash });
 
         setCheckoutProgress(`Recording ${item.name} order...`);
@@ -133,6 +177,9 @@ export function CheckoutPage() {
           await dbCreateOrder({
             buyer_wallet: address.toLowerCase(),
             product_id: item.productId,
+            creative_release_id: item.creativeReleaseId ?? null,
+            contract_kind: item.contractKind ?? "productStore",
+            contract_order_id: purchase.contractOrderId,
             quantity: item.quantity,
             tx_hash: purchase.hash,
             items: [{

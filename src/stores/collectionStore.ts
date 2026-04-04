@@ -4,6 +4,8 @@ import { persist, createJSONStorage } from "zustand/middleware";
 export interface CollectedDropItem {
   id: string;
   ownerWallet: string;
+  creativeReleaseId?: string | null;
+  productId?: string | null;
   title: string;
   artist: string;
   imageUrl?: string;
@@ -13,8 +15,11 @@ export interface CollectedDropItem {
   isGated?: boolean;
   mintedTokenId?: number | null;
   contractAddress?: string | null;
+  contractKind?: "artDrop" | "productStore" | "creativeReleaseEscrow" | null;
   contractDropId?: number | null;
   orderStatus?: "pending" | "paid" | "processing" | "shipped" | "delivered" | "cancelled" | "refunded";
+  fulfillmentStatus?: string;
+  entitlementCount?: number;
   collectedAt: string;
 }
 

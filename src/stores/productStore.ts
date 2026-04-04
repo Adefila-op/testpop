@@ -3,6 +3,7 @@ import { create } from "zustand";
 // Product data structure - DB-backed with UUIDs and asset metadata
 export interface Product {
   id: string; // UUID
+  creativeReleaseId?: string | null;
   creator: string;
   creator_wallet?: string;
   metadataURI?: string;
@@ -18,6 +19,9 @@ export interface Product {
   image?: string;
   image_url?: string;
   category?: string;
+  releaseType?: "collectible" | "physical" | "hybrid";
+  contractKind?: "artDrop" | "productStore" | "creativeReleaseEscrow" | null;
+  contractListingId?: number | null;
   contractProductId?: number | null;
   metadataUri?: string | null;
   // Asset metadata (new)

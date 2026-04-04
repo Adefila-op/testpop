@@ -11,6 +11,7 @@ import { toast } from "sonner";
 
 interface ProductCardProps {
   id: string;
+  creativeReleaseId?: string | null;
   name: string;
   image: string;
   price: bigint;
@@ -18,18 +19,39 @@ interface ProductCardProps {
   description: string;
   stock: number;
   sold: number;
+  releaseType?: "collectible" | "physical" | "hybrid";
+  contractKind?: "artDrop" | "productStore" | "creativeReleaseEscrow" | null;
+  contractListingId?: number | null;
   category?: string;
   contractProductId?: number | null;
   metadataUri?: string | null;
 }
 
-export function ProductCard({ id, name, image, price, creator, description, stock, sold, contractProductId, metadataUri, category }: ProductCardProps) {
+export function ProductCard({
+  id,
+  creativeReleaseId,
+  name,
+  image,
+  price,
+  creator,
+  description,
+  stock,
+  sold,
+  releaseType,
+  contractKind,
+  contractListingId,
+  contractProductId,
+  metadataUri,
+  category,
+}: ProductCardProps) {
   const navigate = useNavigate();
   const { address } = useAccount();
   const [isAdding, setIsAdding] = useState(false);
   const { addItem } = useCartStore();
   const { setSelectedProduct } = useProductStore();
-  const isOnchainReady = typeof contractProductId === "number" && contractProductId > 0;
+  const isOnchainReady =
+    (contractKind === "creativeReleaseEscrow" && typeof contractListingId === "number" && contractListingId > 0) ||
+    (typeof contractProductId === "number" && contractProductId > 0);
 
   const handleQuickAdd = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -45,7 +67,17 @@ export function ProductCard({ id, name, image, price, creator, description, stoc
         return;
       }
 
-      addItem(id, contractProductId, 1, price, name, image);
+      addItem(
+        id,
+        creativeReleaseId ?? null,
+        contractKind ?? "productStore",
+        contractListingId ?? null,
+        contractProductId ?? null,
+        1,
+        price,
+        name,
+        image,
+      );
       toast.success("Added to cart");
     } finally {
       setIsAdding(false);
@@ -67,6 +99,9 @@ export function ProductCard({ id, name, image, price, creator, description, stoc
           description,
           stock,
           sold,
+          releaseType,
+          contractKind,
+          contractListingId,
           category,
           contractProductId,
           metadataUri,
@@ -83,6 +118,11 @@ export function ProductCard({ id, name, image, price, creator, description, stoc
         {stock > 0 && sold >= stock && (
           <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
             <span className="text-white font-semibold">Sold Out</span>
+          </div>
+        )}
+        {releaseType && (
+          <div className="absolute left-3 top-3 rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-foreground">
+            {releaseType}
           </div>
         )}
       </div>
