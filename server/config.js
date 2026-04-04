@@ -87,7 +87,7 @@ const DROP_MAINTENANCE_INTERVAL_MS = Math.max(
   Number(process.env.DROP_MAINTENANCE_INTERVAL_MS || 30 * 60 * 1000),
 );
 
-const appJwtSecret = APP_JWT_SECRET || JWT_SECRET;
+const appJwtSecret = requireEnv(APP_JWT_SECRET || JWT_SECRET, "APP_JWT_SECRET or JWT_SECRET");
 
 // Constants
 const LEGACY_DROP_COLUMNS = new Set([
@@ -344,6 +344,7 @@ const authLimiter = rateLimit({
 export {
   app,
   supabase,
+  appJwtSecret,
   BASE_SEPOLIA_RPC_URL,
   ART_DROP_FACTORY_ADDRESS,
   POAP_CAMPAIGN_V2_ADDRESS,

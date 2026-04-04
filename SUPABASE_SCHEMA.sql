@@ -184,38 +184,55 @@ DROP POLICY IF EXISTS "analytics_insert_all" ON analytics;
 DROP POLICY IF EXISTS "analytics_read_all" ON analytics;
 
 -- Artists: public read/write (app handles authorization)
+DROP POLICY IF EXISTS "artists_read_all" ON artists;
 CREATE POLICY "artists_read_all" ON artists FOR SELECT USING (true);
+DROP POLICY IF EXISTS "artists_write_all" ON artists;
 CREATE POLICY "artists_write_all" ON artists FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "artists_update_all" ON artists;
 CREATE POLICY "artists_update_all" ON artists FOR UPDATE USING (true);
 
 -- Drops: public read for live/published drops, authenticated write
+DROP POLICY IF EXISTS "drops_read_public" ON drops;
 CREATE POLICY "drops_read_public" ON drops FOR SELECT USING (status IN ('live', 'published', 'active'));
+DROP POLICY IF EXISTS "drops_write_authenticated" ON drops;
 CREATE POLICY "drops_write_authenticated" ON drops FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "drops_update_authenticated" ON drops;
 CREATE POLICY "drops_update_authenticated" ON drops FOR UPDATE USING (true);
 
 -- Products: public read for published products, authenticated write
+DROP POLICY IF EXISTS "products_read_public" ON products;
 CREATE POLICY "products_read_public" ON products FOR SELECT USING (status = 'published');
+DROP POLICY IF EXISTS "products_write_authenticated" ON products;
 CREATE POLICY "products_write_authenticated" ON products FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "products_update_authenticated" ON products;
 CREATE POLICY "products_update_authenticated" ON products FOR UPDATE USING (true);
 
 -- Orders: public read/write (app handles authorization)
+DROP POLICY IF EXISTS "orders_read_all" ON orders;
 CREATE POLICY "orders_read_all" ON orders FOR SELECT USING (true);
+DROP POLICY IF EXISTS "orders_write_all" ON orders;
 CREATE POLICY "orders_write_all" ON orders FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "orders_update_all" ON orders;
 CREATE POLICY "orders_update_all" ON orders FOR UPDATE USING (true);
 
 -- Whitelist: admin-only write access, public read
+DROP POLICY IF EXISTS "whitelist_read_all" ON whitelist;
 CREATE POLICY "whitelist_read_all" ON whitelist FOR SELECT USING (true);
+DROP POLICY IF EXISTS "whitelist_write_admin_only" ON whitelist;
 CREATE POLICY "whitelist_write_admin_only" ON whitelist FOR INSERT WITH CHECK (
   lower(coalesce(auth.jwt() ->> 'sub', '')) = lower('0x04dE2EE1cF5A46539d1dbED0eC8f2A541Ac5412C')
   OR lower(coalesce(auth.jwt() ->> 'wallet_address', '')) = lower('0x04dE2EE1cF5A46539d1dbED0eC8f2A541Ac5412C')
 );
+DROP POLICY IF EXISTS "whitelist_update_admin_only" ON whitelist;
 CREATE POLICY "whitelist_update_admin_only" ON whitelist FOR UPDATE USING (
   lower(coalesce(auth.jwt() ->> 'sub', '')) = lower('0x04dE2EE1cF5A46539d1dbED0eC8f2A541Ac5412C')
   OR lower(coalesce(auth.jwt() ->> 'wallet_address', '')) = lower('0x04dE2EE1cF5A46539d1dbED0eC8f2A541Ac5412C')
 );
 
 -- Analytics: public insert (app tracks user behavior)
+DROP POLICY IF EXISTS "analytics_insert_all" ON analytics;
 CREATE POLICY "analytics_insert_all" ON analytics FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "analytics_read_all" ON analytics;
 CREATE POLICY "analytics_read_all" ON analytics FOR SELECT USING (true);
 
 -- ═══════════════════════════════════════════════════════════════════════════════
@@ -673,11 +690,13 @@ USING (
 -- ─────────────────────────────────────────────────────────────────────────────────
 
 -- Anyone can READ public products, including legacy active rows
+DROP POLICY IF EXISTS "products_read_published" ON products;
 CREATE POLICY "products_read_published" ON products
 FOR SELECT
 USING (status IN ('published', 'active'));
 
 -- Creators can READ their own draft products
+DROP POLICY IF EXISTS "products_read_own_draft" ON products;
 CREATE POLICY "products_read_own_draft" ON products
 FOR SELECT
 USING (
@@ -686,16 +705,19 @@ USING (
 );
 
 -- Creators can CREATE their own products
+DROP POLICY IF EXISTS "products_create_own" ON products;
 CREATE POLICY "products_create_own" ON products
 FOR INSERT
 WITH CHECK (creator_wallet = auth.jwt() ->> 'sub');
 
 -- Creators can UPDATE only their own products
+DROP POLICY IF EXISTS "products_update_own" ON products;
 CREATE POLICY "products_update_own" ON products
 FOR UPDATE
 USING (creator_wallet = auth.jwt() ->> 'sub');
 
 -- Creators can DELETE only their own products
+DROP POLICY IF EXISTS "products_delete_own" ON products;
 CREATE POLICY "products_delete_own" ON products
 FOR DELETE
 USING (creator_wallet = auth.jwt() ->> 'sub');
@@ -705,11 +727,13 @@ USING (creator_wallet = auth.jwt() ->> 'sub');
 -- ─────────────────────────────────────────────────────────────────────────────────
 
 -- Buyers can READ only their own orders
+DROP POLICY IF EXISTS "orders_read_own_orders" ON orders;
 CREATE POLICY "orders_read_own_orders" ON orders
 FOR SELECT
 USING (buyer_wallet = auth.jwt() ->> 'sub');
 
 -- Sellers can READ orders for their products
+DROP POLICY IF EXISTS "orders_read_own_product_sales" ON orders;
 CREATE POLICY "orders_read_own_product_sales" ON orders
 FOR SELECT
 USING (
@@ -721,11 +745,13 @@ USING (
 );
 
 -- Buyers can CREATE orders for themselves
+DROP POLICY IF EXISTS "orders_create_own" ON orders;
 CREATE POLICY "orders_create_own" ON orders
 FOR INSERT
 WITH CHECK (buyer_wallet = auth.jwt() ->> 'sub');
 
 -- Sellers can UPDATE order status for their products only
+DROP POLICY IF EXISTS "orders_update_own_product_sales" ON orders;
 CREATE POLICY "orders_update_own_product_sales" ON orders
 FOR UPDATE
 USING (
@@ -741,11 +767,13 @@ USING (
 -- ─────────────────────────────────────────────────────────────────────────────────
 
 -- Anyone can READ the whitelist (for public information)
+DROP POLICY IF EXISTS "whitelist_read_public" ON whitelist;
 CREATE POLICY "whitelist_read_public" ON whitelist
 FOR SELECT
 USING (true);
 
 -- Only admin wallet can INSERT
+DROP POLICY IF EXISTS "whitelist_insert_admin_only" ON whitelist;
 CREATE POLICY "whitelist_insert_admin_only" ON whitelist
 FOR INSERT
 WITH CHECK (
@@ -754,6 +782,7 @@ WITH CHECK (
 );
 
 -- Only admin wallet can UPDATE
+DROP POLICY IF EXISTS "whitelist_update_admin_only" ON whitelist;
 CREATE POLICY "whitelist_update_admin_only" ON whitelist
 FOR UPDATE
 USING (
@@ -762,6 +791,7 @@ USING (
 );
 
 -- Only admin wallet can DELETE
+DROP POLICY IF EXISTS "whitelist_delete_admin_only" ON whitelist;
 CREATE POLICY "whitelist_delete_admin_only" ON whitelist
 FOR DELETE
 USING (
@@ -774,11 +804,13 @@ USING (
 -- ─────────────────────────────────────────────────────────────────────────────────
 
 -- Authenticated users can INSERT analytics events
+DROP POLICY IF EXISTS "analytics_insert_authenticated" ON analytics;
 CREATE POLICY "analytics_insert_authenticated" ON analytics
 FOR INSERT
 WITH CHECK (auth.role() = 'authenticated');
 
 -- Users can READ analytics only for artists they own
+DROP POLICY IF EXISTS "analytics_read_own_artist" ON analytics;
 CREATE POLICY "analytics_read_own_artist" ON analytics
 FOR SELECT
 USING (
@@ -804,9 +836,9 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   changed_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
-CREATE INDEX idx_audit_logs_table_record ON audit_logs(table_name, record_id);
-CREATE INDEX idx_audit_logs_changed_at ON audit_logs(changed_at DESC);
-CREATE INDEX idx_audit_logs_changed_by ON audit_logs(changed_by);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_table_record ON audit_logs(table_name, record_id);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_changed_at ON audit_logs(changed_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_changed_by ON audit_logs(changed_by);
 
 -- Function to log changes
 CREATE OR REPLACE FUNCTION log_audit_changes()
@@ -861,6 +893,7 @@ ALTER TABLE analytics ENABLE ROW LEVEL SECURITY;
 ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
 
 -- Audit logs - admin only can read
+DROP POLICY IF EXISTS "audit_logs_read_admin_only" ON audit_logs;
 CREATE POLICY "audit_logs_read_admin_only" ON audit_logs
 FOR SELECT
 USING (
@@ -1063,9 +1096,11 @@ CREATE INDEX IF NOT EXISTS idx_waitlist_wallet ON public.waitlist(wallet_address
 
 ALTER TABLE public.waitlist ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "waitlist_public_insert" ON public.waitlist;
 CREATE POLICY "waitlist_public_insert" ON public.waitlist
   FOR INSERT WITH CHECK (true);
 
+DROP POLICY IF EXISTS "waitlist_public_select" ON public.waitlist;
 CREATE POLICY "waitlist_public_select" ON public.waitlist
   FOR SELECT USING (true);
 
@@ -1106,14 +1141,17 @@ CREATE INDEX IF NOT EXISTS idx_artist_applications_submitted
 ALTER TABLE public.artist_applications ENABLE ROW LEVEL SECURITY;
 
 -- Anyone (including unauthenticated users) can submit
+DROP POLICY IF EXISTS "applications_public_insert" ON public.artist_applications;
 CREATE POLICY "applications_public_insert" ON public.artist_applications
   FOR INSERT WITH CHECK (true);
 
 -- Anyone can read (admin panel uses anon key for now)
+DROP POLICY IF EXISTS "applications_public_select" ON public.artist_applications;
 CREATE POLICY "applications_public_select" ON public.artist_applications
   FOR SELECT USING (true);
 
 -- Admins can update (approve / reject)
+DROP POLICY IF EXISTS "applications_admin_update" ON public.artist_applications;
 CREATE POLICY "applications_admin_update" ON public.artist_applications
   FOR UPDATE USING (true);
 
@@ -1167,10 +1205,17 @@ ADD COLUMN IF NOT EXISTS is_gated BOOLEAN DEFAULT FALSE;
 -- Add constraints to validate asset types
 -- ─────────────────────────────────────────────────────────────────────────────
 
-ALTER TABLE drops
-ADD CONSTRAINT valid_asset_type CHECK (
-  asset_type IN ('image', 'video', 'audio', 'pdf', 'epub', 'merchandise', 'digital')
-);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'valid_asset_type'
+  ) THEN
+    ALTER TABLE drops
+    ADD CONSTRAINT valid_asset_type CHECK (
+      asset_type IN ('image', 'video', 'audio', 'pdf', 'epub', 'merchandise', 'digital')
+    );
+  END IF;
+END $$;
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Create index for filtering by asset type (used in discovery/filtering)
@@ -1342,6 +1387,7 @@ ALTER TABLE nonces ENABLE ROW LEVEL SECURITY;
 
 -- Only backend (service role) can access nonces table
 -- This prevents any direct client-side access
+DROP POLICY IF EXISTS "Service role only" ON nonces;
 CREATE POLICY "Service role only" ON nonces
   USING (true);
 
@@ -1892,9 +1938,16 @@ SET subtotal_eth = COALESCE(subtotal_eth, total_price_eth),
 ALTER TABLE orders
 DROP CONSTRAINT IF EXISTS orders_product_id_fkey;
 
-ALTER TABLE orders
-ADD CONSTRAINT orders_product_id_fkey
-FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE SET NULL;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'orders_product_id_fkey'
+  ) THEN
+    ALTER TABLE orders
+    ADD CONSTRAINT orders_product_id_fkey
+    FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE SET NULL;
+  END IF;
+END $$;
 
 DO $$
 BEGIN
@@ -2283,6 +2336,7 @@ BEGIN
 
   IF has_artist_status AND whitelist_match_sql IS NOT NULL THEN
     EXECUTE format($policy$
+DROP POLICY IF EXISTS "artists_read_approved_public" ON artists;
       CREATE POLICY "artists_read_approved_public" ON artists
       FOR SELECT
       USING (
@@ -2297,12 +2351,14 @@ BEGIN
     $policy$, whitelist_match_sql);
   ELSIF has_artist_status THEN
     EXECUTE $policy$
+DROP POLICY IF EXISTS "artists_read_approved_public" ON artists;
       CREATE POLICY "artists_read_approved_public" ON artists
       FOR SELECT
       USING (status IN ('approved', 'active'))
     $policy$;
   ELSIF whitelist_match_sql IS NOT NULL THEN
     EXECUTE format($policy$
+DROP POLICY IF EXISTS "artists_read_approved_public" ON artists;
       CREATE POLICY "artists_read_approved_public" ON artists
       FOR SELECT
       USING (
@@ -2316,6 +2372,7 @@ BEGIN
     $policy$, whitelist_match_sql);
   ELSE
     EXECUTE $policy$
+DROP POLICY IF EXISTS "artists_read_approved_public" ON artists;
       CREATE POLICY "artists_read_approved_public" ON artists
       FOR SELECT
       USING (false)
@@ -2871,6 +2928,7 @@ EXECUTE FUNCTION grant_order_item_entitlements();
 
 DROP POLICY IF EXISTS "products_read_published" ON products;
 
+DROP POLICY IF EXISTS "products_read_published" ON products;
 CREATE POLICY "products_read_published" ON products
 FOR SELECT
 USING (status IN ('published', 'active'));
@@ -3011,41 +3069,55 @@ DROP CONSTRAINT IF EXISTS admin_audit_log_action_check;
 ALTER TABLE IF EXISTS admin_audit_log
 DROP CONSTRAINT IF EXISTS admin_audit_log_status_check;
 
-ALTER TABLE IF EXISTS admin_audit_log
-ADD CONSTRAINT admin_audit_log_action_check
-CHECK (
-  action IN (
-    'approve_artist',
-    'reject_artist',
-    'deploy_contract',
-    'revoke_approval',
-    'delete_artist',
-    'approve_release_order',
-    'release_creator_payout',
-    'refund_release_order',
-    'mark_production_accepted',
-    'attach_tracking',
-    'mark_shipped',
-    'mark_delivered'
-  )
-);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'admin_audit_log_action_check'
+  ) THEN
+    ALTER TABLE IF EXISTS admin_audit_log
+    ADD CONSTRAINT admin_audit_log_action_check
+    CHECK (
+      action IN (
+        'approve_artist',
+        'reject_artist',
+        'deploy_contract',
+        'revoke_approval',
+        'delete_artist',
+        'approve_release_order',
+        'release_creator_payout',
+        'refund_release_order',
+        'mark_production_accepted',
+        'attach_tracking',
+        'mark_shipped',
+        'mark_delivered'
+      )
+    );
+  END IF;
+END $$;
 
-ALTER TABLE IF EXISTS admin_audit_log
-ADD CONSTRAINT admin_audit_log_status_check
-CHECK (
-  status IN (
-    'pending',
-    'approved',
-    'rejected',
-    'deployed',
-    'failed',
-    'revoked',
-    'released',
-    'refunded',
-    'shipped',
-    'delivered'
-  )
-);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'admin_audit_log_status_check'
+  ) THEN
+    ALTER TABLE IF EXISTS admin_audit_log
+    ADD CONSTRAINT admin_audit_log_status_check
+    CHECK (
+      status IN (
+        'pending',
+        'approved',
+        'rejected',
+        'deployed',
+        'failed',
+        'revoked',
+        'released',
+        'refunded',
+        'shipped',
+        'delivered'
+      )
+    );
+  END IF;
+END $$;
 
 -- ============================================================================
 -- Migration: 20260403_fix_subscription_expiry_index.sql
@@ -3105,6 +3177,7 @@ BEGIN
     EXECUTE 'DROP POLICY IF EXISTS "whitelist_delete_admin_only" ON public.whitelist';
 
     EXECUTE $policy$
+DROP POLICY IF EXISTS "whitelist_insert_admin_only" ON public.whitelist;
       CREATE POLICY "whitelist_insert_admin_only" ON public.whitelist
       FOR INSERT
       WITH CHECK (
@@ -3114,6 +3187,7 @@ BEGIN
     $policy$;
 
     EXECUTE $policy$
+DROP POLICY IF EXISTS "whitelist_update_admin_only" ON public.whitelist;
       CREATE POLICY "whitelist_update_admin_only" ON public.whitelist
       FOR UPDATE
       USING (
@@ -3123,6 +3197,7 @@ BEGIN
     $policy$;
 
     EXECUTE $policy$
+DROP POLICY IF EXISTS "whitelist_delete_admin_only" ON public.whitelist;
       CREATE POLICY "whitelist_delete_admin_only" ON public.whitelist
       FOR DELETE
       USING (
@@ -3136,6 +3211,7 @@ BEGIN
     EXECUTE 'DROP POLICY IF EXISTS "audit_logs_read_admin_only" ON public.audit_logs';
 
     EXECUTE $policy$
+DROP POLICY IF EXISTS "audit_logs_read_admin_only" ON public.audit_logs;
       CREATE POLICY "audit_logs_read_admin_only" ON public.audit_logs
       FOR SELECT
       USING (
@@ -3150,6 +3226,7 @@ BEGIN
     EXECUTE 'DROP POLICY IF EXISTS "admin_audit_log_read_admin_only" ON public.admin_audit_log';
 
     EXECUTE $policy$
+DROP POLICY IF EXISTS "admin_audit_log_read_admin_only" ON public.admin_audit_log;
       CREATE POLICY "admin_audit_log_read_admin_only" ON public.admin_audit_log
       FOR SELECT
       USING (

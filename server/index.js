@@ -7,7 +7,7 @@ import jwt from "jsonwebtoken";
 import rateLimit from "express-rate-limit";
 import { createClient } from "@supabase/supabase-js";
 import { dropUpdateSchema, validateInput } from "./validation.js";
-import { getPinataAuthMode, requirePinataAuth, requirePinataAuthStrategies } from "./pinataAuth.js";
+import { appJwtSecret } from "./config.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -223,11 +223,6 @@ const DROP_MAINTENANCE_INTERVAL_MS = Math.max(
   Number(process.env.DROP_MAINTENANCE_INTERVAL_MS || 30 * 60 * 1000),
 );
 
-const appJwtSecret = APP_JWT_SECRET || JWT_SECRET;
-
-if (!appJwtSecret) {
-  throw new Error("APP_JWT_SECRET or JWT_SECRET is required");
-}
 if (!SUPABASE_URL || !SUPABASE_SERVER_KEY) {
   throw new Error("SUPABASE_URL and SUPABASE_SECRET_KEY or SUPABASE_SERVICE_ROLE_KEY are required");
 }

@@ -250,21 +250,6 @@ export async function establishSecureSession(
     });
     console.log("✅ Runtime session stored");
 
-    try {
-      const token = session.supabaseToken || "";
-      if (token) {
-        console.log("🔑 Step 5: Setting Supabase session...");
-        await supabase.auth.setSession({
-          access_token: token,
-          refresh_token: token,
-        });
-        console.log("✅ Supabase session set");
-      }
-    } catch (err) {
-      console.warn("⚠️ Supabase session warning (non-blocking):", err);
-      // best-effort only
-    }
-
     console.log("🎉 Secure session established successfully!");
     return session;
   } catch (error) {
