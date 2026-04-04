@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
-import { AlertTriangle, Clock, Gavel } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { AlertTriangle, Clock, Gavel, ShoppingCart } from "lucide-react";
 import { parseEther } from "viem";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -8,8 +9,11 @@ import { Input } from "@/components/ui/input";
 import { CampaignActionPanel } from "@/components/campaign/CampaignActionPanel";
 import { useWallet, usePlaceBid } from "@/hooks/useContracts";
 import { useMintArtist } from "@/hooks/useContractsArtist";
+import type { Product } from "@/lib/db";
+import { resolveDropBehavior } from "@/lib/dropBehavior";
 import type { Web3Error } from "@/lib/types";
 import { ACTIVE_CHAIN } from "@/lib/wagmi";
+import { useCartStore } from "@/stores/cartStore";
 
 type DropActionData = {
   id: string;
@@ -24,7 +28,7 @@ type DropActionData = {
   endsIn: string;
   contractAddress: string | null;
   contractDropId?: number | null;
-  contractKind?: "artDrop" | "poapCampaign" | "poapCampaignV2" | "creativeReleaseEscrow" | null;
+  contractKind?: "artDrop" | "poapCampaign" | "poapCampaignV2" | "creativeReleaseEscrow" | "productStore" | null;
   assetType: string;
   previewUri?: string;
   deliveryUri?: string;
@@ -33,24 +37,65 @@ type DropActionData = {
 
 type DropPrimaryActionCardProps = {
   drop: DropActionData;
+  linkedProduct?: Product | null;
+  sourceKind?: string | null;
   onCollectSuccess: (payload: { ownerWallet: string; mintedTokenId: number | null }) => void;
 };
 
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
-function DropPrimaryActionCardInner({ drop, onCollectSuccess }: DropPrimaryActionCardProps) {
+function DropPrimaryActionCardInner({
+  drop,
+  linkedProduct,
+  sourceKind,
+  onCollectSuccess,
+}: DropPrimaryActionCardProps) {
+  const navigate = useNavigate();
   const { address, isConnected, connectWallet, chain, requestActiveChainSwitch, isSwitchingNetwork } = useWallet();
   const { placeBid, isPending: isBidPending, isConfirming: isBidConfirming, isSuccess: isBidSuccess, error: bidError } = usePlaceBid();
   const { mint: mintArtist, mintedTokenId, isConfirming: isMintConfirming, isSuccess: isMintSuccess, error: mintError } = useMintArtist();
+  const { addItem, items } = useCartStore();
   const [bidAmount, setBidAmount] = useState("");
 
   const remaining = (drop.maxBuy ?? 0) - (drop.bought ?? 0);
   const boughtPct = drop.maxBuy ? Math.round(((drop.bought ?? 0) / drop.maxBuy) * 100) : 0;
   const hasContractAddress = Boolean(drop.contractAddress && drop.contractAddress !== ZERO_ADDRESS);
   const hasContractListing = drop.contractDropId !== null && drop.contractDropId !== undefined;
-  const isBuyDrop = drop.type === "drop" && drop.contractKind === "artDrop";
-  const isAuctionDrop = drop.type === "auction" && drop.contractKind === "poapCampaign";
-  const isCampaignDrop = drop.type === "campaign";
+  const behavior = useMemo(
+    () =>
+      resolveDropBehavior({
+        drop,
+        linkedProduct,
+        sourceKind,
+      }),
+    [drop, linkedProduct, sourceKind]
+  );
+  const isBuyDrop = behavior.mode === "collect";
+  const isAuctionDrop = behavior.mode === "auction";
+  const isCampaignDrop = behavior.mode === "campaign";
+  const isCheckoutDrop = behavior.mode === "checkout";
+  const checkoutContractKind =
+    linkedProduct?.contract_kind ??
+    (drop.contractKind === "creativeReleaseEscrow" || drop.contractKind === "productStore"
+      ? drop.contractKind
+      : "productStore");
+  const checkoutPriceEth = String(linkedProduct?.price_eth ?? drop.priceEth ?? "0");
+  const checkoutPriceWei = useMemo(() => {
+    try {
+      return parseEther(checkoutPriceEth);
+    } catch {
+      return 0n;
+    }
+  }, [checkoutPriceEth]);
+  const availableUnits = Math.max(
+    0,
+    (linkedProduct?.stock ?? drop.maxBuy ?? 0) - (linkedProduct?.sold ?? drop.bought ?? 0)
+  );
+  const isUnlimitedStock = (linkedProduct?.stock ?? 0) === 0;
+  const isCheckoutSoldOut = (linkedProduct?.stock ?? 0) > 0 && availableUnits <= 0;
+  const existingCartItem = linkedProduct?.id
+    ? items.find((item) => item.productId === linkedProduct.id)
+    : null;
 
   useEffect(() => {
     if (isMintSuccess && address) {
@@ -69,6 +114,18 @@ function DropPrimaryActionCardInner({ drop, onCollectSuccess }: DropPrimaryActio
       toast.error(`Bid failed: ${bidError?.message || "Unknown error"}`);
     }
   }, [bidError]);
+
+  useEffect(() => {
+    if (isCheckoutDrop && linkedProduct?.id && !behavior.isOnchainReady) {
+      console.warn("Checkout drop is missing onchain linkage", {
+        dropId: drop.id,
+        productId: linkedProduct.id,
+        contractKind: checkoutContractKind,
+        contractListingId: linkedProduct.contract_listing_id,
+        contractProductId: linkedProduct.contract_product_id,
+      });
+    }
+  }, [behavior.isOnchainReady, checkoutContractKind, drop.id, isCheckoutDrop, linkedProduct]);
 
   useEffect(() => {
     if (!mintError) return;
@@ -156,12 +213,83 @@ function DropPrimaryActionCardInner({ drop, onCollectSuccess }: DropPrimaryActio
     toast.loading("Placing bid...");
   };
 
+  const handleAddToCart = async () => {
+    if (!linkedProduct?.id) {
+      toast.error("This release is still syncing with checkout.");
+      return;
+    }
+    if (!isConnected) {
+      await connectWallet();
+      return;
+    }
+    if (!behavior.isOnchainReady) {
+      toast.error("This release is not ready for checkout yet.");
+      return;
+    }
+    if (isCheckoutSoldOut) {
+      toast.error("This release is sold out.");
+      return;
+    }
+
+    addItem(
+      linkedProduct.id,
+      linkedProduct.creative_release_id ?? null,
+      checkoutContractKind,
+      linkedProduct.contract_listing_id ?? null,
+      linkedProduct.contract_product_id ?? null,
+      1,
+      checkoutPriceWei,
+      linkedProduct.name || drop.title,
+      linkedProduct.image_url || drop.image || ""
+    );
+    toast.success("Added to cart!");
+  };
+
+  const handleCheckoutNow = async () => {
+    if (!linkedProduct?.id) {
+      toast.error("This release is still syncing with checkout.");
+      return;
+    }
+    if (!isConnected) {
+      await connectWallet();
+      return;
+    }
+    if (!behavior.isOnchainReady) {
+      toast.error("This release is not ready for checkout yet.");
+      return;
+    }
+    if (isCheckoutSoldOut) {
+      toast.error("This release is sold out.");
+      return;
+    }
+
+    if (!existingCartItem) {
+      addItem(
+        linkedProduct.id,
+        linkedProduct.creative_release_id ?? null,
+        checkoutContractKind,
+        linkedProduct.contract_listing_id ?? null,
+        linkedProduct.contract_product_id ?? null,
+        1,
+        checkoutPriceWei,
+        linkedProduct.name || drop.title,
+      linkedProduct.image_url || drop.image || ""
+    );
+    }
+
+    navigate("/checkout");
+  };
+
   return (
     <div className="p-4 rounded-2xl bg-card shadow-card">
       <div className="flex items-center justify-between mb-3">
         <div>
-          <p className="text-xs text-muted-foreground">{isAuctionDrop && drop.currentBidEth ? "Current Bid" : "Price"}</p>
-          <p className="text-xl font-bold text-primary">{drop.currentBidEth || drop.priceEth} ETH</p>
+          <p className="text-xs text-muted-foreground">
+            {isAuctionDrop && drop.currentBidEth ? "Current Bid" : "Price"}
+          </p>
+          <p className="text-xl font-bold text-primary">
+            {isCheckoutDrop ? checkoutPriceEth : drop.currentBidEth || drop.priceEth} ETH
+          </p>
         </div>
         {drop.bids > 0 && (
           <p className="text-xs text-muted-foreground flex items-center gap-1">
@@ -193,6 +321,53 @@ function DropPrimaryActionCardInner({ drop, onCollectSuccess }: DropPrimaryActio
             </p>
           )}
         </>
+      ) : isCheckoutDrop ? (
+        <div className="space-y-3">
+          <div className="rounded-xl border border-border bg-secondary/30 p-3 text-xs text-muted-foreground space-y-2">
+            <div className="flex items-center justify-between">
+              <span>Availability</span>
+              <span className="font-semibold text-foreground">
+                {isUnlimitedStock ? "Open edition" : `${availableUnits} left`}
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span>Fulfillment</span>
+              <span className="font-semibold text-foreground capitalize">
+                {linkedProduct?.product_type || "physical"}
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span>Delivery</span>
+              <span className="font-semibold text-foreground">
+                {linkedProduct?.delivery_uri || drop.deliveryUri ? "Gated access" : "Standard checkout"}
+              </span>
+            </div>
+          </div>
+          {!behavior.isOnchainReady && (
+            <div className="rounded-xl border border-warning/60 bg-warning/10 p-3 text-warning text-xs flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4" />
+              This release is visible, but its checkout contract is not ready yet.
+            </div>
+          )}
+          <div className="flex gap-2">
+            <Button
+              onClick={handleAddToCart}
+              disabled={!linkedProduct?.id || !behavior.isOnchainReady || isCheckoutSoldOut}
+              variant="outline"
+              className="flex-1 rounded-full h-11"
+            >
+              <ShoppingCart className="mr-2 h-4 w-4" />
+              {isCheckoutSoldOut ? "Sold Out" : "Add to Cart"}
+            </Button>
+            <Button
+              onClick={handleCheckoutNow}
+              disabled={!linkedProduct?.id || !behavior.isOnchainReady || isCheckoutSoldOut}
+              className="flex-1 rounded-full gradient-primary text-primary-foreground font-semibold h-11"
+            >
+              {isCheckoutSoldOut ? "Sold Out" : "Checkout Now"}
+            </Button>
+          </div>
+        </div>
       ) : isAuctionDrop ? (
         <div className="space-y-3">
           <Input
@@ -228,7 +403,7 @@ function DropPrimaryActionCardInner({ drop, onCollectSuccess }: DropPrimaryActio
 
       <div className="mt-4 flex items-center justify-between">
         <Badge variant="secondary" className="text-[10px] capitalize">
-          {drop.type === "drop" ? "collect" : drop.type}
+          {isCheckoutDrop ? "checkout" : drop.type === "drop" ? "collect" : drop.type}
         </Badge>
         <p className="text-xs text-muted-foreground flex items-center gap-1">
           <Clock className="h-3 w-3" />

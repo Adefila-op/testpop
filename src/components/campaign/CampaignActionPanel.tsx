@@ -16,6 +16,7 @@ import {
   useRedeemCampaignV2,
 } from "@/hooks/useCampaignV2";
 import { useWallet } from "@/hooks/useContracts";
+import { ACTIVE_CHAIN } from "@/lib/wagmi";
 
 type CampaignActionPanelProps = {
   dropId: string;
@@ -51,7 +52,14 @@ export function CampaignActionPanel({
   contractCampaignId,
   contractAddress,
 }: CampaignActionPanelProps) {
-  const { address, isConnected, connectWallet } = useWallet();
+  const {
+    address,
+    isConnected,
+    connectWallet,
+    chain,
+    requestActiveChainSwitch,
+    isSwitchingNetwork,
+  } = useWallet();
   const [entryQuantity, setEntryQuantity] = useState("1");
   const [contentUrl, setContentUrl] = useState("");
   const [contentCaption, setContentCaption] = useState("");
@@ -142,10 +150,22 @@ export function CampaignActionPanel({
   }, [buyError]);
 
   useEffect(() => {
+    if (isBuySuccess) {
+      toast.success("Campaign entries purchased successfully.");
+    }
+  }, [isBuySuccess]);
+
+  useEffect(() => {
     if (redeemError) {
       toast.error(redeemError.message || "Failed to redeem campaign rewards.");
     }
   }, [redeemError]);
+
+  useEffect(() => {
+    if (isRedeemSuccess) {
+      toast.success("Campaign rewards redeemed successfully.");
+    }
+  }, [isRedeemSuccess]);
 
   const summary = useMemo(
     () => ({
@@ -171,6 +191,14 @@ export function CampaignActionPanel({
   const handleBuyEntry = async () => {
     if (!isConnected) {
       await connectWallet();
+      return;
+    }
+    if (chain?.id !== ACTIVE_CHAIN.id) {
+      try {
+        await requestActiveChainSwitch(`Buying campaign entries requires ${ACTIVE_CHAIN.name}.`);
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : `Switch to ${ACTIVE_CHAIN.name} and try again.`);
+      }
       return;
     }
 
@@ -212,7 +240,14 @@ export function CampaignActionPanel({
   };
 
   const handleUnlockSubmissionTools = async () => {
-    if (!address) return;
+    if (!isConnected) {
+      await connectWallet();
+      return;
+    }
+    if (!address) {
+      toast.error("Connect your wallet to unlock submission tools.");
+      return;
+    }
     setUnlocking(true);
     try {
       await establishSecureSession(address);
@@ -229,6 +264,14 @@ export function CampaignActionPanel({
   const handleRedeem = async () => {
     if (!isConnected) {
       await connectWallet();
+      return;
+    }
+    if (chain?.id !== ACTIVE_CHAIN.id) {
+      try {
+        await requestActiveChainSwitch(`Redeeming campaign rewards requires ${ACTIVE_CHAIN.name}.`);
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : `Switch to ${ACTIVE_CHAIN.name} and try again.`);
+      }
       return;
     }
     if (!summary.redeemableCredits) {
@@ -290,7 +333,7 @@ export function CampaignActionPanel({
             />
             <Button
               onClick={handleBuyEntry}
-              disabled={isLoading || isBuyPending || isBuyConfirming}
+              disabled={isLoading || isBuyPending || isBuyConfirming || isSwitchingNetwork}
               className="rounded-xl gradient-primary text-primary-foreground"
             >
               {isBuyPending || isBuyConfirming ? (
@@ -369,7 +412,7 @@ export function CampaignActionPanel({
       {status === "redeemable" && summary.redeemableCredits > 0 && (
         <Button
           onClick={handleRedeem}
-          disabled={isRedeemPending || isRedeemConfirming}
+          disabled={isRedeemPending || isRedeemConfirming || isSwitchingNetwork}
           className="w-full rounded-xl gradient-primary text-primary-foreground h-11"
         >
           {isRedeemPending || isRedeemConfirming ? (

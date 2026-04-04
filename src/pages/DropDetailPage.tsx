@@ -23,6 +23,7 @@ import {
   type ProductAsset,
 } from "@/lib/db";
 import { detectAssetTypeFromUri } from "@/lib/assetTypes";
+import { resolveDropBehavior } from "@/lib/dropBehavior";
 
 const DropPrimaryActionCard = lazy(() => import("@/components/wallet/DropPrimaryActionCard"));
 
@@ -156,7 +157,7 @@ const DropDetailPage = () => {
       isGated: Boolean(dropRecord.is_gated),
       contractAddress: dropRecord.contract_address || null,
       contractDropId: dropRecord.contract_drop_id !== null && dropRecord.contract_drop_id !== undefined ? Number(dropRecord.contract_drop_id) : null,
-      contractKind: normalizedContractKind as "artDrop" | "poapCampaign" | "poapCampaignV2" | "creativeReleaseEscrow" | null,
+      contractKind: normalizedContractKind as "artDrop" | "poapCampaign" | "poapCampaignV2" | "creativeReleaseEscrow" | "productStore" | null,
       metadata: (dropRecord.metadata as Record<string, unknown> | undefined) || {},
       poap: false,
       poapNote: "",
@@ -181,11 +182,17 @@ const DropDetailPage = () => {
     resolvedLinkedProduct?.product_type ||
     (typeof linkedProductMetadata?.release_type === "string" ? linkedProductMetadata.release_type : null) ||
     (typeof linkedProductMetadata?.product_type === "string" ? linkedProductMetadata.product_type : null);
-  const isReleaseBackedDrop =
-    dropRecord?.source_kind === "release_product" ||
-    dropRecord?.source_kind === "catalog_product" ||
-    drop?.contractKind === "creativeReleaseEscrow" ||
-    Boolean(resolvedLinkedProduct?.id);
+  const resolvedBehavior = useMemo(
+    () =>
+      drop
+        ? resolveDropBehavior({
+            drop,
+            linkedProduct: resolvedLinkedProduct,
+            sourceKind: typeof dropRecord?.source_kind === "string" ? dropRecord.source_kind : null,
+          })
+        : null,
+    [drop, dropRecord?.source_kind, resolvedLinkedProduct]
+  );
   // FIXED #1: Better fallback sources for mediaSrc
   const mediaSrc = useMemo(() => {
     if (!drop) return "";
@@ -220,6 +227,10 @@ const DropDetailPage = () => {
     ? resolveMediaUrl(resolvedLinkedProduct.image_url, resolvedLinkedProduct.image_ipfs_uri)
     : "";
   const coverSrc = drop ? ipfsToHttp(drop.image || "") || linkedProductImageSrc || linkedReleaseCoverSrc : "";
+  const releaseExplorerUrl =
+    resolvedLinkedRelease?.contract_address || drop?.contractAddress
+      ? `https://sepolia.basescan.org/address/${resolvedLinkedRelease?.contract_address || drop?.contractAddress}`
+      : null;
   
   // FIXED #3: Better logging for inline PDF reader determination
   const showInlinePdfReader = useMemo(() => {
@@ -471,6 +482,22 @@ const DropDetailPage = () => {
                 : undefined
             }
           />
+        ) : resolvedBehavior?.mode === "checkout" ? (
+          releaseExplorerUrl ? (
+            <a
+              href={releaseExplorerUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="text-xs text-primary hover:underline inline-flex items-center gap-1"
+            >
+              <LinkIcon className="h-3 w-3" />
+              View linked checkout contract
+            </a>
+          ) : (
+            <div className="rounded-xl border border-border bg-secondary/30 p-3 text-xs text-muted-foreground">
+              Checkout for this listing is routed through the linked release or product contract.
+            </div>
+          )
         ) : !hasContractAddress ? (
           <div className="rounded-xl border border-warning/60 bg-warning/10 p-3 text-warning text-xs flex items-center gap-2">
             <AlertTriangle className="h-4 w-4" />
@@ -513,7 +540,7 @@ const DropDetailPage = () => {
                   size="sm"
                   onClick={() => navigate(`/products/${resolvedLinkedProduct.id}`)}
                 >
-                  Open Checkout
+                  View Release Page
                 </Button>
               ) : null}
             </div>
@@ -542,34 +569,22 @@ const DropDetailPage = () => {
           </div>
         )}
 
-        {isReleaseBackedDrop ? (
-          <div className="p-4 rounded-2xl bg-card shadow-card space-y-3">
-            <div>
-              <p className="text-xs text-muted-foreground">Release checkout</p>
-              <p className="mt-1 text-sm text-foreground">
-                This drop is the public discovery view for a linked release. Open the release checkout to buy the edition and access fulfillment details.
-              </p>
-            </div>
-            <Button
-              onClick={() => navigate(`/products/${resolvedLinkedProduct?.id || drop.id}`)}
-              className="w-full rounded-full gradient-primary text-primary-foreground font-semibold h-11"
-            >
-              Open Release Checkout
-            </Button>
-          </div>
-        ) : (
-          <Suspense
-            fallback={
-              <div className="p-4 rounded-2xl bg-card shadow-card">
-                <div className="flex items-center justify-center h-24">
-                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                </div>
+        <Suspense
+          fallback={
+            <div className="p-4 rounded-2xl bg-card shadow-card">
+              <div className="flex items-center justify-center h-24">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
               </div>
-            }
-          >
-            <DropPrimaryActionCard drop={drop} onCollectSuccess={handleCollectSuccess} />
-          </Suspense>
-        )}
+            </div>
+          }
+        >
+          <DropPrimaryActionCard
+            drop={drop}
+            linkedProduct={resolvedLinkedProduct}
+            sourceKind={typeof dropRecord?.source_kind === "string" ? dropRecord.source_kind : null}
+            onCollectSuccess={handleCollectSuccess}
+          />
+        </Suspense>
 
         {(linkedDetailsLoading || galleryImages.length > 0 || physicalDetailEntries.length > 0 || shippingEntries.length > 0 || creatorNotes) && (
           <div className="space-y-4">
