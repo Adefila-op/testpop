@@ -2,6 +2,7 @@ import { createAppKit, type OpenOptions } from "@reown/appkit";
 import { ConnectionController, CoreHelperUtil, StorageUtil } from "@reown/appkit-controllers";
 import { networks, projectId, wagmiAdapter } from "@/lib/wagmi";
 
+// Wallet approval modal handler
 let appKitPromise: Promise<ReturnType<typeof createAppKit>> | null = null;
 const WALLET_CONNECT_CONNECTOR_ID = "walletConnect";
 const EVM_NAMESPACE = "eip155";
