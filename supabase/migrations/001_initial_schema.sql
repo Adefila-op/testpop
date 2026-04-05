@@ -176,40 +176,9 @@ DROP POLICY IF EXISTS "whitelist_update_admin_only" ON whitelist;
 DROP POLICY IF EXISTS "analytics_insert_all" ON analytics;
 DROP POLICY IF EXISTS "analytics_read_all" ON analytics;
 
--- Artists: public read/write (app handles authorization)
-CREATE POLICY "artists_read_all" ON artists FOR SELECT USING (true);
-CREATE POLICY "artists_write_all" ON artists FOR INSERT WITH CHECK (true);
-CREATE POLICY "artists_update_all" ON artists FOR UPDATE USING (true);
-
--- Drops: public read/write (app handles authorization)
-CREATE POLICY "drops_read_all" ON drops FOR SELECT USING (true);
-CREATE POLICY "drops_write_all" ON drops FOR INSERT WITH CHECK (true);
-CREATE POLICY "drops_update_all" ON drops FOR UPDATE USING (true);
-
--- Products: public read/write (app handles authorization)
-CREATE POLICY "products_read_all" ON products FOR SELECT USING (true);
-CREATE POLICY "products_write_all" ON products FOR INSERT WITH CHECK (true);
-CREATE POLICY "products_update_all" ON products FOR UPDATE USING (true);
-
--- Orders: public read/write (app handles authorization)
-CREATE POLICY "orders_read_all" ON orders FOR SELECT USING (true);
-CREATE POLICY "orders_write_all" ON orders FOR INSERT WITH CHECK (true);
-CREATE POLICY "orders_update_all" ON orders FOR UPDATE USING (true);
-
--- Whitelist: admin-only write access, public read
-CREATE POLICY "whitelist_read_all" ON whitelist FOR SELECT USING (true);
-CREATE POLICY "whitelist_write_admin_only" ON whitelist FOR INSERT WITH CHECK (
-  lower(coalesce(auth.jwt() ->> 'sub', '')) = lower('0x04dE2EE1cF5A46539d1dbED0eC8f2A541Ac5412C')
-  OR lower(coalesce(auth.jwt() ->> 'wallet_address', '')) = lower('0x04dE2EE1cF5A46539d1dbED0eC8f2A541Ac5412C')
-);
-CREATE POLICY "whitelist_update_admin_only" ON whitelist FOR UPDATE USING (
-  lower(coalesce(auth.jwt() ->> 'sub', '')) = lower('0x04dE2EE1cF5A46539d1dbED0eC8f2A541Ac5412C')
-  OR lower(coalesce(auth.jwt() ->> 'wallet_address', '')) = lower('0x04dE2EE1cF5A46539d1dbED0eC8f2A541Ac5412C')
-);
-
--- Analytics: public insert (app tracks user behavior)
-CREATE POLICY "analytics_insert_all" ON analytics FOR INSERT WITH CHECK (true);
-CREATE POLICY "analytics_read_all" ON analytics FOR SELECT USING (true);
+-- Policy creation is intentionally deferred.
+-- Canonical RLS policies are applied in 006_fix_rls_policies.sql so the
+-- generated bootstrap schema never exposes the legacy permissive access model.
 
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- After running this, copy your Supabase credentials to .env.local:
