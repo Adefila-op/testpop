@@ -1,22 +1,16 @@
 {
-  "version": 2,
-  "builds": [
-    {
-      "src": "package.json",
-      "use": "@vercel/static-build",
-      "config": {
-        "distDir": "dist"
-      }
-    },
-    {
-      "src": "server/api/index.js",
-      "use": "@vercel/node",
-      "config": {
-        "maxLambdaSize": "50mb",
-        "nodeVersion": "20.x"
-      }
+  "version": 3,
+  "build": {
+    "command": "npm run build:vercel",
+    "outputDirectory": "dist"
+  },
+  "functions": {
+    "server/api/index.js": {
+      "runtime": "nodejs20.x",
+      "maxDuration": 10,
+      "memory": 512
     }
-  ],
+  },
   "routes": [
     {
       "src": "/api/(.*)",
