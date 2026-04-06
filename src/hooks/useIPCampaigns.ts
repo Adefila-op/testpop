@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { supabase, type IPCampaign } from "@/lib/db";
+import { supabase, type IPCampaign, type IPInvestment } from "@/lib/db";
 
 interface UseIPCampaignsOptions {
   artist_id?: string;
@@ -103,7 +103,7 @@ export function useIPCampaign(campaignId: string | undefined) {
 }
 
 export function useIPCampaignInvestments(campaignId: string | undefined) {
-  const [data, setData] = useState<any[]>([]);
+  const [data, setData] = useState<IPInvestment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
@@ -125,7 +125,7 @@ export function useIPCampaignInvestments(campaignId: string | undefined) {
           .order("created_at", { ascending: false });
 
         if (err) throw err;
-        setData((investments || []) as any[]);
+        setData((investments || []) as IPInvestment[]);
       } catch (err) {
         const error = err instanceof Error ? err : new Error("Failed to fetch investments");
         setError(error);

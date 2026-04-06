@@ -213,7 +213,7 @@ const DropDetailPage = () => {
             sourceKind,
           })
         : null,
-    [drop, dropMetadata?.source_kind, resolvedLinkedProduct, resolvedLinkedRelease, sourceKind]
+    [drop, resolvedLinkedProduct, resolvedLinkedRelease, sourceKind]
   );
   const detailPath = useMemo(
     () =>
