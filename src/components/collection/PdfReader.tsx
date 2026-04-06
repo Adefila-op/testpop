@@ -1,19 +1,17 @@
 import { FC, useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, ExternalLink, Loader2, X } from "lucide-react";
 import { Document, Page, pdfjs } from "react-pdf";
+import workerSrc from "pdfjs-dist/build/pdf.worker.min.js?url";
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
 
-// FIXED #4: Configure PDF.js worker with better fallback and error handling
-if (typeof window !== 'undefined') {
-  // Use HTTPS CDN for security
-  const workerUrl = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
-  pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
-  
-  // Log worker configuration for debugging
+// Configure PDF.js worker using the installed pdfjs-dist package.
+// This avoids CDN version mismatches and the fake worker warning.
+if (typeof window !== "undefined") {
+  pdfjs.GlobalWorkerOptions.workerSrc = workerSrc;
   console.debug("[PDF] Worker configured:", {
     version: pdfjs.version,
-    workerUrl: workerUrl,
+    workerUrl: workerSrc,
   });
 }
 
