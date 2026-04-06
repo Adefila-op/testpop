@@ -16,6 +16,7 @@ import {
   Edit3, ExternalLink, Trash2, Eye, EyeOff, Copy, Check,
   Bell, Settings, ChevronRight, Zap, Star, ArrowUpRight,
   Upload, AlertTriangle, Wallet, DollarSign, Activity, ArrowLeft, Gavel,
+  X,
 } from "lucide-react";
 import { useWallet, useCreateCampaign, useGetSubscriberCountFromArtistContract } from "@/hooks/useContracts";
 import { useCreateDropArtist } from "@/hooks/useContractsArtist";
@@ -1639,8 +1640,9 @@ const ArtistStudioPage = ({ embedded = false }: ArtistStudioPageProps) => {
   const [pendingImages, setPendingImages] = useState<{ avatar?: File; banner?: File }>({});
   const [portfolioMedium, setPortfolioMedium] = useState("Digital");
   const [portfolioYear, setPortfolioYear] = useState(String(new Date().getFullYear()));
-  const [portfolioFiles, setPortfolioFiles] = useState<File[]>([]);
+  const [portfolioFiles, setPortfolioFiles] = useState<{file: File, title: string, medium: string, year: string}[]>([]);
   const [portfolioUploading, setPortfolioUploading] = useState(false);
+  const [editingPortfolioPiece, setEditingPortfolioPiece] = useState<ArtistPortfolioItem | null>(null);
 
   // Profile state
   const [profile, setProfile] = useState<StudioArtistProfile>({
@@ -2060,19 +2062,29 @@ const ArtistStudioPage = ({ embedded = false }: ArtistStudioPageProps) => {
       toast.error("Select one or more portfolio images first");
       return;
     }
+
+    // Validate that all files have required metadata
+    const invalidFiles = portfolioFiles.filter(fileObj =>
+      !fileObj.title.trim() || !fileObj.medium.trim()
+    );
+
+    if (invalidFiles.length > 0) {
+      toast.error("All portfolio pieces must have a title and medium");
+      return;
+    }
+
     setPortfolioUploading(true);
     try {
       const uploadedPieces: ArtistPortfolioItem[] = [];
 
-      for (const file of portfolioFiles) {
-        const imageCid = await withArtistUploadSession(() => uploadFileToPinata(file));
+      for (const fileObj of portfolioFiles) {
+        const imageCid = await withArtistUploadSession(() => uploadFileToPinata(fileObj.file));
         const imageUri = `ipfs://${imageCid}`;
-        const inferredTitle = file.name.replace(/\.[^/.]+$/, "").replace(/[-_]+/g, " ").trim() || `Portfolio ${uploadedPieces.length + 1}`;
         const metadataUri = await withArtistUploadSession(() => uploadMetadataToPinata({
-          name: inferredTitle,
+          name: fileObj.title,
           image: imageUri,
-          medium: portfolioMedium,
-          year: portfolioYear,
+          medium: fileObj.medium,
+          year: fileObj.year,
         }));
 
         uploadedPieces.push({
@@ -2080,9 +2092,9 @@ const ArtistStudioPage = ({ embedded = false }: ArtistStudioPageProps) => {
           image: toGatewayUrl(imageUri),
           imageUri,
           metadataUri,
-          title: inferredTitle,
-          medium: portfolioMedium,
-          year: portfolioYear,
+          title: fileObj.title,
+          medium: fileObj.medium,
+          year: fileObj.year,
         });
       }
 
@@ -2090,8 +2102,6 @@ const ArtistStudioPage = ({ embedded = false }: ArtistStudioPageProps) => {
       setProfile((prev) => ({ ...prev, portfolio: nextPortfolio }));
       await saveArtistPortfolio(address, nextPortfolio);
       await refetchArtistProfile();
-      setPortfolioMedium("Digital");
-      setPortfolioYear(String(new Date().getFullYear()));
       setPortfolioFiles([]);
       if (portfolioRef.current) portfolioRef.current.value = "";
       toast.success(`${uploadedPieces.length} portfolio piece${uploadedPieces.length > 1 ? "s" : ""} added`);
@@ -2100,6 +2110,37 @@ const ArtistStudioPage = ({ embedded = false }: ArtistStudioPageProps) => {
       toast.error(errorMessage);
     } finally {
       setPortfolioUploading(false);
+    }
+  };
+
+  const editPortfolioPiece = async (pieceId: string, updates: { title: string; medium: string; year: string }) => {
+    try {
+      const updatedPortfolio = profile.portfolio.map(piece =>
+        piece.id === pieceId ? { ...piece, ...updates } : piece
+      );
+      setProfile((prev) => ({ ...prev, portfolio: updatedPortfolio }));
+      await saveArtistPortfolio(address, updatedPortfolio);
+      await refetchArtistProfile();
+      setEditingPortfolioPiece(null);
+      toast.success("Portfolio piece updated");
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to update portfolio piece";
+      toast.error(errorMessage);
+    }
+  };
+
+  const deletePortfolioPiece = async (pieceId: string) => {
+    if (!confirm("Are you sure you want to delete this portfolio piece?")) return;
+
+    try {
+      const updatedPortfolio = profile.portfolio.filter(piece => piece.id !== pieceId);
+      setProfile((prev) => ({ ...prev, portfolio: updatedPortfolio }));
+      await saveArtistPortfolio(address, updatedPortfolio);
+      await refetchArtistProfile();
+      toast.success("Portfolio piece deleted");
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to delete portfolio piece";
+      toast.error(errorMessage);
     }
   };
 
@@ -2909,42 +2950,155 @@ const ArtistStudioPage = ({ embedded = false }: ArtistStudioPageProps) => {
                 accept="image/*"
                 multiple
                 className="hidden"
-                onChange={e => setPortfolioFiles(Array.from(e.target.files ?? []))}
+                onChange={e => {
+                  const files = Array.from(e.target.files ?? []);
+                  const currentYear = String(new Date().getFullYear());
+                  const fileObjects = files.map(file => ({
+                    file,
+                    title: file.name.replace(/\.[^/.]+$/, "").replace(/[-_]+/g, " ").trim() || `Portfolio Piece`,
+                    medium: portfolioMedium,
+                    year: portfolioYear
+                  }));
+                  setPortfolioFiles(fileObjects);
+                }}
               />
               <div className="grid grid-cols-2 gap-2">
                 <div className="col-span-2">
-                  <Label className="text-xs">Medium</Label>
+                  <Label className="text-xs">Default Medium (for new uploads)</Label>
                   <Input value={portfolioMedium} onChange={e => setPortfolioMedium(e.target.value)} className="h-10 rounded-xl text-sm mt-1" placeholder="Digital" />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <Label className="text-xs">Year</Label>
+                  <Label className="text-xs">Default Year (for new uploads)</Label>
                   <Input value={portfolioYear} onChange={e => setPortfolioYear(e.target.value)} className="h-10 rounded-xl text-sm mt-1" placeholder="2026" />
                 </div>
                 <div className="flex items-end">
                   <Button type="button" variant="outline" className="w-full rounded-xl" onClick={() => portfolioRef.current?.click()}>
-                    <Upload className="h-4 w-4 mr-2" /> {portfolioFiles.length ? `${portfolioFiles.length} selected` : "Select images"}
+                    <Upload className="h-4 w-4 mr-2" /> {portfolioFiles.length ? `Add More Images` : "Select Images"}
                   </Button>
                 </div>
               </div>
-              <p className="text-[10px] text-muted-foreground">
-                Upload as many artworks as you want. Titles are generated from filenames and each piece is pinned to Pinata.
-              </p>
-              <Button onClick={addPortfolioPiece} disabled={portfolioUploading} variant="outline" className="w-full rounded-xl">
-                {portfolioUploading ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Uploadingâ€¦</> : <><Plus className="h-4 w-4 mr-2" />Add Portfolio Piece</>}
-              </Button>
-              {profile.portfolio.length > 0 && (
-                <div className="grid grid-cols-3 gap-2">
-                  {profile.portfolio.slice(0, 6).map((piece) => (
-                    <div key={piece.id} className="rounded-xl overflow-hidden bg-card border border-border">
-                      <img src={resolvePortfolioImage(piece) || piece.image} alt={piece.title} className="h-24 w-full object-cover" />
-                      <div className="p-2">
-                        <p className="text-[10px] font-semibold truncate text-foreground">{piece.title}</p>
-                        <p className="text-[9px] text-muted-foreground">{piece.year}</p>
+
+              {/* Selected files with metadata forms */}
+              {portfolioFiles.length > 0 && (
+                <div className="space-y-3">
+                  <p className="text-xs font-medium text-foreground">Selected Files ({portfolioFiles.length})</p>
+                  {portfolioFiles.map((fileObj, index) => (
+                    <div key={index} className="rounded-xl border border-border bg-card p-3 space-y-3">
+                      <div className="flex items-start gap-3">
+                        <div className="h-16 w-16 rounded-lg bg-secondary flex items-center justify-center shrink-0 overflow-hidden">
+                          <img
+                            src={URL.createObjectURL(fileObj.file)}
+                            alt={fileObj.file.name}
+                            className="h-full w-full object-cover"
+                          />
+                        </div>
+                        <div className="flex-1 min-w-0 space-y-2">
+                          <div>
+                            <Label className="text-xs">Title <span className="text-destructive">*</span></Label>
+                            <Input
+                              value={fileObj.title}
+                              onChange={e => {
+                                const newFiles = [...portfolioFiles];
+                                newFiles[index].title = e.target.value;
+                                setPortfolioFiles(newFiles);
+                              }}
+                              className="h-8 rounded-lg text-sm mt-1"
+                              placeholder="Enter artwork title"
+                            />
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <Label className="text-xs">Medium <span className="text-destructive">*</span></Label>
+                              <Input
+                                value={fileObj.medium}
+                                onChange={e => {
+                                  const newFiles = [...portfolioFiles];
+                                  newFiles[index].medium = e.target.value;
+                                  setPortfolioFiles(newFiles);
+                                }}
+                                className="h-8 rounded-lg text-sm mt-1"
+                                placeholder="e.g. Digital, Oil, Acrylic"
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-xs">Year</Label>
+                              <Input
+                                value={fileObj.year}
+                                onChange={e => {
+                                  const newFiles = [...portfolioFiles];
+                                  newFiles[index].year = e.target.value;
+                                  setPortfolioFiles(newFiles);
+                                }}
+                                className="h-8 rounded-lg text-sm mt-1"
+                                placeholder="2026"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newFiles = portfolioFiles.filter((_, i) => i !== index);
+                            setPortfolioFiles(newFiles);
+                          }}
+                          className="p-1 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
                       </div>
                     </div>
                   ))}
+                </div>
+              )}
+
+              <p className="text-[10px] text-muted-foreground">
+                Each artwork needs a title and medium. You can customize these for each piece individually.
+              </p>
+              <Button onClick={addPortfolioPiece} disabled={portfolioUploading || portfolioFiles.length === 0} variant="outline" className="w-full rounded-xl">
+                {portfolioUploading ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Uploadingâ€¦</> : <><Plus className="h-4 w-4 mr-2" />Add Portfolio Pieces ({portfolioFiles.length})</>}
+              </Button>
+              {profile.portfolio.length > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-medium text-foreground">Manage Portfolio ({profile.portfolio.length} pieces)</p>
+                  </div>
+                  <div className="grid grid-cols-1 gap-3">
+                    {profile.portfolio.map((piece) => (
+                      <div key={piece.id} className="rounded-xl border border-border bg-card p-3">
+                        <div className="flex items-start gap-3">
+                          <div className="h-16 w-16 rounded-lg bg-secondary flex items-center justify-center shrink-0 overflow-hidden">
+                            <img src={resolvePortfolioImage(piece) || piece.image} alt={piece.title} className="h-full w-full object-cover" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0 flex-1">
+                                <p className="text-sm font-semibold text-foreground truncate">{piece.title}</p>
+                                <p className="text-xs text-muted-foreground">{piece.medium} • {piece.year}</p>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <button
+                                  onClick={() => setEditingPortfolioPiece(piece)}
+                                  className="p-1.5 rounded-lg hover:bg-secondary transition-colors"
+                                  title="Edit piece"
+                                >
+                                  <Edit3 className="h-4 w-4 text-muted-foreground" />
+                                </button>
+                                <button
+                                  onClick={() => deletePortfolioPiece(piece.id)}
+                                  className="p-1.5 rounded-lg hover:bg-destructive/10 transition-colors"
+                                  title="Delete piece"
+                                >
+                                  <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
@@ -3244,6 +3398,88 @@ const ArtistStudioPage = ({ embedded = false }: ArtistStudioPageProps) => {
           void Promise.all([refetchArtistDrops(), refreshPublicDropQueries()]);
         }}
       />
+
+      {/* Portfolio Edit Dialog */}
+      <Dialog open={Boolean(editingPortfolioPiece)} onOpenChange={(open) => !open && setEditingPortfolioPiece(null)}>
+        <DialogContent className="max-w-md rounded-2xl bg-card p-4 shadow-card">
+          <DialogHeader>
+            <DialogTitle>Edit Portfolio Piece</DialogTitle>
+          </DialogHeader>
+          {editingPortfolioPiece && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="h-16 w-16 rounded-lg bg-secondary flex items-center justify-center overflow-hidden">
+                  <img src={resolvePortfolioImage(editingPortfolioPiece) || editingPortfolioPiece.image} alt={editingPortfolioPiece.title} className="h-full w-full object-cover" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-foreground">{editingPortfolioPiece.title}</p>
+                  <p className="text-xs text-muted-foreground">{editingPortfolioPiece.medium} • {editingPortfolioPiece.year}</p>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <div>
+                  <Label className="text-xs">Title <span className="text-destructive">*</span></Label>
+                  <Input
+                    defaultValue={editingPortfolioPiece.title}
+                    onChange={(e) => {
+                      setEditingPortfolioPiece(prev => prev ? { ...prev, title: e.target.value } : null);
+                    }}
+                    className="h-9 rounded-lg text-sm mt-1"
+                    placeholder="Enter artwork title"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label className="text-xs">Medium <span className="text-destructive">*</span></Label>
+                    <Input
+                      defaultValue={editingPortfolioPiece.medium}
+                      onChange={(e) => {
+                        setEditingPortfolioPiece(prev => prev ? { ...prev, medium: e.target.value } : null);
+                      }}
+                      className="h-9 rounded-lg text-sm mt-1"
+                      placeholder="e.g. Digital, Oil, Acrylic"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Year</Label>
+                    <Input
+                      defaultValue={editingPortfolioPiece.year}
+                      onChange={(e) => {
+                        setEditingPortfolioPiece(prev => prev ? { ...prev, year: e.target.value } : null);
+                      }}
+                      className="h-9 rounded-lg text-sm mt-1"
+                      placeholder="2026"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setEditingPortfolioPiece(null)}>
+                  Cancel
+                </Button>
+                <Button
+                  className="gradient-primary text-primary-foreground"
+                  onClick={() => {
+                    if (!editingPortfolioPiece.title.trim() || !editingPortfolioPiece.medium.trim()) {
+                      toast.error("Title and medium are required");
+                      return;
+                    }
+                    editPortfolioPiece(editingPortfolioPiece.id, {
+                      title: editingPortfolioPiece.title,
+                      medium: editingPortfolioPiece.medium,
+                      year: editingPortfolioPiece.year,
+                    });
+                  }}
+                >
+                  Save Changes
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
