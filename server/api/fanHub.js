@@ -1,0 +1,105 @@
+import express from "express";
+import { verifyAuthToken } from "../requestAuth.js";
+import {
+  createChannel,
+  createOrOpenThread,
+  createPost,
+  createThreadMessage,
+  getFanHubOverview,
+  getThreadMessages,
+} from "../services/fanHub.js";
+
+const router = express.Router();
+
+router.get("/overview", verifyAuthToken, async (req, res) => {
+  try {
+    const overview = await getFanHubOverview(req.user.wallet);
+    return res.json({ success: true, overview });
+  } catch (error) {
+    console.error("Failed to load fan hub overview:", error);
+    return res.status(500).json({ error: error.message || "Failed to load fan hub overview" });
+  }
+});
+
+router.post("/channels", verifyAuthToken, async (req, res) => {
+  try {
+    const channel = await createChannel({
+      wallet: req.user.wallet,
+      artistId: req.body?.artistId,
+      name: req.body?.name,
+      description: req.body?.description,
+      accessLevel: req.body?.accessLevel || "public",
+    });
+
+    return res.json({ success: true, channel });
+  } catch (error) {
+    console.error("Failed to create creator channel:", error);
+    return res.status(400).json({ error: error.message || "Failed to create creator channel" });
+  }
+});
+
+router.post("/posts", verifyAuthToken, async (req, res) => {
+  try {
+    const post = await createPost({
+      wallet: req.user.wallet,
+      artistId: req.body?.artistId,
+      channelId: req.body?.channelId,
+      title: req.body?.title,
+      body: req.body?.body,
+      postKind: req.body?.postKind || "update",
+    });
+
+    return res.json({ success: true, post });
+  } catch (error) {
+    console.error("Failed to create creator post:", error);
+    return res.status(400).json({ error: error.message || "Failed to create creator post" });
+  }
+});
+
+router.post("/threads", verifyAuthToken, async (req, res) => {
+  try {
+    const thread = await createOrOpenThread({
+      wallet: req.user.wallet,
+      artistId: req.body?.artistId,
+      fanWallet: req.body?.fanWallet,
+      subject: req.body?.subject,
+      body: req.body?.body,
+    });
+
+    return res.json({ success: true, thread });
+  } catch (error) {
+    console.error("Failed to create or open thread:", error);
+    return res.status(400).json({ error: error.message || "Failed to create or open thread" });
+  }
+});
+
+router.get("/threads/:threadId/messages", verifyAuthToken, async (req, res) => {
+  try {
+    const thread = await getThreadMessages({
+      wallet: req.user.wallet,
+      threadId: req.params.threadId,
+    });
+
+    return res.json({ success: true, thread });
+  } catch (error) {
+    console.error("Failed to load thread messages:", error);
+    return res.status(400).json({ error: error.message || "Failed to load thread messages" });
+  }
+});
+
+router.post("/threads/:threadId/messages", verifyAuthToken, async (req, res) => {
+  try {
+    const message = await createThreadMessage({
+      wallet: req.user.wallet,
+      threadId: req.params.threadId,
+      body: req.body?.body,
+    });
+
+    return res.json({ success: true, message });
+  } catch (error) {
+    console.error("Failed to send thread message:", error);
+    return res.status(400).json({ error: error.message || "Failed to send thread message" });
+  }
+});
+
+export default router;

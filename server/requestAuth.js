@@ -57,3 +57,14 @@ export function verifyApiBearerToken(authHeader, env = process.env) {
 export function requireApiBearerAuth(req, env = process.env) {
   return verifyApiBearerToken(req?.headers?.authorization, env);
 }
+
+export function verifyAuthToken(req, res, next) {
+  try {
+    req.user = requireApiBearerAuth(req);
+    return next();
+  } catch (error) {
+    return res.status(error?.statusCode || 401).json({
+      error: error?.message || "Invalid or expired token",
+    });
+  }
+}

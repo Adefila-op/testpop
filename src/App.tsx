@@ -24,6 +24,7 @@ const DropDetailPage = lazy(() => import("./pages/DropDetailPage"));
 const WalletArtistsRoute = lazy(() => import("./routes/WalletArtistsRoute"));
 const WalletArtistProfileRoute = lazy(() => import("./routes/WalletArtistProfileRoute"));
 const WalletMarketplaceRoute = lazy(() => import("./routes/WalletMarketplaceRoute"));
+const InboxPage = lazy(() => import("./pages/InboxPage"));
 
 // User profile routes
 const WalletProfileRoute = lazy(() => import("./routes/WalletProfileRoute"));
@@ -82,6 +83,7 @@ const App = () => {
                       <Route path="/artists" element={<WalletArtistsRoute />} />
                       <Route path="/artists/:id" element={<WalletArtistProfileRoute />} />
                       <Route path="/invest" element={<WalletMarketplaceRoute />} />
+                      <Route path="/inbox" element={<InboxPage />} />
                       <Route path="/profile" element={<WalletProfileRoute />} />
                       <Route path="/collection" element={<WalletCollectionRoute />} />
                       <Route path="/poaps" element={<WalletPOAPsRoute />} />

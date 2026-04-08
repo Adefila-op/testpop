@@ -1,0 +1,800 @@
+import { createClient } from "@supabase/supabase-js";
+
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY;
+const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+const ACTIVE_ORDER_STATUSES = new Set(["paid", "processing", "shipped", "delivered"]);
+
+function normalizeWallet(wallet = "") {
+  const normalized = String(wallet || "").trim().toLowerCase();
+  if (!normalized) return "";
+  return normalized.startsWith("0x") ? normalized : `0x${normalized}`;
+}
+
+function slugifyChannelName(value = "") {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48) || "channel";
+}
+
+function firstRelationRecord(value) {
+  if (Array.isArray(value)) return value[0] || null;
+  return value || null;
+}
+
+function toIsoFromUnixSeconds(value) {
+  const numeric = Number(value || 0);
+  if (!Number.isFinite(numeric) || numeric <= 0) return null;
+  return new Date(numeric * 1000).toISOString();
+}
+
+function toNumber(value) {
+  const numeric = Number(value || 0);
+  return Number.isFinite(numeric) ? numeric : 0;
+}
+
+function getLatestTimestamp(...values) {
+  const parsed = values
+    .map((value) => new Date(value || 0).getTime())
+    .filter((value) => Number.isFinite(value) && value > 0);
+
+  if (parsed.length === 0) {
+    return null;
+  }
+
+  return new Date(Math.max(...parsed)).toISOString();
+}
+
+function buildRelationshipScore(relationship) {
+  const base =
+    (relationship.active_subscription ? 50 : relationship.is_subscriber ? 30 : 0) +
+    (relationship.is_collector ? 20 : 0) +
+    (relationship.is_backer ? 25 : 0);
+
+  const activity =
+    Math.min(20, relationship.orders_count * 4) +
+    Math.min(20, relationship.backed_campaigns_count * 6) +
+    Math.min(15, Math.floor(relationship.total_spent_eth * 2)) +
+    Math.min(15, Math.floor(relationship.total_invested_eth * 2));
+
+  return Math.min(100, base + activity);
+}
+
+async function getArtistsByIds(artistIds) {
+  if (!artistIds.length) return [];
+
+  const { data, error } = await supabase
+    .from("artists")
+    .select("id, wallet, name, handle, tag, avatar_url, banner_url")
+    .in("id", artistIds);
+
+  if (error) {
+    throw new Error(error.message || "Failed to load artists");
+  }
+
+  return data || [];
+}
+
+async function getArtistsByWallets(wallets) {
+  if (!wallets.length) return [];
+
+  const normalizedWallets = wallets.map(normalizeWallet).filter(Boolean);
+  if (!normalizedWallets.length) return [];
+
+  const { data, error } = await supabase
+    .from("artists")
+    .select("id, wallet, name, handle, tag, avatar_url, banner_url")
+    .in("wallet", normalizedWallets);
+
+  if (error) {
+    throw new Error(error.message || "Failed to load artists by wallet");
+  }
+
+  return data || [];
+}
+
+async function getOwnedCreators(wallet) {
+  const normalizedWallet = normalizeWallet(wallet);
+  const { data, error } = await supabase
+    .from("artists")
+    .select("id, wallet, name, handle, tag, avatar_url, banner_url")
+    .eq("wallet", normalizedWallet)
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    throw new Error(error.message || "Failed to load owned creators");
+  }
+
+  return data || [];
+}
+
+async function ensureDefaultChannelsForArtists(artists) {
+  if (!artists.length) return;
+
+  const rows = artists.flatMap((artist) => [
+    {
+      artist_id: artist.id,
+      slug: "updates",
+      name: "Updates",
+      description: "Public drops, releases, and creator updates.",
+      access_level: "public",
+      created_by_wallet: normalizeWallet(artist.wallet),
+      is_default: true,
+    },
+    {
+      artist_id: artist.id,
+      slug: "backstage",
+      name: "Backstage",
+      description: "Subscriber-only notes, previews, and behind-the-scenes drops.",
+      access_level: "subscriber",
+      created_by_wallet: normalizeWallet(artist.wallet),
+      is_default: true,
+    },
+  ]);
+
+  const { error } = await supabase
+    .from("creator_channels")
+    .upsert(rows, {
+      onConflict: "artist_id,slug",
+      ignoreDuplicates: false,
+    });
+
+  if (error) {
+    throw new Error(error.message || "Failed to ensure default channels");
+  }
+}
+
+function initializeRelationship(artist) {
+  return {
+    artist_id: artist.id,
+    artist_wallet: normalizeWallet(artist.wallet),
+    artist_name: artist.name || "Untitled Creator",
+    artist_handle: artist.handle || null,
+    artist_tag: artist.tag || null,
+    avatar_url: artist.avatar_url || null,
+    banner_url: artist.banner_url || null,
+    is_subscriber: false,
+    active_subscription: false,
+    is_collector: false,
+    is_backer: false,
+    subscription_expires_at: null,
+    collected_releases_count: 0,
+    orders_count: 0,
+    total_spent_eth: 0,
+    backed_campaigns_count: 0,
+    total_invested_eth: 0,
+    relationship_score: 0,
+    last_interacted_at: null,
+    source_snapshot: {
+      subscriptions: [],
+      orders: [],
+      investments: [],
+    },
+  };
+}
+
+async function buildRelationshipMap(wallet) {
+  const normalizedWallet = normalizeWallet(wallet);
+
+  const [{ data: subscriptions, error: subscriptionsError }, { data: orders, error: ordersError }, { data: investments, error: investmentsError }] =
+    await Promise.all([
+      supabase
+        .from("subscriptions")
+        .select("artist_id, amount, expiry_time, updated_at, created_at")
+        .eq("subscriber_wallet", normalizedWallet),
+      supabase
+        .from("orders")
+        .select(`
+          id,
+          buyer_wallet,
+          status,
+          total_price_eth,
+          created_at,
+          paid_at,
+          product_id,
+          products(
+            id,
+            artist_id,
+            creator_wallet,
+            name
+          ),
+          order_items(
+            id,
+            product_id,
+            quantity,
+            line_total_eth,
+            products(
+              id,
+              artist_id,
+              creator_wallet,
+              name
+            )
+          )
+        `)
+        .eq("buyer_wallet", normalizedWallet),
+      supabase
+        .from("ip_investments")
+        .select("id, campaign_id, amount_eth, invested_at, created_at")
+        .eq("investor_wallet", normalizedWallet),
+    ]);
+
+  if (subscriptionsError) throw new Error(subscriptionsError.message || "Failed to load subscriptions");
+  if (ordersError) throw new Error(ordersError.message || "Failed to load orders");
+  if (investmentsError) throw new Error(investmentsError.message || "Failed to load investments");
+
+  const campaignIds = Array.from(new Set((investments || []).map((entry) => entry.campaign_id).filter(Boolean)));
+  const { data: campaigns, error: campaignsError } = campaignIds.length
+    ? await supabase
+        .from("ip_campaigns")
+        .select("id, artist_id, title")
+        .in("id", campaignIds)
+    : { data: [], error: null };
+
+  if (campaignsError) throw new Error(campaignsError.message || "Failed to load campaigns");
+
+  const artistIds = new Set();
+  const creatorWallets = new Set();
+
+  for (const subscription of subscriptions || []) {
+    if (subscription.artist_id) artistIds.add(subscription.artist_id);
+  }
+
+  for (const order of orders || []) {
+    if (!ACTIVE_ORDER_STATUSES.has(String(order.status || "").toLowerCase())) continue;
+
+    const directProduct = firstRelationRecord(order.products);
+    if (directProduct?.artist_id) artistIds.add(directProduct.artist_id);
+    if (directProduct?.creator_wallet) creatorWallets.add(normalizeWallet(directProduct.creator_wallet));
+
+    for (const item of order.order_items || []) {
+      const itemProduct = firstRelationRecord(item.products);
+      if (itemProduct?.artist_id) artistIds.add(itemProduct.artist_id);
+      if (itemProduct?.creator_wallet) creatorWallets.add(normalizeWallet(itemProduct.creator_wallet));
+    }
+  }
+
+  for (const campaign of campaigns || []) {
+    if (campaign.artist_id) artistIds.add(campaign.artist_id);
+  }
+
+  const [artistsByIdRows, artistsByWalletRows] = await Promise.all([
+    getArtistsByIds(Array.from(artistIds)),
+    getArtistsByWallets(Array.from(creatorWallets)),
+  ]);
+
+  const artistsById = new Map(artistsByIdRows.map((artist) => [artist.id, artist]));
+  const artistsByWallet = new Map(
+    artistsByWalletRows.map((artist) => [normalizeWallet(artist.wallet), artist]),
+  );
+
+  const relationships = new Map();
+
+  const ensureArtistRelationship = (artistId, creatorWallet = "") => {
+    const artist =
+      artistsById.get(artistId) ||
+      artistsByWallet.get(normalizeWallet(creatorWallet || "")) ||
+      null;
+
+    if (!artist) return null;
+    if (!relationships.has(artist.id)) {
+      relationships.set(artist.id, initializeRelationship(artist));
+    }
+
+    return relationships.get(artist.id);
+  };
+
+  const nowSeconds = Math.floor(Date.now() / 1000);
+
+  for (const subscription of subscriptions || []) {
+    const relationship = ensureArtistRelationship(subscription.artist_id);
+    if (!relationship) continue;
+
+    relationship.is_subscriber = true;
+    relationship.active_subscription = Number(subscription.expiry_time || 0) > nowSeconds;
+    relationship.subscription_expires_at = toIsoFromUnixSeconds(subscription.expiry_time);
+    relationship.last_interacted_at = getLatestTimestamp(
+      relationship.last_interacted_at,
+      toIsoFromUnixSeconds(subscription.expiry_time),
+      subscription.updated_at,
+      subscription.created_at,
+    );
+    relationship.source_snapshot.subscriptions.push({
+      amount: toNumber(subscription.amount),
+      expiry_time: subscription.expiry_time,
+    });
+  }
+
+  for (const order of orders || []) {
+    if (!ACTIVE_ORDER_STATUSES.has(String(order.status || "").toLowerCase())) continue;
+
+    const orderTimestamp = order.paid_at || order.created_at || new Date().toISOString();
+    const directProduct = firstRelationRecord(order.products);
+    const normalizedItems =
+      Array.isArray(order.order_items) && order.order_items.length > 0
+        ? order.order_items
+        : directProduct
+          ? [{ id: `${order.id}:${directProduct.id || order.product_id || "direct"}`, line_total_eth: order.total_price_eth, products: directProduct }]
+          : [];
+
+    const uniqueProducts = new Set();
+
+    for (const item of normalizedItems) {
+      const itemProduct = firstRelationRecord(item.products);
+      const resolvedArtistId =
+        itemProduct?.artist_id ||
+        artistsByWallet.get(normalizeWallet(itemProduct?.creator_wallet || ""))?.id ||
+        null;
+
+      const relationship = ensureArtistRelationship(resolvedArtistId, itemProduct?.creator_wallet || "");
+      if (!relationship) continue;
+
+      relationship.is_collector = true;
+      relationship.orders_count += 1;
+      relationship.total_spent_eth += toNumber(item.line_total_eth || order.total_price_eth);
+      relationship.last_interacted_at = getLatestTimestamp(
+        relationship.last_interacted_at,
+        orderTimestamp,
+      );
+      if (itemProduct?.id) {
+        uniqueProducts.add(itemProduct.id);
+      }
+      relationship.source_snapshot.orders.push({
+        order_id: order.id,
+        product_id: itemProduct?.id || null,
+        amount_eth: toNumber(item.line_total_eth || order.total_price_eth),
+      });
+    }
+
+    for (const relationship of relationships.values()) {
+      if (relationship.source_snapshot.orders.some((entry) => entry.order_id === order.id)) {
+        relationship.collected_releases_count += uniqueProducts.size || 1;
+      }
+    }
+  }
+
+  for (const investment of investments || []) {
+    const campaign = (campaigns || []).find((entry) => entry.id === investment.campaign_id);
+    if (!campaign?.artist_id) continue;
+
+    const relationship = ensureArtistRelationship(campaign.artist_id);
+    if (!relationship) continue;
+
+    relationship.is_backer = true;
+    relationship.backed_campaigns_count += 1;
+    relationship.total_invested_eth += toNumber(investment.amount_eth);
+    relationship.last_interacted_at = getLatestTimestamp(
+      relationship.last_interacted_at,
+      investment.invested_at,
+      investment.created_at,
+    );
+    relationship.source_snapshot.investments.push({
+      campaign_id: investment.campaign_id,
+      amount_eth: toNumber(investment.amount_eth),
+      title: campaign.title || null,
+    });
+  }
+
+  const records = Array.from(relationships.values())
+    .map((relationship) => ({
+      ...relationship,
+      relationship_score: buildRelationshipScore(relationship),
+    }))
+    .sort((left, right) => right.relationship_score - left.relationship_score);
+
+  if (records.length > 0) {
+    const upsertRows = records.map((relationship) => ({
+      artist_id: relationship.artist_id,
+      fan_wallet: normalizedWallet,
+      is_subscriber: relationship.is_subscriber,
+      active_subscription: relationship.active_subscription,
+      is_collector: relationship.is_collector,
+      is_backer: relationship.is_backer,
+      subscription_expires_at: relationship.subscription_expires_at,
+      collected_releases_count: relationship.collected_releases_count,
+      orders_count: relationship.orders_count,
+      total_spent_eth: relationship.total_spent_eth,
+      backed_campaigns_count: relationship.backed_campaigns_count,
+      total_invested_eth: relationship.total_invested_eth,
+      relationship_score: relationship.relationship_score,
+      last_interacted_at: relationship.last_interacted_at,
+      source_snapshot: relationship.source_snapshot,
+      updated_at: new Date().toISOString(),
+    }));
+
+    const { error: upsertError } = await supabase
+      .from("creator_fans")
+      .upsert(upsertRows, { onConflict: "artist_id,fan_wallet" });
+
+    if (upsertError) {
+      throw new Error(upsertError.message || "Failed to sync creator fan relationships");
+    }
+  }
+
+  return records;
+}
+
+function canAccessChannel(channel, relationship) {
+  if (!channel) return false;
+  if (channel.access_level === "public") return true;
+  if (!relationship) return false;
+  if (channel.access_level === "fan") return true;
+  if (channel.access_level === "subscriber") return relationship.active_subscription;
+  if (channel.access_level === "collector") return relationship.is_collector;
+  if (channel.access_level === "backer") return relationship.is_backer;
+  return false;
+}
+
+async function getChannelsForOverview(wallet, ownedCreators, relationships) {
+  const ownedArtistIds = new Set(ownedCreators.map((artist) => artist.id));
+  const relationshipsByArtistId = new Map(relationships.map((entry) => [entry.artist_id, entry]));
+  const relationshipArtistIds = relationships.map((entry) => entry.artist_id);
+
+  const publicQuery = supabase
+    .from("creator_channels")
+    .select("*")
+    .eq("access_level", "public")
+    .order("created_at", { ascending: true });
+
+  const creatorQuery = relationshipArtistIds.length || ownedArtistIds.size
+    ? supabase
+        .from("creator_channels")
+        .select("*")
+        .in("artist_id", Array.from(new Set([...relationshipArtistIds, ...ownedArtistIds])))
+        .order("created_at", { ascending: true })
+    : Promise.resolve({ data: [], error: null });
+
+  const [{ data: publicChannels, error: publicError }, { data: relatedChannels, error: relatedError }] =
+    await Promise.all([publicQuery, creatorQuery]);
+
+  if (publicError) throw new Error(publicError.message || "Failed to load public channels");
+  if (relatedError) throw new Error(relatedError.message || "Failed to load related channels");
+
+  const merged = new Map();
+  for (const channel of [...(publicChannels || []), ...(relatedChannels || [])]) {
+    merged.set(channel.id, channel);
+  }
+
+  return Array.from(merged.values()).filter((channel) => {
+    if (ownedArtistIds.has(channel.artist_id)) return true;
+    return canAccessChannel(channel, relationshipsByArtistId.get(channel.artist_id));
+  });
+}
+
+async function getRecentPosts(channels, artistsById) {
+  const channelIds = channels.map((channel) => channel.id);
+  if (!channelIds.length) return [];
+
+  const { data, error } = await supabase
+    .from("creator_posts")
+    .select("*")
+    .in("channel_id", channelIds)
+    .order("published_at", { ascending: false })
+    .limit(24);
+
+  if (error) {
+    throw new Error(error.message || "Failed to load creator posts");
+  }
+
+  const channelsById = new Map(channels.map((channel) => [channel.id, channel]));
+
+  return (data || []).map((post) => ({
+    ...post,
+    channel: channelsById.get(post.channel_id) || null,
+    artist: artistsById.get(post.artist_id) || null,
+  }));
+}
+
+async function getThreadsForWallet(wallet, artistsById) {
+  const normalizedWallet = normalizeWallet(wallet);
+  const { data: threads, error } = await supabase
+    .from("creator_threads")
+    .select("*")
+    .or(`creator_wallet.eq.${normalizedWallet},fan_wallet.eq.${normalizedWallet}`)
+    .order("last_message_at", { ascending: false });
+
+  if (error) {
+    throw new Error(error.message || "Failed to load threads");
+  }
+
+  const threadIds = (threads || []).map((thread) => thread.id);
+  const { data: messages, error: messagesError } = threadIds.length
+    ? await supabase
+        .from("creator_thread_messages")
+        .select("id, thread_id, sender_wallet, sender_role, body, created_at")
+        .in("thread_id", threadIds)
+        .order("created_at", { ascending: false })
+    : { data: [], error: null };
+
+  if (messagesError) {
+    throw new Error(messagesError.message || "Failed to load latest messages");
+  }
+
+  const latestMessageByThreadId = new Map();
+  for (const message of messages || []) {
+    if (!latestMessageByThreadId.has(message.thread_id)) {
+      latestMessageByThreadId.set(message.thread_id, message);
+    }
+  }
+
+  return (threads || []).map((thread) => ({
+    ...thread,
+    artist: artistsById.get(thread.artist_id) || null,
+    latest_message: latestMessageByThreadId.get(thread.id) || null,
+  }));
+}
+
+export async function getFanHubOverview(wallet) {
+  const ownedCreators = await getOwnedCreators(wallet);
+  await ensureDefaultChannelsForArtists(ownedCreators);
+
+  const relationships = await buildRelationshipMap(wallet);
+  const artistIds = Array.from(new Set([
+    ...ownedCreators.map((artist) => artist.id),
+    ...relationships.map((relationship) => relationship.artist_id),
+  ]));
+  const artists = await getArtistsByIds(artistIds);
+  const artistsById = new Map(artists.map((artist) => [artist.id, artist]));
+  const channels = await getChannelsForOverview(wallet, ownedCreators, relationships);
+  const recentPosts = await getRecentPosts(channels, artistsById);
+  const threads = await getThreadsForWallet(wallet, artistsById);
+
+  return {
+    wallet: normalizeWallet(wallet),
+    owned_creators: ownedCreators,
+    relationships,
+    channels,
+    recent_posts: recentPosts,
+    threads,
+    unread_counts: {
+      posts: recentPosts.length,
+      threads: threads.filter((thread) => thread.status === "open").length,
+    },
+  };
+}
+
+export async function createChannel({ wallet, artistId, name, description, accessLevel }) {
+  const ownedCreators = await getOwnedCreators(wallet);
+  const ownedCreator = ownedCreators.find((artist) => artist.id === artistId);
+  if (!ownedCreator) {
+    throw new Error("Only the creator can create channels for this artist.");
+  }
+
+  const normalizedWallet = normalizeWallet(wallet);
+  const slugBase = slugifyChannelName(name);
+  const { data: existingChannels } = await supabase
+    .from("creator_channels")
+    .select("slug")
+    .eq("artist_id", artistId)
+    .ilike("slug", `${slugBase}%`);
+
+  const taken = new Set((existingChannels || []).map((channel) => channel.slug));
+  let slug = slugBase;
+  let suffix = 2;
+  while (taken.has(slug)) {
+    slug = `${slugBase}-${suffix}`;
+    suffix += 1;
+  }
+
+  const { data, error } = await supabase
+    .from("creator_channels")
+    .insert({
+      artist_id: artistId,
+      slug,
+      name: String(name || "").trim(),
+      description: String(description || "").trim() || null,
+      access_level: accessLevel,
+      created_by_wallet: normalizedWallet,
+    })
+    .select("*")
+    .single();
+
+  if (error) {
+    throw new Error(error.message || "Failed to create creator channel");
+  }
+
+  return data;
+}
+
+export async function createPost({ wallet, artistId, channelId, title, body, postKind }) {
+  const ownedCreators = await getOwnedCreators(wallet);
+  const ownedCreator = ownedCreators.find((artist) => artist.id === artistId);
+  if (!ownedCreator) {
+    throw new Error("Only the creator can publish posts for this artist.");
+  }
+
+  const { data: channel, error: channelError } = await supabase
+    .from("creator_channels")
+    .select("*")
+    .eq("id", channelId)
+    .eq("artist_id", artistId)
+    .single();
+
+  if (channelError || !channel) {
+    throw new Error(channelError?.message || "Channel not found");
+  }
+
+  const { data, error } = await supabase
+    .from("creator_posts")
+    .insert({
+      channel_id: channelId,
+      artist_id: artistId,
+      author_wallet: normalizeWallet(wallet),
+      title: String(title || "").trim() || null,
+      body: String(body || "").trim(),
+      post_kind: postKind,
+      published_at: new Date().toISOString(),
+    })
+    .select("*")
+    .single();
+
+  if (error) {
+    throw new Error(error.message || "Failed to create creator post");
+  }
+
+  return data;
+}
+
+async function getArtistById(artistId) {
+  const { data, error } = await supabase
+    .from("artists")
+    .select("id, wallet, name, handle, tag, avatar_url, banner_url")
+    .eq("id", artistId)
+    .single();
+
+  if (error) {
+    throw new Error(error.message || "Artist not found");
+  }
+
+  return data;
+}
+
+async function getThreadById(threadId) {
+  const { data, error } = await supabase
+    .from("creator_threads")
+    .select("*")
+    .eq("id", threadId)
+    .single();
+
+  if (error) {
+    throw new Error(error.message || "Thread not found");
+  }
+
+  return data;
+}
+
+function canAccessThread(wallet, thread) {
+  const normalizedWallet = normalizeWallet(wallet);
+  return (
+    normalizeWallet(thread.creator_wallet) === normalizedWallet ||
+    normalizeWallet(thread.fan_wallet) === normalizedWallet
+  );
+}
+
+export async function createOrOpenThread({ wallet, artistId, fanWallet, subject, body }) {
+  const normalizedWallet = normalizeWallet(wallet);
+  const artist = await getArtistById(artistId);
+  const isCreator = normalizeWallet(artist.wallet) === normalizedWallet;
+  const targetFanWallet = normalizeWallet(isCreator ? fanWallet : normalizedWallet);
+
+  if (!targetFanWallet) {
+    throw new Error("A valid fan wallet is required.");
+  }
+
+  if (targetFanWallet === normalizeWallet(artist.wallet)) {
+    throw new Error("Creator and fan wallets must be different.");
+  }
+
+  let { data: thread } = await supabase
+    .from("creator_threads")
+    .select("*")
+    .eq("artist_id", artistId)
+    .eq("fan_wallet", targetFanWallet)
+    .maybeSingle();
+
+  if (!thread) {
+    const insertResult = await supabase
+      .from("creator_threads")
+      .insert({
+        artist_id: artistId,
+        creator_wallet: normalizeWallet(artist.wallet),
+        fan_wallet: targetFanWallet,
+        subject: String(subject || "").trim() || null,
+        status: "open",
+        last_message_at: new Date().toISOString(),
+      })
+      .select("*")
+      .single();
+
+    if (insertResult.error) {
+      throw new Error(insertResult.error.message || "Failed to create thread");
+    }
+
+    thread = insertResult.data;
+  }
+
+  if (String(body || "").trim()) {
+    await createThreadMessage({
+      wallet,
+      threadId: thread.id,
+      body,
+    });
+  }
+
+  return thread;
+}
+
+export async function getThreadMessages({ wallet, threadId }) {
+  const thread = await getThreadById(threadId);
+  if (!canAccessThread(wallet, thread)) {
+    throw new Error("You do not have access to this thread.");
+  }
+
+  const { data, error } = await supabase
+    .from("creator_thread_messages")
+    .select("*")
+    .eq("thread_id", threadId)
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    throw new Error(error.message || "Failed to load thread messages");
+  }
+
+  return {
+    thread,
+    messages: data || [],
+  };
+}
+
+export async function createThreadMessage({ wallet, threadId, body }) {
+  const normalizedWallet = normalizeWallet(wallet);
+  const thread = await getThreadById(threadId);
+  if (!canAccessThread(normalizedWallet, thread)) {
+    throw new Error("You do not have access to this thread.");
+  }
+
+  const senderRole =
+    normalizeWallet(thread.creator_wallet) === normalizedWallet
+      ? "creator"
+      : normalizeWallet(thread.fan_wallet) === normalizedWallet
+        ? "fan"
+        : "admin";
+
+  const messageText = String(body || "").trim();
+  if (!messageText) {
+    throw new Error("Message body is required.");
+  }
+
+  const { data, error } = await supabase
+    .from("creator_thread_messages")
+    .insert({
+      thread_id: threadId,
+      sender_wallet: normalizedWallet,
+      sender_role: senderRole,
+      body: messageText,
+    })
+    .select("*")
+    .single();
+
+  if (error) {
+    throw new Error(error.message || "Failed to send message");
+  }
+
+  const { error: threadUpdateError } = await supabase
+    .from("creator_threads")
+    .update({
+      last_message_at: data.created_at || new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      status: "open",
+    })
+    .eq("id", threadId);
+
+  if (threadUpdateError) {
+    throw new Error(threadUpdateError.message || "Failed to update thread metadata");
+  }
+
+  return data;
+}

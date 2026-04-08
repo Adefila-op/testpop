@@ -399,6 +399,97 @@ export interface CampaignSubmission {
   updated_at?: string;
 }
 
+export interface FanHubRelationship {
+  artist_id: string;
+  artist_wallet: string;
+  artist_name: string;
+  artist_handle?: string | null;
+  artist_tag?: string | null;
+  avatar_url?: string | null;
+  banner_url?: string | null;
+  is_subscriber: boolean;
+  active_subscription: boolean;
+  is_collector: boolean;
+  is_backer: boolean;
+  subscription_expires_at?: string | null;
+  collected_releases_count: number;
+  orders_count: number;
+  total_spent_eth: number;
+  backed_campaigns_count: number;
+  total_invested_eth: number;
+  relationship_score: number;
+  last_interacted_at?: string | null;
+  source_snapshot?: Record<string, unknown>;
+}
+
+export interface CreatorChannel {
+  id: string;
+  artist_id: string;
+  slug: string;
+  name: string;
+  description?: string | null;
+  access_level: "public" | "fan" | "subscriber" | "collector" | "backer";
+  created_by_wallet: string;
+  is_default?: boolean;
+  metadata?: Record<string, unknown>;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface CreatorPost {
+  id: string;
+  channel_id: string;
+  artist_id: string;
+  author_wallet: string;
+  post_kind: "update" | "drop" | "release" | "reward" | "event" | "poll";
+  title?: string | null;
+  body: string;
+  metadata?: Record<string, unknown>;
+  published_at?: string;
+  created_at?: string;
+  updated_at?: string;
+  channel?: CreatorChannel | null;
+  artist?: Pick<Artist, "id" | "wallet" | "name" | "handle" | "tag" | "avatar_url" | "banner_url"> | null;
+}
+
+export interface CreatorThread {
+  id: string;
+  artist_id: string;
+  creator_wallet: string;
+  fan_wallet: string;
+  subject?: string | null;
+  status: "open" | "archived" | "blocked";
+  metadata?: Record<string, unknown>;
+  last_message_at?: string;
+  created_at?: string;
+  updated_at?: string;
+  artist?: Pick<Artist, "id" | "wallet" | "name" | "handle" | "tag" | "avatar_url" | "banner_url"> | null;
+  latest_message?: CreatorThreadMessage | null;
+}
+
+export interface CreatorThreadMessage {
+  id: string;
+  thread_id: string;
+  sender_wallet: string;
+  sender_role: "creator" | "fan" | "admin";
+  body: string;
+  metadata?: Record<string, unknown>;
+  created_at?: string;
+}
+
+export interface FanHubOverview {
+  wallet: string;
+  owned_creators: Array<Pick<Artist, "id" | "wallet" | "name" | "handle" | "tag" | "avatar_url" | "banner_url">>;
+  relationships: FanHubRelationship[];
+  channels: CreatorChannel[];
+  recent_posts: CreatorPost[];
+  threads: CreatorThread[];
+  unread_counts: {
+    posts: number;
+    threads: number;
+  };
+}
+
 // ─────────────────────────────────────────────────────────────────────────
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL?.trim();
@@ -1797,4 +1888,83 @@ export async function approveArtistAtomically(
   });
 
   return { success: true, message: `${artistName} approved successfully.` };
+}
+
+// -----------------------------------------------------------------------------
+// Creator Fan Hub
+// -----------------------------------------------------------------------------
+
+export async function getFanHubOverview(): Promise<FanHubOverview> {
+  const response = await secureApiRequest<{ success: boolean; overview: FanHubOverview }>("/api/fan-hub/overview");
+  return response.overview;
+}
+
+export async function createCreatorChannel(payload: {
+  artistId: string;
+  name: string;
+  description?: string;
+  accessLevel: CreatorChannel["access_level"];
+}): Promise<CreatorChannel> {
+  const response = await secureApiRequest<{ success: boolean; channel: CreatorChannel }>("/api/fan-hub/channels", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+
+  return response.channel;
+}
+
+export async function createCreatorPost(payload: {
+  artistId: string;
+  channelId: string;
+  title?: string;
+  body: string;
+  postKind?: CreatorPost["post_kind"];
+}): Promise<CreatorPost> {
+  const response = await secureApiRequest<{ success: boolean; post: CreatorPost }>("/api/fan-hub/posts", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+
+  return response.post;
+}
+
+export async function createOrOpenCreatorThread(payload: {
+  artistId: string;
+  fanWallet?: string;
+  subject?: string;
+  body?: string;
+}): Promise<CreatorThread> {
+  const response = await secureApiRequest<{ success: boolean; thread: CreatorThread }>("/api/fan-hub/threads", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+
+  return response.thread;
+}
+
+export async function getCreatorThreadMessages(threadId: string): Promise<{
+  thread: CreatorThread;
+  messages: CreatorThreadMessage[];
+}> {
+  const response = await secureApiRequest<{
+    success: boolean;
+    thread: { thread: CreatorThread; messages: CreatorThreadMessage[] };
+  }>(`/api/fan-hub/threads/${threadId}/messages`);
+
+  return response.thread;
+}
+
+export async function sendCreatorThreadMessage(
+  threadId: string,
+  body: string
+): Promise<CreatorThreadMessage> {
+  const response = await secureApiRequest<{ success: boolean; message: CreatorThreadMessage }>(
+    `/api/fan-hub/threads/${threadId}/messages`,
+    {
+      method: "POST",
+      body: JSON.stringify({ body }),
+    }
+  );
+
+  return response.message;
 }
