@@ -15,8 +15,10 @@ import { useSupabaseProductById } from "@/hooks/useSupabase";
 import {
   getCreativeRelease,
   getProductFeedbackOverview,
+  getProductFeedbackThreadMessages,
   getProductAssets,
   createProductFeedbackThread,
+  type ProductFeedbackMessage,
   type ProductFeedbackOverview,
   type CreativeRelease,
   type ProductAsset,
@@ -57,6 +59,9 @@ export function ProductDetailPage() {
   const [feedbackOverview, setFeedbackOverview] = useState<ProductFeedbackOverview | null>(null);
   const [feedbackLoading, setFeedbackLoading] = useState(false);
   const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
+  const [selectedPublicThreadId, setSelectedPublicThreadId] = useState<string | null>(null);
+  const [selectedPublicThreadMessages, setSelectedPublicThreadMessages] = useState<ProductFeedbackMessage[]>([]);
+  const [selectedPublicThreadLoading, setSelectedPublicThreadLoading] = useState(false);
   const [feedbackForm, setFeedbackForm] = useState({
     visibility: "public" as "public" | "private",
     feedbackType: "review" as "review" | "feedback" | "question",
@@ -163,6 +168,42 @@ export function ProductDetailPage() {
       isMounted = false;
     };
   }, [address, id]);
+
+  useEffect(() => {
+    const firstThreadId = feedbackOverview?.public_threads?.[0]?.id || null;
+    setSelectedPublicThreadId((current) => current || firstThreadId);
+  }, [feedbackOverview?.public_threads]);
+
+  useEffect(() => {
+    if (!selectedPublicThreadId) {
+      setSelectedPublicThreadMessages([]);
+      return;
+    }
+
+    let active = true;
+    setSelectedPublicThreadLoading(true);
+    getProductFeedbackThreadMessages(selectedPublicThreadId)
+      .then((data) => {
+        if (active) {
+          setSelectedPublicThreadMessages(data.messages || []);
+        }
+      })
+      .catch((error) => {
+        if (active) {
+          console.error(error);
+          setSelectedPublicThreadMessages([]);
+        }
+      })
+      .finally(() => {
+        if (active) {
+          setSelectedPublicThreadLoading(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [selectedPublicThreadId]);
 
   const galleryImages = useMemo(() => {
     const urls = new Set<string>();
@@ -528,27 +569,61 @@ export function ProductDetailPage() {
                 <Loader2 className="h-5 w-5 animate-spin text-primary" />
               </div>
             ) : feedbackOverview?.public_threads?.length ? (
-              feedbackOverview.public_threads.map((thread) => (
-                <article key={thread.id} className="rounded-2xl border bg-secondary/20 p-4">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold text-foreground">
+              <div className="grid gap-4 lg:grid-cols-[260px_minmax(0,1fr)]">
+                <div className="space-y-2">
+                  {feedbackOverview.public_threads.map((thread) => (
+                    <button
+                      key={thread.id}
+                      type="button"
+                      onClick={() => setSelectedPublicThreadId(thread.id)}
+                      className={`w-full rounded-2xl border p-4 text-left transition-colors ${selectedPublicThreadId === thread.id ? "border-primary bg-primary/5" : "bg-secondary/20"}`}
+                    >
+                      <div className="flex flex-wrap gap-2">
+                        {thread.featured ? <Badge className="bg-[#dbeafe] text-[#1d4ed8]">Featured</Badge> : null}
+                        {thread.creator_curated ? <Badge variant="outline">Curated</Badge> : null}
+                      </div>
+                      <p className="mt-3 text-sm font-semibold text-foreground">
                         {thread.title || (thread.feedback_type === "review" ? "Verified collector review" : "Collector thread")}
                       </p>
                       <p className="mt-1 text-xs text-muted-foreground">
                         {thread.rating ? `${thread.rating}/5` : "Conversation"} · {thread.feedback_type} · {thread.subscriber_priority ? "subscriber priority" : "collector"}
                       </p>
+                      <p className="mt-3 line-clamp-3 text-sm leading-6 text-foreground/85">
+                        {thread.latest_message?.body || "Open feedback thread"}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+
+                <div className="rounded-2xl border bg-secondary/10 p-4">
+                  {selectedPublicThreadId ? (
+                    selectedPublicThreadLoading ? (
+                      <div className="flex min-h-[220px] items-center justify-center">
+                        <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {selectedPublicThreadMessages.length === 0 ? (
+                          <p className="py-8 text-center text-sm text-muted-foreground">No messages in this thread yet.</p>
+                        ) : (
+                          selectedPublicThreadMessages.map((message) => (
+                            <div key={message.id} className={`rounded-2xl px-4 py-3 text-sm ${message.sender_role === "creator" ? "mr-10 bg-white text-foreground" : "ml-10 bg-[#eff6ff] text-foreground"}`}>
+                              <p className="whitespace-pre-wrap leading-6">{message.body}</p>
+                              <p className="mt-2 text-[11px] text-muted-foreground">
+                                {message.sender_role === "creator" ? "Creator" : "Collector"}
+                              </p>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    )
+                  ) : (
+                    <div className="flex min-h-[220px] items-center justify-center text-sm text-muted-foreground">
+                      Select a public thread to read the full conversation.
                     </div>
-                    <div className="flex flex-wrap gap-2">
-                      {thread.featured ? <Badge className="bg-[#dbeafe] text-[#1d4ed8]">Featured</Badge> : null}
-                      {thread.creator_curated ? <Badge variant="outline">Curated</Badge> : null}
-                    </div>
-                  </div>
-                  <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-foreground/85">
-                    {thread.latest_message?.body || "Open feedback thread"}
-                  </p>
-                </article>
-              ))
+                  )}
+                </div>
+              </div>
             ) : (
               <div className="rounded-2xl border border-dashed p-6 text-sm text-muted-foreground">
                 No public collector reviews yet. The first verified review can come from your collection.
@@ -651,6 +726,25 @@ export function ProductDetailPage() {
                 >
                   {feedbackSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Send verified feedback"}
                 </Button>
+
+                {feedbackOverview.viewer_threads.length > 0 ? (
+                  <div className="rounded-2xl border bg-secondary/20 p-4">
+                    <p className="text-sm font-semibold text-foreground">Your active feedback threads</p>
+                    <div className="mt-3 space-y-3">
+                      {feedbackOverview.viewer_threads.map((thread) => (
+                        <div key={thread.id} className="rounded-2xl bg-background px-4 py-3">
+                          <div className="flex flex-wrap gap-2">
+                            <Badge variant="outline">{thread.visibility}</Badge>
+                            <Badge variant="outline">{thread.feedback_type}</Badge>
+                            {thread.subscriber_priority ? <Badge className="bg-[#ecfeff] text-[#0f766e]">Subscriber priority</Badge> : null}
+                          </div>
+                          <p className="mt-2 text-sm font-semibold text-foreground">{thread.title || "Feedback thread"}</p>
+                          <p className="mt-1 text-sm text-muted-foreground">{thread.latest_message?.body || "Open feedback thread"}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
               </>
             ) : (
               <div className="rounded-2xl border border-dashed p-6 text-sm text-muted-foreground">

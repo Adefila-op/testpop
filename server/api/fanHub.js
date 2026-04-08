@@ -146,10 +146,20 @@ router.post("/products/:productId/feedback", verifyAuthToken, async (req, res) =
   }
 });
 
-router.get("/product-feedback/:threadId/messages", verifyAuthToken, async (req, res) => {
+router.get("/product-feedback/:threadId/messages", async (req, res) => {
+  let wallet = "";
+
+  try {
+    if (req.headers.authorization) {
+      wallet = verifyApiBearerToken(req.headers.authorization).wallet;
+    }
+  } catch (_error) {
+    wallet = "";
+  }
+
   try {
     const thread = await getProductFeedbackThreadMessages({
-      wallet: req.user.wallet,
+      wallet,
       threadId: req.params.threadId,
     });
 

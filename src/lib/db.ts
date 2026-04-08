@@ -2092,7 +2092,7 @@ export async function getProductFeedbackThreadMessages(threadId: string): Promis
   thread: ProductFeedbackThread;
   messages: ProductFeedbackMessage[];
 }> {
-  const response = await secureApiRequest<{
+  const response = await publicApiRequest<{
     success: boolean;
     thread: { thread: ProductFeedbackThread; messages: ProductFeedbackMessage[] };
   }>(`/api/fan-hub/product-feedback/${threadId}/messages`);
