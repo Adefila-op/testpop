@@ -120,6 +120,36 @@ CREATE TABLE IF NOT EXISTS public.creator_thread_messages (
 CREATE INDEX IF NOT EXISTS idx_creator_thread_messages_thread_id
 ON public.creator_thread_messages(thread_id, created_at ASC);
 
+CREATE OR REPLACE FUNCTION public.popup_jwt_wallet()
+RETURNS TEXT
+LANGUAGE sql
+STABLE
+AS $$
+  SELECT lower(
+    nullif(
+      coalesce(
+        auth.jwt() ->> 'sub',
+        auth.jwt() ->> 'wallet_address',
+        auth.jwt() ->> 'wallet',
+        auth.jwt() ->> 'address',
+        ''
+      ),
+      ''
+    )
+  );
+$$;
+
+CREATE OR REPLACE FUNCTION public.popup_is_admin()
+RETURNS BOOLEAN
+LANGUAGE sql
+STABLE
+AS $$
+  SELECT
+    coalesce(lower(auth.jwt() ->> 'app_role'), '') = 'admin'
+    OR coalesce(lower(auth.jwt() ->> 'role_name'), '') = 'admin'
+    OR auth.role() = 'service_role';
+$$;
+
 CREATE OR REPLACE FUNCTION public.popup_wallet_owns_artist(target_artist_id UUID)
 RETURNS BOOLEAN
 LANGUAGE sql
@@ -164,6 +194,8 @@ AS $$
   );
 $$;
 
+GRANT EXECUTE ON FUNCTION public.popup_jwt_wallet() TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.popup_is_admin() TO anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.popup_wallet_owns_artist(UUID) TO anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.popup_wallet_can_access_artist_channel(UUID) TO anon, authenticated, service_role;
 

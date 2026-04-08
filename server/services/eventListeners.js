@@ -5,7 +5,7 @@
  */
 
 import { ethers } from 'ethers';
-import notificationService from './notifications.js';
+import * as notificationService from './notifications.js';
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.SUPABASE_URL;
