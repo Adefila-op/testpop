@@ -25,8 +25,7 @@ import { ACTIVE_CHAIN } from "@/lib/wagmi";
 import {
   addProductToCart,
   buildCollectionRecord,
-  resolveDiscoverCheckoutProduct,
-  resolveDiscoverDrop,
+  resolveDiscoverPrimaryAction,
   type ActionableDiscoverDrop,
 } from "@/lib/discoveryActions";
 
@@ -209,6 +208,7 @@ async function createTrackedShare(
 ) {
   return requestJson<{
     share_url?: string;
+    share_message?: string;
     platform_urls?: Record<string, string>;
   }>(
     "/personalization/share",
@@ -487,7 +487,7 @@ function ShareMenuButton({
       const share = await createTrackedShare(item, token || undefined, "native");
       await navigator.share({
         title: item.title,
-        text: item.description || `Check out ${item.title} on POPUP`,
+        text: share?.share_message || item.description || `Check out ${item.title} on POPUP`,
         url: share?.share_url || `${window.location.origin}/share/${item.item_type}/${item.id}`,
       });
       await trackItemEvent(item, "share", { source: "discover_feed", platform: "native" });
@@ -626,14 +626,14 @@ function DiscoverCard({
     try {
       setCtaBusy(true);
 
-      if (primaryCta.action === "cart" || (primaryCta.action === "collect" && post.item_type === "release")) {
-        const product = await resolveDiscoverCheckoutProduct(
-          post.id,
-          post.item_type === "release" ? "release" : "product",
-        );
+      const resolvedAction = await resolveDiscoverPrimaryAction(post);
 
-        addProductToCart(addItem, product, post.title, post.image_url);
-        await trackItemEvent(post, "purchase", { source: "discover_feed", action: primaryCta.action });
+      if (resolvedAction.kind === "cart") {
+        addProductToCart(addItem, resolvedAction.product, post.title, post.image_url);
+        await trackItemEvent(post, "purchase", {
+          source: "discover_feed",
+          action: resolvedAction.analyticsAction,
+        });
         toast({
           title: "Added to cart",
           description:
@@ -644,12 +644,12 @@ function DiscoverCard({
         return;
       }
 
-      if (primaryCta.action === "details") {
+      if (resolvedAction.kind === "details") {
         onOpenDetails(post);
         return;
       }
 
-      if (primaryCta.action === "collect" && post.item_type === "drop") {
+      if (resolvedAction.kind === "collect") {
         if (!isConnected) {
           await connectWallet();
           return;
@@ -659,21 +659,12 @@ function DiscoverCard({
           await requestActiveChainSwitch(`Collecting this drop requires ${ACTIVE_CHAIN.name}.`);
         }
 
-        const drop = await resolveDiscoverDrop(post.id);
-        const contractDropId =
-          drop.contract_drop_id !== null && drop.contract_drop_id !== undefined ? Number(drop.contract_drop_id) : null;
-
-        if (!drop.contract_address || contractDropId === null || drop.contract_kind !== "artDrop") {
-          throw new Error("This drop is visible in discover, but its collect contract is not ready yet.");
-        }
-
-        setCollectingDrop(drop);
-        mintArtist(contractDropId, parseEther(String(drop.price_eth || post.price_eth || 0)), drop.contract_address);
-        return;
-      }
-
-      if (primaryCta.action === "bid") {
-        onOpenDetails(post);
+        setCollectingDrop(resolvedAction.drop);
+        mintArtist(
+          resolvedAction.contractDropId,
+          parseEther(resolvedAction.priceEth),
+          resolvedAction.contractAddress,
+        );
         return;
       }
 
@@ -941,19 +932,17 @@ function DetailsModal({
   }
 
   async function handlePrimaryAction() {
-    const primaryCta = getPrimaryCta(post);
-
     try {
       setCtaBusy(true);
 
-      if (primaryCta.action === "cart" || (primaryCta.action === "collect" && post.item_type === "release")) {
-        const product = await resolveDiscoverCheckoutProduct(
-          post.id,
-          post.item_type === "release" ? "release" : "product",
-        );
+      const resolvedAction = await resolveDiscoverPrimaryAction(post);
 
-        addProductToCart(addItem, product, post.title, post.image_url);
-        await trackItemEvent(post, "purchase", { source: "discover_modal", action: primaryCta.action });
+      if (resolvedAction.kind === "cart") {
+        addProductToCart(addItem, resolvedAction.product, post.title, post.image_url);
+        await trackItemEvent(post, "purchase", {
+          source: "discover_modal",
+          action: resolvedAction.analyticsAction,
+        });
         toast({
           title: "Added to cart",
           description:
@@ -964,7 +953,7 @@ function DetailsModal({
         return;
       }
 
-      if (primaryCta.action === "details") {
+      if (resolvedAction.kind === "details") {
         onClose();
         window.setTimeout(() => {
           window.location.assign(getItemRoute(post));
@@ -972,7 +961,7 @@ function DetailsModal({
         return;
       }
 
-      if (primaryCta.action === "collect" && post.item_type === "drop") {
+      if (resolvedAction.kind === "collect") {
         if (!isConnected) {
           await connectWallet();
           return;
@@ -982,24 +971,12 @@ function DetailsModal({
           await requestActiveChainSwitch(`Collecting this drop requires ${ACTIVE_CHAIN.name}.`);
         }
 
-        const drop = await resolveDiscoverDrop(post.id);
-        const contractDropId =
-          drop.contract_drop_id !== null && drop.contract_drop_id !== undefined ? Number(drop.contract_drop_id) : null;
-
-        if (!drop.contract_address || contractDropId === null || drop.contract_kind !== "artDrop") {
-          throw new Error("This drop is visible in discover, but its collect contract is not ready yet.");
-        }
-
-        setCollectingDrop(drop);
-        mintArtist(contractDropId, parseEther(String(drop.price_eth || post.price_eth || 0)), drop.contract_address);
-        return;
-      }
-
-      if (primaryCta.action === "bid") {
-        onClose();
-        window.setTimeout(() => {
-          window.location.assign(getItemRoute(post));
-        }, 0);
+        setCollectingDrop(resolvedAction.drop);
+        mintArtist(
+          resolvedAction.contractDropId,
+          parseEther(resolvedAction.priceEth),
+          resolvedAction.contractAddress,
+        );
         return;
       }
 

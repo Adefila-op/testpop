@@ -367,6 +367,19 @@ export default function createPersonalizationRoutes(supabase) {
       if (shareId) params.set('share', shareId);
       if (userWallet) params.set('ref', userWallet);
       const shareUrl = `${baseUrl}/share/${item_type}/${item_id}${params.toString() ? `?${params.toString()}` : ''}`;
+      const { data: catalogItem } = await supabase
+        .from('catalog_with_engagement')
+        .select('title, price_eth')
+        .eq('id', item_id)
+        .eq('item_type', item_type)
+        .maybeSingle();
+
+      const itemTitle = String(catalogItem?.title || 'this collectible').trim();
+      const priceValue = Number(catalogItem?.price_eth || 0);
+      const shareText = priceValue > 0
+        ? `${itemTitle} is live on POPUP for ${priceValue} ETH.`
+        : `${itemTitle} is live on POPUP.`;
+      const shareMessage = `${shareText} Open the sales card: ${shareUrl}`;
 
       if (shareId) {
         await supabase
@@ -378,12 +391,13 @@ export default function createPersonalizationRoutes(supabase) {
       res.json({
         ...data?.[0],
         share_url: shareUrl,
+        share_message: shareMessage,
         platform_urls: {
-          twitter: `https://twitter.com/intent/tweet?url=${encodeURIComponent(shareUrl)}&text=Check%20out%20this%20amazing%20digital%20product%20on%20POPUP!`,
+          twitter: `https://twitter.com/intent/tweet?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(shareText)}`,
           facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`,
           linkedin: `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(shareUrl)}`,
-          telegram: `https://t.me/share/url?url=${encodeURIComponent(shareUrl)}`,
-          whatsapp: `https://wa.me/?text=${encodeURIComponent(shareUrl)}`,
+          telegram: `https://t.me/share/url?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(shareText)}`,
+          whatsapp: `https://wa.me/?text=${encodeURIComponent(shareMessage)}`,
           reddit: `https://reddit.com/submit?url=${encodeURIComponent(shareUrl)}`
         }
       });

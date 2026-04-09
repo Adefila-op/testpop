@@ -33,21 +33,28 @@ export interface CatalogItem {
 export type CatalogPrimaryAction = "bid" | "cart" | "collect" | "details";
 
 export function getCatalogPrimaryAction(
-  item: Pick<CatalogItem, "item_type" | "can_bid" | "can_purchase">
+  item: Pick<CatalogItem, "item_type" | "can_bid" | "can_purchase" | "contract_kind">
 ): CatalogPrimaryAction {
   if (item.item_type === "drop" && item.can_bid) {
     return "bid";
   }
 
-  if (item.item_type === "product" && item.can_purchase) {
+  if (!item.can_purchase) {
+    return "details";
+  }
+
+  if (item.item_type === "product" || item.item_type === "release") {
     return "cart";
   }
 
-  if (item.can_purchase) {
-    return "collect";
+  if (
+    item.item_type === "drop" &&
+    (item.contract_kind === "creativeReleaseEscrow" || item.contract_kind === "productStore")
+  ) {
+    return "cart";
   }
 
-  return "details";
+  return "collect";
 }
 
 /**

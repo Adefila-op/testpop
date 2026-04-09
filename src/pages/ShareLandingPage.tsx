@@ -4,6 +4,7 @@ import { parseEther } from "viem";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { supabase } from "@/lib/db";
 import { SECURE_API_BASE } from "@/lib/apiBase";
+import { getRuntimeApiToken } from "@/lib/runtimeSession";
 import { useWallet } from "@/hooks/useContracts";
 import { useMintArtist } from "@/hooks/useContractsArtist";
 import { toast } from "@/components/ui/use-toast";
@@ -14,8 +15,7 @@ import { ACTIVE_CHAIN } from "@/lib/wagmi";
 import {
   addProductToCart,
   buildCollectionRecord,
-  resolveDiscoverCheckoutProduct,
-  resolveDiscoverDrop,
+  resolveDiscoverPrimaryAction,
   type ActionableDiscoverDrop,
 } from "@/lib/discoveryActions";
 
@@ -31,6 +31,7 @@ type ShareCatalogItem = {
   creator_wallet?: string | null;
   can_purchase?: boolean;
   can_bid?: boolean;
+  contract_kind?: "artDrop" | "productStore" | "creativeReleaseEscrow" | string | null;
   comment_count?: number;
   created_at?: string;
 };
@@ -47,6 +48,19 @@ type ShareComment = {
   }>;
 };
 
+type ShareCommentMutation = {
+  id: string;
+  title?: string | null;
+  rating?: number | null;
+  created_at?: string;
+  buyer_wallet: string;
+  latest_message?: {
+    id: string;
+    body: string;
+    created_at?: string;
+  } | null;
+};
+
 type CreatorProfile = {
   id: string;
   name?: string | null;
@@ -60,6 +74,29 @@ const API_BASE = SECURE_API_BASE || "/api";
 function buildApiUrl(path: string) {
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
   return `${API_BASE}${normalizedPath}`;
+}
+
+async function requestJson<T>(path: string, init?: RequestInit, token?: string): Promise<T> {
+  const headers = new Headers(init?.headers || {});
+  if (!headers.has("Content-Type") && init?.body) {
+    headers.set("Content-Type", "application/json");
+  }
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+
+  const response = await fetch(buildApiUrl(path), {
+    ...init,
+    headers,
+  });
+  const text = await response.text();
+  const payload = text ? JSON.parse(text) : {};
+
+  if (!response.ok) {
+    throw new Error(payload?.error || payload?.message || "Request failed");
+  }
+
+  return payload as T;
 }
 
 function truncateWallet(wallet?: string | null, start = 6, end = 4) {
@@ -86,6 +123,7 @@ function getPrimaryCta(item: ShareCatalogItem) {
     item_type: item.item_type,
     can_bid: Boolean(item.can_bid),
     can_purchase: Boolean(item.can_purchase),
+    contract_kind: item.contract_kind,
   });
 
   switch (action) {
@@ -116,7 +154,7 @@ function buildShareFlowSearch(searchParams: URLSearchParams) {
 
 async function trackShareLandingEvent(
   item: Pick<ShareCatalogItem, "id" | "item_type">,
-  eventType: "view" | "purchase",
+  eventType: "view" | "purchase" | "comment",
   data: Record<string, unknown> = {},
 ) {
   try {
@@ -135,6 +173,45 @@ async function trackShareLandingEvent(
   }
 }
 
+function mergeComments(currentComments: ShareComment[], incomingComment: ShareComment) {
+  const filtered = currentComments.filter((comment) => comment.id !== incomingComment.id);
+  return [incomingComment, ...filtered];
+}
+
+function toShareComment(thread: ShareCommentMutation): ShareComment {
+  return {
+    id: thread.id,
+    title: thread.title || null,
+    rating: thread.rating ?? null,
+    buyer_wallet: thread.buyer_wallet,
+    product_feedback_messages: thread.latest_message ? [thread.latest_message] : [],
+  };
+}
+
+async function postPublicComment(
+  item: Pick<ShareCatalogItem, "id" | "item_type">,
+  body: string,
+  token: string,
+) {
+  const response = await requestJson<{
+    success: boolean;
+    thread: ShareCommentMutation;
+  }>(
+    `/fan-hub/items/${item.item_type}/${item.id}/feedback`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        feedbackType: "review",
+        visibility: "public",
+        body,
+      }),
+    },
+    token,
+  );
+
+  return response.thread;
+}
+
 const ShareLandingPage = () => {
   const navigate = useNavigate();
   const { address, chain, isConnected, connectWallet, requestActiveChainSwitch, isSwitchingNetwork } = useWallet();
@@ -150,10 +227,12 @@ const ShareLandingPage = () => {
   const [searchParams] = useSearchParams();
   const [item, setItem] = useState<ShareCatalogItem | null>(null);
   const [comments, setComments] = useState<ShareComment[]>([]);
+  const [newComment, setNewComment] = useState("");
   const [creator, setCreator] = useState<CreatorProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [ctaBusy, setCtaBusy] = useState(false);
+  const [commentBusy, setCommentBusy] = useState(false);
   const [collectingDrop, setCollectingDrop] = useState<ActionableDiscoverDrop | null>(null);
   const shareFlowSearch = useMemo(() => buildShareFlowSearch(searchParams), [searchParams]);
   const shareId = searchParams.get("share");
@@ -261,16 +340,13 @@ const ShareLandingPage = () => {
     try {
       setCtaBusy(true);
 
-      if (primaryCta.action === "cart" || (primaryCta.action === "collect" && item.item_type === "release")) {
-        const product = await resolveDiscoverCheckoutProduct(
-          item.id,
-          item.item_type === "release" ? "release" : "product",
-        );
+      const resolvedAction = await resolveDiscoverPrimaryAction(item);
 
-        addProductToCart(addItem, product, item.title, item.image_url || undefined);
+      if (resolvedAction.kind === "cart") {
+        addProductToCart(addItem, resolvedAction.product, item.title, item.image_url || undefined);
         await trackShareLandingEvent(item, "purchase", {
           source: "share_landing",
-          action: primaryCta.action,
+          action: resolvedAction.analyticsAction,
           share_id: shareId,
           ref: referrerWallet,
         });
@@ -284,7 +360,7 @@ const ShareLandingPage = () => {
         return;
       }
 
-      if (primaryCta.action === "collect" && item.item_type === "drop") {
+      if (resolvedAction.kind === "collect") {
         if (!isConnected) {
           await connectWallet();
           return;
@@ -294,16 +370,12 @@ const ShareLandingPage = () => {
           await requestActiveChainSwitch(`Collecting this drop requires ${ACTIVE_CHAIN.name}.`);
         }
 
-        const drop = await resolveDiscoverDrop(item.id);
-        const contractDropId =
-          drop.contract_drop_id !== null && drop.contract_drop_id !== undefined ? Number(drop.contract_drop_id) : null;
-
-        if (!drop.contract_address || contractDropId === null || drop.contract_kind !== "artDrop") {
-          throw new Error("This shared drop is live, but its collect contract is not ready yet.");
-        }
-
-        setCollectingDrop(drop);
-        mintArtist(contractDropId, parseEther(String(drop.price_eth || item.price_eth || 0)), drop.contract_address);
+        setCollectingDrop(resolvedAction.drop);
+        mintArtist(
+          resolvedAction.contractDropId,
+          parseEther(resolvedAction.priceEth),
+          resolvedAction.contractAddress,
+        );
         return;
       }
 
@@ -316,6 +388,55 @@ const ShareLandingPage = () => {
       });
     } finally {
       setCtaBusy(false);
+    }
+  }
+
+  async function handlePostComment() {
+    if (!item) return;
+
+    const body = newComment.trim();
+    if (!body) return;
+
+    if (!isConnected) {
+      await connectWallet();
+      toast({
+        title: "Wallet connection requested",
+        description: "Connect your wallet, then post your comment from this shared page.",
+      });
+      return;
+    }
+
+    const token = getRuntimeApiToken();
+    if (!token) {
+      toast({
+        title: "Secure session pending",
+        description: "Your wallet is connected. Give POPUP a moment to finish secure sign-in.",
+      });
+      return;
+    }
+
+    try {
+      setCommentBusy(true);
+      const thread = await postPublicComment(item, body, token);
+      setNewComment("");
+      setComments((current) => mergeComments(current, toShareComment(thread)));
+      await trackShareLandingEvent(item, "comment", {
+        source: "share_landing",
+        share_id: shareId,
+        ref: referrerWallet,
+      });
+      toast({
+        title: "Comment posted",
+        description: "Your note is now part of the public conversation on this shared page.",
+      });
+    } catch (commentError) {
+      toast({
+        title: "Unable to post comment",
+        description: commentError instanceof Error ? commentError.message : "Try again in a moment.",
+        variant: "destructive",
+      });
+    } finally {
+      setCommentBusy(false);
     }
   }
 
@@ -485,7 +606,7 @@ const ShareLandingPage = () => {
                 onClick={() => navigate(`/discover${shareFlowSearch}`)}
                 className="inline-flex h-10 items-center gap-2 rounded-full border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
               >
-                Join the feed
+                Open full thread
                 <ArrowRight className="h-4 w-4" />
               </button>
             </div>
@@ -493,7 +614,7 @@ const ShareLandingPage = () => {
             <div className="mt-5 space-y-3">
               {comments.length === 0 ? (
                 <div className="rounded-[1.4rem] border border-dashed border-slate-200 px-4 py-6 text-sm text-slate-500">
-                  No public comments yet. Open this collectible in discover to start the thread.
+                  No public comments yet. Start the thread directly from this shared card.
                 </div>
               ) : (
                 comments.map((comment) => (
@@ -512,6 +633,35 @@ const ShareLandingPage = () => {
                   </article>
                 ))
               )}
+            </div>
+
+            <div className="mt-5 flex gap-3 border-t border-slate-200 pt-5">
+              <input
+                type="text"
+                value={newComment}
+                onChange={(event) => setNewComment(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && !event.shiftKey) {
+                    event.preventDefault();
+                    void handlePostComment();
+                  }
+                }}
+                placeholder={
+                  !isConnected
+                    ? "Connect your wallet to join the public thread"
+                    : "Add a public comment from this shared card"
+                }
+                className="h-11 flex-1 rounded-full border border-slate-200 bg-slate-50 px-4 text-sm text-slate-900 outline-none transition focus:border-slate-300 focus:bg-white"
+              />
+              <button
+                type="button"
+                onClick={() => void handlePostComment()}
+                disabled={commentBusy || !newComment.trim()}
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-slate-950 px-5 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {commentBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
+                Comment
+              </button>
             </div>
           </div>
         </section>
