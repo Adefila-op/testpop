@@ -27,7 +27,7 @@ export const PdfReader: FC<PdfReaderProps> = ({ src, title, onClose }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [containerWidth, setContainerWidth] = useState(0);
-  const [pdfSource, setPdfSource] = useState<Uint8Array | string | null>(null);
+  const [pdfSource, setPdfSource] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   const resolvedSourceUrl = (() => {
