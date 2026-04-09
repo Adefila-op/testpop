@@ -220,7 +220,7 @@ function DropPrimaryActionCardInner({
       return;
     }
 
-    placeBid(drop.contractDropId, bidAmount);
+    placeBid(drop.contractDropId, bidAmount, drop.contractAddress);
     toast.loading("Placing bid...");
   };
 

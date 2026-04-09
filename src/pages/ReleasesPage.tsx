@@ -71,6 +71,7 @@ type ReleaseCatalogItem = {
   };
   product?: Product;
   drop?: ReleaseCatalogDrop;
+  nativeDrop?: ReleaseCatalogDrop | null;
 };
 
 function formatEthAmount(value: string | number | null | undefined) {
@@ -108,6 +109,14 @@ function isOnchainReady(product: Product) {
   );
 }
 
+function getDropSourceKind(drop: ReleaseCatalogDrop) {
+  const metadata = toRecord(drop.metadata);
+  return (
+    (typeof drop.source_kind === "string" ? drop.source_kind : null) ||
+    (typeof metadata?.source_kind === "string" ? metadata.source_kind : null)
+  );
+}
+
 function resolveProductAction(product: Product): ReleaseCatalogItem["action"] {
   const searchSpace = [
     product.product_type,
@@ -133,9 +142,7 @@ function resolveDropAction(drop: ReleaseCatalogDrop): ReleaseCatalogItem["action
   const linkedProduct = drop.linked_product || null;
   const linkedRelease = drop.creative_release || null;
   const metadata = toRecord(drop.metadata);
-  const sourceKind =
-    (typeof drop.source_kind === "string" ? drop.source_kind : null) ||
-    (typeof metadata?.source_kind === "string" ? metadata.source_kind : null);
+  const sourceKind = getDropSourceKind(drop);
   const behavior = resolveDropBehavior({
     drop: {
       type: drop.type || "drop",
@@ -177,9 +184,40 @@ function resolveDropAction(drop: ReleaseCatalogDrop): ReleaseCatalogItem["action
   };
 }
 
-function buildProductCatalogItem(product: Product): ReleaseCatalogItem {
+function buildProductCatalogItem(product: Product, nativeDrop?: ReleaseCatalogDrop | null): ReleaseCatalogItem {
+  const nativeAction = nativeDrop ? resolveDropAction(nativeDrop) : null;
+  const nativeRemaining =
+    nativeDrop && Number(nativeDrop.supply || 0) > 0
+      ? Math.max(Number(nativeDrop.supply || 0) - Number(nativeDrop.sold || 0), 0)
+      : null;
   const remainingStock =
     Number(product.stock || 0) > 0 ? Math.max(Number(product.stock || 0) - Number(product.sold || 0), 0) : null;
+  const availabilityLabel = nativeDrop
+    ? nativeRemaining === null
+      ? "Live"
+      : String(nativeRemaining)
+    : remainingStock === null
+      ? "Open"
+      : String(remainingStock);
+  const status = nativeDrop?.status || product.status || "published";
+  const typeLabel = formatLabel(
+    nativeDrop?.creative_release?.release_type ||
+      product.product_type ||
+      product.category ||
+      nativeDrop?.type ||
+      "release"
+  );
+  const helperText = nativeDrop
+    ? nativeAction?.label === "Buy"
+      ? "This release has a live checkout-backed drop, so collectors can buy from the release card and still open the full release when they want more detail."
+      : "This release keeps the live drop's native collect or bid flow directly inside the release card."
+    : "Release checkout, gated access, and thread entry are all available from this card.";
+  const badges = [
+    formatLabel(product.category || "release"),
+    status,
+    ...(nativeDrop ? ["Live drop"] : []),
+    ...(product.is_gated ? ["Gated"] : []),
+  ];
 
   return {
     key: `product:${product.id}`,
@@ -189,29 +227,28 @@ function buildProductCatalogItem(product: Product): ReleaseCatalogItem {
       product.description ||
       "Stay on the release page to buy now, leave feedback, or open the full release detail when you want the expanded view.",
     image: resolveMediaUrl(product.preview_uri, product.image_url, product.image_ipfs_uri),
-    priceEth: Number(product.price_eth || 0),
-    sold: Number(product.sold || 0),
-    availabilityLabel: remainingStock === null ? "Open" : String(remainingStock),
-    status: product.status || "published",
-    typeLabel: formatLabel(product.product_type || product.category || "release"),
+    priceEth: Number(nativeDrop?.price_eth ?? product.price_eth ?? 0),
+    sold: Number(nativeDrop?.sold ?? product.sold ?? 0),
+    availabilityLabel,
+    status,
+    typeLabel,
     filterValue: String(product.product_type || product.category || "release"),
     detailPath: `/products/${product.id}`,
-    sortTimestamp: new Date(product.updated_at || product.created_at || 0).getTime(),
+    sortTimestamp: new Date(nativeDrop?.updated_at || product.updated_at || nativeDrop?.created_at || product.created_at || 0).getTime(),
     likeProductId: product.id,
     commentProductId: product.id,
-    badges: [formatLabel(product.category || "release"), product.status || "published", ...(product.is_gated ? ["Gated"] : [])],
-    helperText: "Release checkout, gated access, and thread entry are all available from this card.",
+    badges: badges.filter(Boolean),
+    helperText,
     action: resolveProductAction(product),
     product,
+    nativeDrop,
   };
 }
 
 function buildDropCatalogItem(drop: ReleaseCatalogDrop): ReleaseCatalogItem {
   const linkedProduct = drop.linked_product || null;
   const metadata = toRecord(drop.metadata);
-  const sourceKind =
-    (typeof drop.source_kind === "string" ? drop.source_kind : null) ||
-    (typeof metadata?.source_kind === "string" ? metadata.source_kind : null);
+  const sourceKind = getDropSourceKind(drop);
   const releaseType =
     drop.creative_release?.release_type ||
     linkedProduct?.product_type ||
@@ -240,7 +277,7 @@ function buildDropCatalogItem(drop: ReleaseCatalogDrop): ReleaseCatalogItem {
       metadata,
     }),
     sortTimestamp: new Date(drop.updated_at || drop.created_at || 0).getTime(),
-    likeProductId: linkedProduct?.id || null,
+    likeProductId: linkedProduct?.id || `drop:${drop.id}`,
     commentProductId: linkedProduct?.id || null,
     badges: [formatLabel(drop.type || "drop"), formatLabel(releaseType || ""), ...(drop.is_gated ? ["Gated"] : [])].filter(Boolean),
     helperText:
@@ -334,23 +371,54 @@ const ReleasesPage = () => {
   }, [address]);
 
   const catalogItems = useMemo(() => {
-    const productItems = (products || []).map(buildProductCatalogItem);
-    const productIds = new Set((products || []).map((product) => product.id));
-    const dropItems = ((liveDrops || []) as ReleaseCatalogDrop[])
+    const realLiveDrops = ((liveDrops || []) as ReleaseCatalogDrop[]).filter((drop) => {
+      const sourceKind = getDropSourceKind(drop);
+      return sourceKind !== "release_product" && sourceKind !== "catalog_product";
+    });
+    const productsById = new Map((products || []).map((product) => [product.id, product]));
+    const productIds = new Set(productsById.keys());
+    const nativeDropsByProductId = new Map<string, ReleaseCatalogDrop>();
+    const nativeDropsByReleaseId = new Map<string, ReleaseCatalogDrop>();
+
+    for (const drop of realLiveDrops) {
+      const metadata = toRecord(drop.metadata);
+      const linkedProductId =
+        drop.linked_product?.id ||
+        (typeof metadata?.source_product_id === "string" ? metadata.source_product_id : null);
+
+      if (linkedProductId && productsById.has(linkedProductId) && !nativeDropsByProductId.has(linkedProductId)) {
+        nativeDropsByProductId.set(linkedProductId, drop);
+      }
+
+      if (drop.creative_release_id && !nativeDropsByReleaseId.has(drop.creative_release_id)) {
+        nativeDropsByReleaseId.set(drop.creative_release_id, drop);
+      }
+    }
+
+    const productItems = (products || []).map((product) =>
+      buildProductCatalogItem(
+        product,
+        nativeDropsByProductId.get(product.id) ||
+          (product.creative_release_id ? nativeDropsByReleaseId.get(product.creative_release_id) || null : null)
+      )
+    );
+    const mergedDropIds = new Set(
+      productItems
+        .map((item) => item.nativeDrop?.id)
+        .filter((dropId): dropId is string => Boolean(dropId))
+    );
+    const dropItems = realLiveDrops
       .filter((drop) => {
+        if (mergedDropIds.has(drop.id)) {
+          return false;
+        }
+
         const metadata = toRecord(drop.metadata);
-        const sourceKind =
-          (typeof drop.source_kind === "string" ? drop.source_kind : null) ||
-          (typeof metadata?.source_kind === "string" ? metadata.source_kind : null);
         const linkedProductId =
           drop.linked_product?.id ||
           (typeof metadata?.source_product_id === "string" ? metadata.source_product_id : null);
 
-        if (sourceKind === "release_product" || sourceKind === "catalog_product") {
-          return false;
-        }
-
-        if (linkedProductId && productIds.has(linkedProductId) && Boolean(drop.creative_release_id)) {
+        if (linkedProductId && productIds.has(linkedProductId)) {
           return false;
         }
 
@@ -631,6 +699,8 @@ const ReleasesPage = () => {
                       {(() => {
                         const isLiked = featuredItem.likeProductId ? favoriteProductIds.has(featuredItem.likeProductId) : false;
                         const FeaturedActionIcon = featuredItem.action.icon;
+                        const featuredInlineDrop =
+                          featuredItem.kind === "drop" ? featuredItem.drop || null : featuredItem.nativeDrop || null;
 
                         return (
                           <>
@@ -684,9 +754,9 @@ const ReleasesPage = () => {
                                 onClick={() => handleOpenDetail(featuredItem)}
                                 className="rounded-full bg-[#1d4ed8] text-white hover:bg-[#1e40af]"
                               >
-                                Open {featuredItem.kind === "drop" ? "drop" : "release"}
+                                Open {featuredItem.kind === "drop" && !featuredItem.nativeDrop ? "drop" : "release"}
                               </Button>
-                              {featuredItem.kind === "product" ? (
+                              {featuredItem.kind === "product" && !featuredInlineDrop ? (
                                 <Button
                                   type="button"
                                   variant="outline"
@@ -699,9 +769,9 @@ const ReleasesPage = () => {
                                 </Button>
                               ) : null}
                             </div>
-                            {featuredItem.kind === "drop" && featuredItem.drop ? (
+                            {featuredInlineDrop ? (
                               <div className="max-w-xl rounded-[1.8rem] border border-white/60 bg-white/60 p-3">
-                                {renderInlineDropAction(featuredItem.drop)}
+                                {renderInlineDropAction(featuredInlineDrop)}
                               </div>
                             ) : null}
                           </>
@@ -746,6 +816,7 @@ const ReleasesPage = () => {
                   {filteredItems.map((item) => {
                     const ActionIcon = item.action.icon;
                     const isLiked = item.likeProductId ? favoriteProductIds.has(item.likeProductId) : false;
+                    const inlineDrop = item.kind === "drop" ? item.drop || null : item.nativeDrop || null;
 
                     return (
                       <article
@@ -827,9 +898,9 @@ const ReleasesPage = () => {
                             onClick={() => handleOpenDetail(item)}
                             className="rounded-full bg-[#1d4ed8] text-white hover:bg-[#1e40af]"
                           >
-                            Open {item.kind === "drop" ? "drop" : "release"}
+                            Open {item.kind === "drop" && !item.nativeDrop ? "drop" : "release"}
                           </Button>
-                          {item.kind === "product" ? (
+                          {item.kind === "product" && !inlineDrop ? (
                             <Button
                               type="button"
                               variant="outline"
@@ -843,9 +914,9 @@ const ReleasesPage = () => {
                           ) : null}
                         </div>
 
-                        {item.kind === "drop" && item.drop ? (
+                        {inlineDrop ? (
                           <div className="mt-4 rounded-[1.5rem] border border-[#dbeafe] bg-[#f8fbff] p-3">
-                            {renderInlineDropAction(item.drop)}
+                            {renderInlineDropAction(inlineDrop)}
                           </div>
                         ) : null}
                       </article>

@@ -206,7 +206,7 @@ export function usePlaceBid() {
   const { writeContract, data: hash, isPending, error } = useWriteContract();
   const { data: receipt, isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
 
-  const placeBid = (campaignId: number, bidAmount: string | number) => {
+  const placeBid = (campaignId: number, bidAmount: string | number, contractAddress?: string | null) => {
     if (!address) {
       throw new Error("Connect wallet before placing a bid");
     }
@@ -215,9 +215,14 @@ export function usePlaceBid() {
     }
 
     const value = parsePositiveEth(bidAmount);
+    const resolvedContractAddress = normalizeAddress(contractAddress) ?? POAP_CAMPAIGN_ADDRESS;
+
+    void openWalletApprovalModal().catch((modalError) => {
+      console.warn("Unable to open wallet approval modal:", modalError);
+    });
 
     return writeContract({
-      address: POAP_CAMPAIGN_ADDRESS,
+      address: resolvedContractAddress,
       abi: POAP_CAMPAIGN_ABI,
       functionName: "placeBid",
       args: [BigInt(campaignId)],

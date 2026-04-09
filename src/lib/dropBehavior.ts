@@ -110,6 +110,14 @@ export function resolveDropBehavior(params: {
     inferredContractKind === "productStore" ||
     Boolean(linkedProduct?.id);
 
+  if (drop.contractKind === "poapCampaignV2") {
+    return {
+      mode: "campaign",
+      isReleaseBacked: false,
+      isOnchainReady: true,
+    };
+  }
+
   if (drop.type === "campaign") {
     return {
       mode: "campaign",
@@ -121,6 +129,14 @@ export function resolveDropBehavior(params: {
   if (drop.type === "auction" && drop.contractKind === "poapCampaign") {
     return {
       mode: "auction",
+      isReleaseBacked: false,
+      isOnchainReady: true,
+    };
+  }
+
+  if (drop.type === "drop" && drop.contractKind === "artDrop") {
+    return {
+      mode: "collect",
       isReleaseBacked: false,
       isOnchainReady: true,
     };
@@ -147,14 +163,6 @@ export function resolveDropBehavior(params: {
       mode: "checkout",
       isReleaseBacked: true,
       isOnchainReady,
-    };
-  }
-
-  if (drop.type === "drop" && drop.contractKind === "artDrop") {
-    return {
-      mode: "collect",
-      isReleaseBacked: false,
-      isOnchainReady: true,
     };
   }
 
