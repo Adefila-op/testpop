@@ -34,6 +34,7 @@ const WalletSubscriptionsRoute = lazy(() => import("./routes/WalletSubscriptions
 // Commerce routes
 const InvestBoardPage = lazy(() => import("./pages/ProductsPage").then((module) => ({ default: module.ProductsPage })));
 const ReleasesPage = lazy(() => import("./pages/ReleasesPage"));
+const SocialMediaFeedReleases = lazy(() => import("./pages/SocialMediaFeedReleases"));
 const ProductDetailPage = lazy(() => import("./pages/ProductDetailPage").then((module) => ({ default: module.ProductDetailPage })));
 const CartPage = lazy(() => import("./pages/CartPage").then((module) => ({ default: module.CartPage })));
 const CheckoutPage = lazy(() => import("./pages/CheckoutPage").then((module) => ({ default: module.CheckoutPage })));
@@ -89,7 +90,8 @@ const App = () => {
                       <Route path="/collection" element={<WalletCollectionRoute />} />
                       <Route path="/poaps" element={<WalletPOAPsRoute />} />
                       <Route path="/subscriptions" element={<WalletSubscriptionsRoute />} />
-                      <Route path="/products" element={<ReleasesPage />} />
+                      <Route path="/products" element={<SocialMediaFeedReleases />} />
+                      <Route path="/feed" element={<SocialMediaFeedReleases />} />
                       <Route path="/products/:id" element={<ProductDetailPage />} />
                       <Route path="/catalog" element={<CatalogPage />} />
                       <Route path="/catalog/:type/:id" element={<CatalogPage />} />

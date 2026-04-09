@@ -1,7 +1,8 @@
-import { Flame, Home, Inbox, ShoppingBag, User } from "lucide-react";
+import { Flame, Home, Inbox, ShoppingBag, User, Sparkles } from "lucide-react";
 
 export const appShellNavItems = [
   { icon: Home, label: "Home", path: "/" },
+  { icon: Sparkles, label: "Discover", path: "/catalog" },
   { icon: Flame, label: "Drops", path: "/drops" },
   { icon: Inbox, label: "Inbox", path: "/inbox" },
   { icon: ShoppingBag, label: "Releases", path: "/products" },
@@ -11,6 +12,7 @@ export const appShellNavItems = [
 export function isAppShellNavActive(itemPath: string, pathname: string) {
   return (
     pathname === itemPath ||
+    (itemPath === "/catalog" && (pathname === "/catalog" || pathname.startsWith("/catalog/"))) ||
     (itemPath === "/drops" && pathname.startsWith("/drops/")) ||
     (itemPath === "/inbox" && pathname.startsWith("/inbox")) ||
     (itemPath === "/profile" &&
