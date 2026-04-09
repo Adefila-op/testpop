@@ -497,123 +497,35 @@ export default function createPersonalizationRoutes(supabase) {
   router.get('/discover/feed', async (req, res) => {
     try {
       const { page = '0', limit = '10', type = 'all', search = '' } = req.query;
-      const offset = Math.max(0, parseInt(page) * parseInt(limit));
-      const pageSize = Math.min(100, parseInt(limit));
+      const pageNumber = Math.max(parseInt(page, 10) || 0, 0);
+      const pageSize = Math.min(Math.max(parseInt(limit, 10) || 10, 1), 100);
+      const offset = pageNumber * pageSize;
+      let query = supabase
+        .from('catalog_with_engagement')
+        .select('*', { count: 'exact' })
+        .order('created_at', { ascending: false });
 
-      const results = [];
-
-      // Query drops
-      if (!type || type === 'drop') {
-        try {
-          const { data: drops, error } = await supabase
-            .from('drops')
-            .select('id, title, description, image_url, image_ipfs_uri, price_eth, artist_id, status, created_at, updated_at')
-            .in('status', ['live', 'active', 'published'])
-            .order('created_at', { ascending: false })
-            .limit(pageSize);
-
-          if (!error && drops) {
-            results.push(...drops.map(d => ({
-              id: d.id,
-              item_type: 'drop',
-              title: d.title,
-              description: d.description,
-              image_url: d.image_url || d.image_ipfs_uri,
-              price_eth: d.price_eth,
-              artist_id: d.artist_id,
-              creator_wallet: '',
-              created_at: d.created_at,
-              updated_at: d.updated_at,
-              comment_count: 0,
-              avg_rating: 0
-            })));
-          }
-        } catch (e) {
-          console.warn('Failed to fetch drops:', e.message);
-        }
+      if (type && type !== 'all') {
+        query = query.eq('item_type', type);
       }
 
-      // Query products
-      if (!type || type === 'product') {
-        try {
-          const { data: products, error } = await supabase
-            .from('products')
-            .select('id, name, description, preview_uri, image_url, image_ipfs_uri, price_eth, artist_id, status, created_at, updated_at')
-            .in('status', ['published', 'active'])
-            .order('created_at', { ascending: false })
-            .limit(pageSize);
-
-          if (!error && products) {
-            results.push(...products.map(p => ({
-              id: p.id,
-              item_type: 'product',
-              title: p.name,
-              description: p.description,
-              image_url: p.preview_uri || p.image_url || p.image_ipfs_uri,
-              price_eth: p.price_eth,
-              artist_id: p.artist_id,
-              creator_wallet: '',
-              created_at: p.created_at,
-              updated_at: p.updated_at,
-              comment_count: 0,
-              avg_rating: 0
-            })));
-          }
-        } catch (e) {
-          console.warn('Failed to fetch products:', e.message);
-        }
-      }
-
-      // Query releases
-      if (!type || type === 'release') {
-        try {
-          const { data: releases, error } = await supabase
-            .from('creative_releases')
-            .select('id, title, description, cover_image_uri, price_eth, artist_id, status, created_at, updated_at')
-            .in('status', ['published', 'active'])
-            .order('created_at', { ascending: false })
-            .limit(pageSize);
-
-          if (!error && releases) {
-            results.push(...releases.map(r => ({
-              id: r.id,
-              item_type: 'release',
-              title: r.title,
-              description: r.description,
-              image_url: r.cover_image_uri,
-              price_eth: r.price_eth,
-              artist_id: r.artist_id,
-              creator_wallet: '',
-              created_at: r.created_at,
-              updated_at: r.updated_at,
-              comment_count: 0,
-              avg_rating: 0
-            })));
-          }
-        } catch (e) {
-          console.warn('Failed to fetch releases:', e.message);
-        }
-      }
-
-      // Filter by search if provided
-      let filtered = results;
       if (search && search.trim()) {
-        const searchLower = search.trim().toLowerCase();
-        filtered = results.filter(item =>
-          item.title?.toLowerCase().includes(searchLower) ||
-          item.description?.toLowerCase().includes(searchLower)
-        );
+        const searchTerm = search.trim();
+        query = query.or(`title.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%`);
       }
 
-      // Sort by created_at descending and apply pagination
-      const sorted = filtered
-        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-        .slice(offset, offset + pageSize);
+      query = query.range(offset, offset + pageSize - 1);
+
+      const { data, error, count } = await query;
+
+      if (error) {
+        throw error;
+      }
 
       return res.json({
-        data: sorted,
-        count: filtered.length,
-        page: parseInt(page),
+        data: data || [],
+        count: count || 0,
+        page: pageNumber,
         limit: pageSize
       });
     } catch (error) {

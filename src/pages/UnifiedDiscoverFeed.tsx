@@ -103,6 +103,16 @@ async function requestJson<T>(path: string, init?: RequestInit, token?: string):
   return payload as T;
 }
 
+type CatalogResponse = {
+  data: DiscoverPost[];
+  pagination?: {
+    page: number;
+    limit: number;
+    total?: number;
+    pages?: number;
+  };
+};
+
 async function trackItemEvent(
   item: Pick<DiscoverPost, "id" | "item_type">,
   eventType: "view" | "like" | "comment" | "purchase" | "share",
@@ -1314,18 +1324,14 @@ export function UnifiedDiscoverFeed() {
         setLoading(true);
 
         const params = new URLSearchParams({
-          page: String(page - 1),
+          page: String(page),
           limit: String(FEED_PAGE_SIZE),
+          sort: "recent",
           ...(filterType !== 'all' && { type: filterType }),
           ...(searchQuery.trim() && { search: searchQuery.trim() })
         });
 
-        const response = await fetch(`/api/discover/feed?${params}`);
-        if (!response.ok) {
-          throw new Error(`API error: ${response.status}`);
-        }
-
-        const result = await response.json();
+        const result = await requestJson<CatalogResponse>(`/catalog?${params}`);
         const { data } = result;
 
         if (!data || !Array.isArray(data)) {

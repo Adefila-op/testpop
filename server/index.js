@@ -1589,6 +1589,22 @@ app.use(express.static(frontendDistPath, {
 // ═════════════════════════════════════════════════════════════════════════════
 
 app.use((req, res, next) => {
+  const routerManagedApiPrefixes = [
+    '/api/catalog',
+    '/api/discover',
+    '/api/fan-hub',
+    '/api/notifications',
+    '/api/personalization',
+  ];
+  const originalOrCurrentUrl = req.originalUrl || req.url || '';
+  const shouldPreserveApiPrefix = routerManagedApiPrefixes.some((prefix) =>
+    originalOrCurrentUrl.startsWith(prefix)
+  );
+
+  if (shouldPreserveApiPrefix) {
+    return next();
+  }
+
   // Strip /api prefix - required for Vercel routing
   if (req.originalUrl?.startsWith('/api/')) {
     const newUrl = req.originalUrl.substring(4); // Remove '/api' (4 chars)
@@ -4645,7 +4661,7 @@ const port = Number(PORT) || 3000;
 // ═════════════════════════════════════════════════════════════════════════════
 app.get('*', (req, res, next) => {
   // If it's an API route, skip to 404 handler
-  if (req.path.startsWith('/api')) {
+  if (req.originalUrl?.startsWith('/api') || req.path.startsWith('/api')) {
     return next();
   }
   
