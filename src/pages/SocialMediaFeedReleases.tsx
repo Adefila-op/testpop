@@ -2,6 +2,11 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Heart, MessageCircle, Share2, Music, Zap, User, MoreHorizontal } from 'lucide-react';
 import { supabase } from '@/lib/db';
 import { CatalogItem, formatPrice, formatSupply } from '@/utils/catalogUtils';
+import {
+  SocialShareButton,
+  FavoritesButton,
+  SubscribeButton
+} from '@/components/PersonalizationComponents';
 
 interface SocialFeedPost extends CatalogItem {
   creator_name?: string;
@@ -108,14 +113,6 @@ interface SocialFeedCardProps {
 }
 
 function SocialFeedCard({ post, onComment }: SocialFeedCardProps) {
-  const [isLiked, setIsLiked] = useState(false);
-  const [likeCount, setLikeCount] = useState(post.like_count || 0);
-
-  const handleLike = () => {
-    setIsLiked(!isLiked);
-    setLikeCount((prev) => (isLiked ? prev - 1 : prev + 1));
-  };
-
   return (
     <div className="h-screen bg-black snap-start relative flex flex-col justify-end pb-20">
       {/* Background image with overlay */}
@@ -139,18 +136,8 @@ function SocialFeedCard({ post, onComment }: SocialFeedCardProps) {
 
       {/* Right side actions */}
       <div className="absolute right-4 bottom-24 z-10 flex flex-col gap-4">
-        {/* Like button */}
-        <button
-          onClick={handleLike}
-          className="flex flex-col items-center gap-1 p-3 rounded-full hover:bg-white/10 transition-colors"
-        >
-          <Heart
-            className={`w-6 h-6 ${
-              isLiked ? 'fill-red-500 text-red-500' : 'text-white'
-            }`}
-          />
-          <span className="text-xs font-medium">{likeCount}</span>
-        </button>
+        {/* Favorites button */}
+        <FavoritesButton item={post} />
 
         {/* Comments button */}
         <button
@@ -162,9 +149,7 @@ function SocialFeedCard({ post, onComment }: SocialFeedCardProps) {
         </button>
 
         {/* Share button */}
-        <button className="flex flex-col items-center gap-1 p-3 rounded-full hover:bg-white/10 transition-colors">
-          <Share2 className="w-6 h-6" />
-        </button>
+        <SocialShareButton item={post} />
       </div>
 
       {/* Bottom content */}
@@ -182,9 +167,11 @@ function SocialFeedCard({ post, onComment }: SocialFeedCardProps) {
             </p>
             <p className="text-xs text-gray-300">Creator</p>
           </div>
-          <button className="ml-auto px-4 py-1.5 bg-white text-black rounded-full text-xs font-semibold hover:bg-gray-200 transition-colors">
-            Follow
-          </button>
+          <SubscribeButton 
+            creator_id={post.creator_wallet}
+            creator_wallet={post.creator_wallet}
+            className="ml-auto"
+          />
         </div>
 
         {/* Title and description */}
