@@ -1,5 +1,101 @@
 export type RebootCatalogItemType = "drop" | "product" | "release";
 
+export type RebootUserType = "guest_collector" | "creator" | "admin" | "external_guest";
+export type RebootCreatorContentType = "digital_product" | "physical_product";
+export type RebootCampaignMode = "drop" | "auction" | "bid_campaign";
+
+export const REBOOT_USER_FLOW = [
+  {
+    id: "guest_collector",
+    title: "Guest Collector",
+    summary: "Buy without forced KYC using wallet connect or social connect.",
+    route: "/discover",
+    capabilities: [
+      "Collect digital products onchain",
+      "Checkout physical products via partner flow",
+      "Gift and share products externally",
+    ],
+  },
+  {
+    id: "creator",
+    title: "Creator",
+    summary: "Admin-whitelisted creator path for digital and physical launches.",
+    route: "/studio",
+    capabilities: [
+      "Publish digital products and physical products",
+      "Launch drop, auction, and bid campaign forms",
+      "Upload portfolio and mint tokenized creator card",
+    ],
+  },
+  {
+    id: "admin",
+    title: "Admin",
+    summary: "Control creator approvals, role guardrails, and platform controls.",
+    route: "/admin",
+    capabilities: [
+      "Creator whitelist and moderation",
+      "Campaign safety and feature control",
+      "Platform health and operations tooling",
+    ],
+  },
+  {
+    id: "external_guest",
+    title: "External Guest",
+    summary: "Collect from embeddable cards outside POPUP.",
+    route: "/share/drop/sample",
+    capabilities: [
+      "Open product cards from external channels",
+      "Run checkout from share-compatible cards",
+      "Complete digital purchase from outside the app",
+    ],
+  },
+] as const satisfies ReadonlyArray<{
+  id: RebootUserType;
+  title: string;
+  summary: string;
+  route: string;
+  capabilities: readonly string[];
+}>;
+
+export const REBOOT_CREATOR_CONTENT_TYPES = [
+  {
+    id: "digital_product",
+    title: "Digital Product",
+    description: "Art, ebooks, and downloadable files.",
+  },
+  {
+    id: "physical_product",
+    title: "Physical Product",
+    description: "Merch and shipped deliverables linked to creator campaigns.",
+  },
+] as const satisfies ReadonlyArray<{
+  id: RebootCreatorContentType;
+  title: string;
+  description: string;
+}>;
+
+export const REBOOT_CAMPAIGN_MODES = [
+  {
+    id: "drop",
+    title: "Drop",
+    description: "Instant buy via onchain collect or partner checkout.",
+  },
+  {
+    id: "auction",
+    title: "Auction",
+    description: "Onchain bidding with timed winner settlement.",
+  },
+  {
+    id: "bid_campaign",
+    title: "Bid Campaign",
+    description: "Collectors bid using ETH or content submission.",
+  },
+] as const satisfies ReadonlyArray<{
+  id: RebootCampaignMode;
+  title: string;
+  description: string;
+}>;
+
 export type RebootCatalogItem = {
   id: string;
   item_type: RebootCatalogItemType;

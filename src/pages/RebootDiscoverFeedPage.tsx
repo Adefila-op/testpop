@@ -31,13 +31,15 @@ export default function RebootDiscoverFeedPage() {
   const [items, setItems] = useState<RebootCatalogItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyActionId, setBusyActionId] = useState<string | null>(null);
+  const [openCommentId, setOpenCommentId] = useState<string | null>(null);
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
 
   useEffect(() => {
     let active = true;
 
     async function load() {
       try {
-        const loaded = await fetchRebootCatalog(24);
+        const loaded = await fetchRebootCatalog(28);
         if (!active) return;
         setItems(loaded);
       } catch (error) {
@@ -87,15 +89,37 @@ export default function RebootDiscoverFeedPage() {
       toast.success("Share link copied.");
     } catch {
       const fallbackUrl = `${window.location.origin}${buildRebootShareUrl(item)}`;
-      await navigator.clipboard.writeText(fallbackUrl);
+      try {
+        await navigator.clipboard.writeText(fallbackUrl);
+      } catch {
+        // Ignore clipboard fallback failures.
+      }
       toast.success("Copied fallback share link.");
     } finally {
       setBusyActionId(null);
     }
   }
 
-  function handleComment(item: RebootCatalogItem) {
-    navigate(`${buildRebootShareUrl(item, "details")}#comments`);
+  function toggleComment(item: RebootCatalogItem) {
+    setOpenCommentId((current) => (current === item.id ? null : item.id));
+  }
+
+  function submitComment(item: RebootCatalogItem) {
+    const body = String(drafts[item.id] || "").trim();
+    if (!body) {
+      toast.error("Write a comment first.");
+      return;
+    }
+
+    toast.success("Comment draft captured. Opening thread view.");
+    navigate(`${buildRebootShareUrl(item, "details")}#comments`, {
+      state: {
+        from: "discover-reboot",
+        draftComment: body,
+      },
+    });
+    setDrafts((current) => ({ ...current, [item.id]: "" }));
+    setOpenCommentId(null);
   }
 
   if (loading) {
@@ -110,21 +134,21 @@ export default function RebootDiscoverFeedPage() {
     <div className="mx-auto w-full max-w-2xl space-y-6 px-3 py-6 md:px-0">
       <section className="rounded-[24px] border border-slate-200 bg-white px-5 py-5 shadow-sm">
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Discover</p>
-        <h1 className="mt-1 text-2xl font-bold text-slate-950">Social Commerce Feed</h1>
+        <h1 className="mt-1 text-2xl font-bold text-slate-950">Instagram-Style Product Feed</h1>
         <p className="mt-2 text-sm text-slate-600">
-          Digital and collectible projects appear as social cards. Every post supports exactly three actions:
-          comment, buy, and share.
+          Scroll creator posts like social media. Every card keeps only three actions: comment, buy, and share.
         </p>
       </section>
 
       {posts.length === 0 ? (
         <div className="rounded-[24px] border border-dashed border-slate-300 bg-white px-6 py-10 text-center text-sm text-slate-600">
-          No posts yet. Publish a creator project to populate the discover feed.
+          No posts yet. Publish a creator campaign to populate this feed.
         </div>
       ) : (
         posts.map((item) => {
           const image = resolveMediaUrl(item.image_url || "");
           const busy = busyActionId === item.id;
+          const commentsOpen = openCommentId === item.id;
 
           return (
             <article key={item.id} className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm">
@@ -132,7 +156,7 @@ export default function RebootDiscoverFeedPage() {
                 <div>
                   <p className="text-sm font-semibold text-slate-900">{getCreatorLabel(item)}</p>
                   <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
-                    {item.item_type} · {formatCreatedAt(item.created_at)}
+                    {item.item_type} | {formatCreatedAt(item.created_at)}
                   </p>
                 </div>
                 <span className="rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold text-white">
@@ -142,22 +166,20 @@ export default function RebootDiscoverFeedPage() {
 
               <div className="bg-slate-900">
                 {image ? (
-                  <img src={image} alt={item.title} className="h-[420px] w-full object-cover" />
+                  <img src={image} alt={item.title} className="aspect-[4/5] w-full object-cover" />
                 ) : (
-                  <div className="flex h-[320px] items-center justify-center text-sm text-white/65">No media preview</div>
+                  <div className="flex aspect-[4/5] items-center justify-center text-sm text-white/65">No media preview</div>
                 )}
               </div>
 
               <div className="space-y-3 px-4 py-4">
                 <h2 className="text-xl font-bold text-slate-950">{item.title}</h2>
-                <p className="text-sm leading-6 text-slate-700">
-                  {item.description || "Creator post ready for collector action."}
-                </p>
+                <p className="text-sm leading-6 text-slate-700">{item.description || "Creator post ready for collector action."}</p>
 
                 <div className="grid grid-cols-3 gap-2 border-t border-slate-100 pt-3">
                   <button
                     type="button"
-                    onClick={() => handleComment(item)}
+                    onClick={() => toggleComment(item)}
                     className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-slate-200 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
                   >
                     <MessageCircle className="h-4 w-4" />
@@ -182,6 +204,47 @@ export default function RebootDiscoverFeedPage() {
                     Share
                   </button>
                 </div>
+
+                <div className="text-xs text-slate-500">
+                  {item.comment_count || 0} public comments
+                </div>
+
+                {commentsOpen ? (
+                  <div className="space-y-2 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                    <label htmlFor={`comment-${item.id}`} className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                      Add a comment
+                    </label>
+                    <textarea
+                      id={`comment-${item.id}`}
+                      value={drafts[item.id] || ""}
+                      onChange={(event) =>
+                        setDrafts((current) => ({
+                          ...current,
+                          [item.id]: event.target.value,
+                        }))
+                      }
+                      placeholder="Share your collector perspective..."
+                      className="min-h-[88px] w-full rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-800 outline-none transition focus:border-slate-300"
+                    />
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setOpenCommentId(null)}
+                        className="rounded-full border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-slate-900 hover:text-slate-950"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => submitComment(item)}
+                        className="inline-flex items-center gap-1.5 rounded-full bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-800"
+                      >
+                        <Send className="h-3.5 w-3.5" />
+                        Post
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
               </div>
             </article>
           );

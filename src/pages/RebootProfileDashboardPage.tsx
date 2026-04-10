@@ -1,10 +1,23 @@
 import type { ComponentType } from "react";
-import { Boxes, Compass, LayoutDashboard, Package, ShoppingCart, Shield, Sparkles, Ticket, Truck, Wallet } from "lucide-react";
+import {
+  Boxes,
+  Compass,
+  ExternalLink,
+  LayoutDashboard,
+  Package,
+  Shield,
+  Sparkles,
+  Ticket,
+  Truck,
+  UserRoundSearch,
+  Wallet,
+} from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAccount } from "wagmi";
 import { useWallet } from "@/hooks/useContracts";
 import { useCartStore } from "@/stores/cartStore";
 import { useCollectionStore } from "@/stores/collectionStore";
+import { REBOOT_USER_FLOW } from "@/lib/rebootPlatform";
 
 type DashboardModule = {
   id: string;
@@ -38,7 +51,7 @@ export default function RebootProfileDashboardPage() {
     {
       id: "collection",
       title: "Collection",
-      desc: "View all collected digital assets and delivery entitlements.",
+      desc: "View collected digital assets and delivery entitlements.",
       href: "/collection",
       icon: Boxes,
       metric: `${ownerCollectionCount} items`,
@@ -53,46 +66,60 @@ export default function RebootProfileDashboardPage() {
     {
       id: "subscriptions",
       title: "Subscriptions",
-      desc: "See creator memberships and active supporter relationships.",
+      desc: "See creator memberships and supporter relationships.",
       href: "/subscriptions",
       icon: Sparkles,
     },
     {
       id: "cart",
       title: "Cart",
-      desc: "Review checkout-ready products for onchain purchase.",
+      desc: "Review checkout-ready products for onchain or partner purchase.",
       href: "/cart",
-      icon: ShoppingCart,
+      icon: Package,
       metric: `${cartCount} in cart`,
     },
     {
       id: "orders",
       title: "Orders",
-      desc: "Track fulfillment, shipping, and delivery state.",
+      desc: "Track fulfillment, shipping, and delivery states.",
       href: "/orders",
       icon: Truck,
     },
   ];
 
-  const creatorModules: DashboardModule[] = [
+  const creatorAdminModules: DashboardModule[] = [
     {
       id: "creator-dashboard",
       title: "Creator Dashboard",
-      desc: "View performance analytics, campaign metrics, and conversion trends.",
+      desc: "View campaign metrics, conversion trends, and collector activity.",
       href: "/creator/analytics",
       icon: LayoutDashboard,
     },
     {
+      id: "portfolio",
+      title: "Portfolio Showcase",
+      desc: "Upload and curate creator showcase content.",
+      href: "/studio?tab=portfolio",
+      icon: UserRoundSearch,
+    },
+    {
+      id: "creator-card",
+      title: "Tokenized Creator Card",
+      desc: "Launch a limited tradeable creator card onchain.",
+      href: "/studio?tab=creator-card",
+      icon: Sparkles,
+    },
+    {
       id: "studio",
-      title: "Creator Studio",
-      desc: "Launch drops, auctions, and bid campaigns for digital or physical products.",
+      title: "Campaign Studio",
+      desc: "Launch drop, auction, and bid campaign forms.",
       href: "/studio",
       icon: Package,
     },
     {
       id: "admin",
-      title: "Admin Control",
-      desc: "Manage whitelist, creator approvals, and platform controls.",
+      title: "Admin Controls",
+      desc: "Manage creator whitelist, approvals, and platform guardrails.",
       href: "/admin",
       icon: Shield,
     },
@@ -100,11 +127,11 @@ export default function RebootProfileDashboardPage() {
 
   return (
     <div className="space-y-6 px-4 py-6 md:px-2">
-      <section className="rounded-[26px] border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-sky-50 px-5 py-6">
+      <section className="rounded-[26px] border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-cyan-50 px-5 py-6">
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Profile Hub</p>
-        <h1 className="mt-2 text-3xl font-bold text-slate-950">Collector + Creator Dashboard</h1>
+        <h1 className="mt-2 text-3xl font-bold text-slate-950">Collector + Creator Operating Dashboard</h1>
         <p className="mt-2 text-sm text-slate-600">
-          One control center for collection, POAP, subscriptions, cart, orders, and creator operations.
+          One control center for collection, POAP, subscriptions, cart, order tracking, creator operations, and admin access.
         </p>
         <div className="mt-4 flex flex-wrap items-center gap-3">
           <span className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold text-white">
@@ -133,6 +160,30 @@ export default function RebootProfileDashboardPage() {
       </section>
 
       <section className="space-y-3">
+        <h2 className="text-lg font-semibold text-slate-900">Role Flows</h2>
+        <div className="grid gap-3 md:grid-cols-2">
+          {REBOOT_USER_FLOW.map((flow) => (
+            <article key={flow.id} className="rounded-[20px] border border-slate-200 bg-white p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-base font-semibold text-slate-950">{flow.title}</h3>
+                  <p className="mt-1 text-sm text-slate-600">{flow.summary}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => navigate(flow.route)}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-300 text-slate-700 transition hover:border-slate-900 hover:text-slate-950"
+                  aria-label={`Open ${flow.title}`}
+                >
+                  <ExternalLink className="h-4 w-4" />
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="space-y-3">
         <h2 className="text-lg font-semibold text-slate-900">Collector Modules</h2>
         <div className="grid gap-3 md:grid-cols-2">
           {collectorModules.map((module) => (
@@ -146,7 +197,7 @@ export default function RebootProfileDashboardPage() {
                   <module.icon className="h-5 w-5" />
                 </div>
                 {module.metric ? (
-                  <span className="rounded-full bg-sky-100 px-2.5 py-1 text-xs font-semibold text-sky-900">
+                  <span className="rounded-full bg-cyan-100 px-2.5 py-1 text-xs font-semibold text-cyan-900">
                     {module.metric}
                   </span>
                 ) : null}
@@ -160,8 +211,8 @@ export default function RebootProfileDashboardPage() {
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold text-slate-900">Creator + Admin Modules</h2>
-        <div className="grid gap-3 md:grid-cols-3">
-          {creatorModules.map((module) => (
+        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+          {creatorAdminModules.map((module) => (
             <Link
               key={module.id}
               to={module.href}
