@@ -1,518 +1,291 @@
-import { useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { Loader2, ArrowLeft, CheckCircle } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { useAccount } from "wagmi";
-import { useCartStore } from "@/stores/cartStore";
-import { formatEther } from "viem";
+import { useEffect, useState } from "react";
+import { ArrowLeft, CheckCircle, Loader2 } from "lucide-react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
-import { createOrder as dbCreateOrder } from "@/lib/db";
-import { buyOnchainProduct, getOnchainProduct } from "@/lib/productStoreChain";
-import { buyOnchainCreativeRelease, getOnchainCreativeRelease } from "@/lib/creativeReleaseEscrowChain";
+import { useGuestCollector } from "@/hooks/useGuestCollector";
 import {
-  CHECKOUT_COUNTRIES,
-  detectCheckoutCountry,
-  formatCheckoutPhone,
-  getCheckoutCountryMeta,
-  type CheckoutCountry,
-} from "@/lib/checkout";
+  addFreshCartItem,
+  checkoutFresh,
+  fetchFreshCart,
+  removeFreshCartItem,
+  updateFreshCartItem,
+  type FreshCart,
+} from "@/lib/freshApi";
+
+function formatEth(value: number) {
+  return `${Number(value || 0).toFixed(3)} ETH`;
+}
 
 export function CheckoutPage() {
   const navigate = useNavigate();
-  const { address } = useAccount();
-  const { items, getTotalPrice, clearCart, removeItems } = useCartStore();
+  const [searchParams] = useSearchParams();
+  const collectorId = useGuestCollector();
 
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
-  const [shippingAddress, setShippingAddress] = useState("");
-  const [city, setCity] = useState("");
-  const [postalCode, setPostalCode] = useState("");
-  const [country, setCountry] = useState<CheckoutCountry>(detectCheckoutCountry());
-  const [notes, setNotes] = useState("");
-  const [isGift, setIsGift] = useState(false);
-  const [giftRecipientWallet, setGiftRecipientWallet] = useState("");
-  const [giftNote, setGiftNote] = useState("");
-  const [orderPlaced, setOrderPlaced] = useState(false);
+  const productFromQuery = String(searchParams.get("product") || "").trim();
+  const giftFromQuery = searchParams.get("gift") === "1";
+
+  const [cart, setCart] = useState<FreshCart | null>(null);
+  const [loading, setLoading] = useState(true);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
-  const [checkoutProgress, setCheckoutProgress] = useState("");
-  const checkoutInFlightRef = useRef(false);
-  const countryMeta = getCheckoutCountryMeta(country);
+  const [paymentMethod, setPaymentMethod] = useState<"onchain" | "offramp_partner">("offramp_partner");
+  const [isGift, setIsGift] = useState(giftFromQuery);
+  const [recipientLabel, setRecipientLabel] = useState("");
+  const [completed, setCompleted] = useState<{
+    orderId: string;
+    paymentMethod: string;
+    giftUrl: string | null;
+  } | null>(null);
 
-  if (items.length === 0 && !orderPlaced) {
+  useEffect(() => {
+    setIsGift(giftFromQuery);
+  }, [giftFromQuery]);
+
+  useEffect(() => {
+    let active = true;
+
+    async function bootstrap() {
+      try {
+        setLoading(true);
+        if (productFromQuery) {
+          await addFreshCartItem(collectorId, productFromQuery, 1);
+          navigate(giftFromQuery ? "/checkout?gift=1" : "/checkout", { replace: true });
+          return;
+        }
+        const payload = await fetchFreshCart(collectorId);
+        if (!active) return;
+        setCart(payload);
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Failed to load checkout cart.");
+      } finally {
+        if (active) setLoading(false);
+      }
+    }
+
+    void bootstrap();
+    return () => {
+      active = false;
+    };
+  }, [collectorId, giftFromQuery, navigate, productFromQuery]);
+
+  async function refreshCart() {
+    const payload = await fetchFreshCart(collectorId);
+    setCart(payload);
+  }
+
+  async function changeQuantity(productId: string, quantity: number) {
+    try {
+      const payload = await updateFreshCartItem(collectorId, productId, quantity);
+      setCart(payload);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to update quantity.");
+    }
+  }
+
+  async function removeItem(productId: string) {
+    try {
+      const payload = await removeFreshCartItem(collectorId, productId);
+      setCart(payload);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to remove item.");
+    }
+  }
+
+  async function handleCheckout() {
+    if (!cart || cart.items.length === 0) {
+      toast.error("Your cart is empty.");
+      return;
+    }
+
+    if (isGift && !recipientLabel.trim()) {
+      toast.error("Enter who should receive the gift.");
+      return;
+    }
+
+    try {
+      setIsCheckingOut(true);
+      const payload = await checkoutFresh({
+        collectorId,
+        paymentMethod,
+        gift: isGift ? { recipient_label: recipientLabel.trim() } : undefined,
+      });
+
+      setCompleted({
+        orderId: payload.order.id,
+        paymentMethod: payload.order.payment_method,
+        giftUrl: payload.gift?.claim_url || null,
+      });
+      await refreshCart();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Checkout failed.");
+    } finally {
+      setIsCheckingOut(false);
+    }
+  }
+
+  if (loading) {
     return (
-      <div className="container mx-auto px-4 py-12">
-        <Card>
-          <CardContent className="pt-12 pb-12 text-center">
-            <p className="text-muted-foreground mb-4">Your cart is empty</p>
-            <Button onClick={() => navigate("/drops")}>Browse Drops</Button>
-          </CardContent>
-        </Card>
+      <div className="flex min-h-[50vh] items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-slate-500" />
       </div>
     );
   }
 
-  const totalPrice = getTotalPrice();
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (checkoutInFlightRef.current) {
-      return;
-    }
-
-    if (!email || !phone || !shippingAddress || !city || !postalCode || !country) {
-      toast.error("Please fill in all shipping details");
-      return;
-    }
-
-    if (!address) {
-      toast.error("Connect your wallet to place the order");
-      return;
-    }
-
-    const normalizedGiftRecipient = giftRecipientWallet.trim().toLowerCase();
-    const isValidGiftWallet = /^0x[a-fA-F0-9]{40}$/.test(giftRecipientWallet.trim());
-    if (isGift && !isValidGiftWallet) {
-      toast.error("Enter a valid recipient wallet address.");
-      return;
-    }
-    if (isGift && normalizedGiftRecipient === address.toLowerCase()) {
-      toast.error("Recipient wallet must be different from your connected wallet.");
-      return;
-    }
-
-    const completedPurchases: Array<{ productId: string; name: string; txHash: `0x${string}` }> = [];
-
-    try {
-      checkoutInFlightRef.current = true;
-      setIsCheckingOut(true);
-      const formattedPhone = formatCheckoutPhone(country, phone);
-
-      for (const item of items) {
-        setCheckoutProgress(`Purchasing ${item.name} onchain...`);
-        const orderMetadata = JSON.stringify({
-          email,
-          phone: formattedPhone,
-          dial_code: countryMeta.dialCode,
-          street: shippingAddress,
-          city,
-          postal_code: postalCode,
-          country,
-          notes,
-          db_product_id: item.productId,
-          creative_release_id: item.creativeReleaseId,
-          contract_kind: item.contractKind,
-          contract_listing_id: item.contractListingId,
-          contract_product_id: item.contractProductId,
-          quantity: item.quantity,
-          gift: isGift
-            ? {
-                recipient_wallet: normalizedGiftRecipient,
-                note: giftNote.trim() || null,
-              }
-            : null,
-        });
-
-        let purchase: {
-          hash: `0x${string}`;
-          contractOrderId: number | null;
-        };
-
-        if (item.contractKind === "creativeReleaseEscrow") {
-          if (item.contractListingId === null || item.contractListingId === undefined) {
-            throw new Error(`"${item.name}" is not linked to the creative release escrow yet.`);
-          }
-
-          const onchainRelease = await getOnchainCreativeRelease(item.contractListingId);
-          if (!onchainRelease.active) {
-            throw new Error(`"${item.name}" is no longer active onchain.`);
-          }
-
-          const remaining = onchainRelease.supply - onchainRelease.sold;
-          if (remaining <= 0n) {
-            throw new Error(`"${item.name}" is sold out onchain. Remove it from your cart and try again.`);
-          }
-
-          if (BigInt(item.quantity) > remaining) {
-            throw new Error(
-              `Only ${remaining.toString()} "${item.name}" left onchain. Reduce the quantity in your cart and try again.`,
-            );
-          }
-
-          if (BigInt(item.price) !== onchainRelease.unitPrice) {
-            throw new Error(`"${item.name}" changed price onchain. Refresh the cart and review the new total before retrying.`);
-          }
-
-          purchase = await buyOnchainCreativeRelease({
-            listingId: item.contractListingId,
-            quantity: item.quantity,
-            unitPriceWei: onchainRelease.unitPrice,
-            orderMetadata,
-            account: address as `0x${string}`,
-          });
-        } else {
-          if (!item.contractProductId || item.contractProductId < 1) {
-            throw new Error(`"${item.name}" is not linked to the onchain product store yet.`);
-          }
-
-          const onchainProduct = await getOnchainProduct(item.contractProductId);
-          if (!onchainProduct.active) {
-            throw new Error(`"${item.name}" is no longer active onchain.`);
-          }
-
-          if (onchainProduct.stock > 0n) {
-            const remaining = onchainProduct.stock - onchainProduct.sold;
-            if (remaining <= 0n) {
-              throw new Error(`"${item.name}" is sold out onchain. Remove it from your cart and try again.`);
-            }
-
-            if (BigInt(item.quantity) > remaining) {
-              throw new Error(
-                `Only ${remaining.toString()} "${item.name}" left onchain. Reduce the quantity in your cart and try again.`,
-              );
-            }
-          }
-
-          if (BigInt(item.price) !== onchainProduct.price) {
-            throw new Error(`"${item.name}" changed price onchain. Refresh the cart and review the new total before retrying.`);
-          }
-
-          purchase = await buyOnchainProduct({
-            contractProductId: item.contractProductId,
-            quantity: item.quantity,
-            unitPriceWei: onchainProduct.price,
-            orderMetadata,
-            account: address as `0x${string}`,
-          });
-        }
-
-        completedPurchases.push({ productId: item.productId, name: item.name, txHash: purchase.hash });
-
-        setCheckoutProgress(`Recording ${item.name} order...`);
-        try {
-          await dbCreateOrder({
-            buyer_wallet: address.toLowerCase(),
-            product_id: item.productId,
-            creative_release_id: item.creativeReleaseId ?? null,
-            contract_kind: item.contractKind ?? "productStore",
-            contract_order_id: purchase.contractOrderId,
-            quantity: item.quantity,
-            tx_hash: purchase.hash,
-            items: [{
-              product_id: item.productId,
-              quantity: item.quantity,
-            }],
-            shipping_address_jsonb: {
-              email,
-              phone: formattedPhone,
-              dial_code: countryMeta.dialCode,
-              street: shippingAddress,
-              city,
-              postal_code: postalCode,
-              country,
-              notes,
-              ...(isGift
-                ? {
-                    gift_recipient_wallet: normalizedGiftRecipient,
-                    gift_note: giftNote.trim() || null,
-                    gift_status: "pending",
-                    gift_sender_wallet: address.toLowerCase(),
-                  }
-                : {}),
-            },
-          });
-        } catch (recordError) {
-          const message = recordError instanceof Error ? recordError.message : "Unknown error";
-          throw new Error(
-            `Purchase confirmed onchain for "${item.name}" but the order could not be recorded. Tx: ${purchase.hash}. ${message}`
-          );
-        }
-      }
-
-      clearCart();
-      setOrderPlaced(true);
-      setCheckoutProgress("");
-      toast.success("Onchain purchase completed successfully!");
-    } catch (error) {
-      if (error instanceof Error) {
-        console.error("Checkout error:", error);
-      }
-      const errorMessage = error instanceof Error ? error.message : "Checkout failed";
-      if (completedPurchases.length > 0) {
-        removeItems(completedPurchases.map((purchase) => purchase.productId));
-        const remainingCount = items.length - completedPurchases.length;
-        toast.error(
-          remainingCount > 0
-            ? `${completedPurchases.length} item(s) were purchased successfully. The remaining ${remainingCount} item(s) are still in your cart. ${errorMessage}`
-            : errorMessage
-        );
-      } else {
-        toast.error(errorMessage);
-      }
-      setCheckoutProgress("");
-    } finally {
-      checkoutInFlightRef.current = false;
-      setIsCheckingOut(false);
-    }
-  };
-
-  if (orderPlaced) {
+  if (completed) {
     return (
-      <div className="container mx-auto px-4 py-12">
-        <Card className="max-w-md mx-auto">
-          <CardContent className="pt-12 pb-12 text-center space-y-4">
-            <div className="flex justify-center">
-              <CheckCircle className="w-16 h-16 text-green-600" />
-            </div>
-            <h2 className="text-2xl font-bold">Order Confirmed!</h2>
-            <p className="text-muted-foreground">
-              Your order has been placed successfully. You'll receive a confirmation email shortly.
-            </p>
-            <div className="pt-4 space-y-2">
-              <Button
-                onClick={() => navigate("/products")}
-                variant="outline"
-                className="w-full"
+      <div className="mx-auto max-w-xl px-4 py-8">
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 text-center">
+          <CheckCircle className="mx-auto h-14 w-14 text-emerald-600" />
+          <h1 className="mt-3 text-2xl font-bold text-slate-900">Payment Confirmed</h1>
+          <p className="mt-2 text-sm text-slate-600">Order {completed.orderId} completed via {completed.paymentMethod}.</p>
+          {completed.giftUrl ? (
+            <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3 text-left">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Gift claim link</p>
+              <a
+                href={completed.giftUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-1 block break-all text-sm font-medium text-sky-700 underline underline-offset-2"
               >
-                Browse Drops
-              </Button>
-              <Button
-                onClick={() => navigate("/orders")}
-                className="w-full"
-              >
-                View My Orders
-              </Button>
+                {completed.giftUrl}
+              </a>
             </div>
-          </CardContent>
-        </Card>
+          ) : null}
+          <div className="mt-5 flex flex-wrap justify-center gap-2">
+            <button
+              type="button"
+              onClick={() => navigate("/discover")}
+              className="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700"
+            >
+              Continue Discovering
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate("/profile")}
+              className="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
+            >
+              Open Profile
+            </button>
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto px-4 py-12">
-      <Button
-        variant="ghost"
-        onClick={() => navigate("/cart")}
-        className="mb-6 gap-2"
+    <div className="mx-auto max-w-4xl space-y-5 px-4 py-6">
+      <button
+        type="button"
+        onClick={() => navigate("/discover")}
+        className="inline-flex items-center gap-2 rounded-full border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700"
       >
-        <ArrowLeft className="w-4 h-4" />
-        Back to Cart
-      </Button>
+        <ArrowLeft className="h-4 w-4" />
+        Back
+      </button>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Checkout Form */}
-        <div className="lg:col-span-2 space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Shipping Information</CardTitle>
-              <CardDescription>
-                Where should we ship your order?
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <Label htmlFor="email">Email Address *</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="your@email.com"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="phone">Phone Number *</Label>
-                  <div className="flex rounded-md border border-input bg-background shadow-sm focus-within:ring-1 focus-within:ring-ring">
-                    <div className="flex items-center border-r border-input px-3 text-sm text-muted-foreground">
-                      {countryMeta.dialCode}
-                    </div>
-                    <Input
-                      id="phone"
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      placeholder={countryMeta.phonePlaceholder}
-                      className="border-0 shadow-none focus-visible:ring-0"
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <Label htmlFor="address">Street Address *</Label>
-                  <Input
-                    id="address"
-                    value={shippingAddress}
-                    onChange={(e) => setShippingAddress(e.target.value)}
-                    placeholder="123 Main St"
-                    required
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="city">City *</Label>
-                    <Input
-                      id="city"
-                      value={city}
-                      onChange={(e) => setCity(e.target.value)}
-                      placeholder="New York"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="postal">Postal Code *</Label>
-                    <Input
-                      id="postal"
-                      value={postalCode}
-                      onChange={(e) => setPostalCode(e.target.value)}
-                      placeholder="10001"
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <Label htmlFor="country">Country *</Label>
-                  <select
-                    id="country"
-                    value={country}
-                    onChange={(e) => setCountry(e.target.value as CheckoutCountry)}
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
-                    required
-                  >
-                    {CHECKOUT_COUNTRIES.map((option) => (
-                      <option key={option.name} value={option.name}>
-                        {option.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <Label htmlFor="notes">Special Instructions</Label>
-                  <Textarea
-                    id="notes"
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    placeholder="Any special delivery instructions?"
-                    className="resize-none"
-                    rows={3}
-                  />
-                </div>
-
-                <div className="space-y-3 rounded-lg border border-border/70 bg-muted/20 p-4">
-                  <label htmlFor="gift-toggle" className="flex cursor-pointer items-center gap-3">
-                    <input
-                      id="gift-toggle"
-                      type="checkbox"
-                      checked={isGift}
-                      onChange={(event) => setIsGift(event.target.checked)}
-                      className="h-4 w-4 rounded border-input"
-                    />
-                    <span className="text-sm font-medium">Send this checkout as a gift</span>
-                  </label>
-
-                  {isGift ? (
-                    <div className="space-y-3">
-                      <div>
-                        <Label htmlFor="gift-recipient">Recipient Wallet *</Label>
-                        <Input
-                          id="gift-recipient"
-                          value={giftRecipientWallet}
-                          onChange={(event) => setGiftRecipientWallet(event.target.value)}
-                          placeholder="0x..."
-                          required={isGift}
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="gift-note">Gift Note</Label>
-                        <Textarea
-                          id="gift-note"
-                          value={giftNote}
-                          onChange={(event) => setGiftNote(event.target.value)}
-                          placeholder="Optional note shown to the recipient."
-                          className="resize-none"
-                          rows={2}
-                        />
-                      </div>
-                    </div>
-                  ) : null}
-                </div>
-
-                <Button
-                  type="submit"
-                  disabled={isCheckingOut}
-                  className="w-full"
-                  size="lg"
-                >
-                  {isCheckingOut ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                      {checkoutProgress || "Processing..."}
-                    </>
-                  ) : (
-                    "Complete Purchase"
-                  )}
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
+      {!cart || cart.items.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center text-sm text-slate-600">
+          Cart is empty. Add a product from discover.
         </div>
-
-        {/* Order Summary */}
-        <div>
-          <Card className="sticky top-20">
-            <CardHeader>
-              <CardTitle>Order Summary</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-3">
-                {items.map((item) => (
-                  <div key={item.productId} className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">
-                      {item.name} x {item.quantity}
-                    </span>
-                    <span className="font-semibold">
-                      {formatEther(BigInt(item.price) * BigInt(item.quantity))} ETH
-                    </span>
+      ) : (
+        <div className="grid gap-6 lg:grid-cols-[1.25fr_0.9fr]">
+          <section className="rounded-2xl border border-slate-200 bg-white p-4">
+            <h2 className="text-lg font-bold text-slate-900">Checkout Cart</h2>
+            <div className="mt-4 space-y-3">
+              {cart.items.map((item) => (
+                <article key={item.product_id} className="rounded-xl border border-slate-200 p-3">
+                  <div className="flex items-start gap-3">
+                    <img src={item.image_url} alt={item.title} className="h-16 w-16 rounded-lg object-cover" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-slate-900">{item.title}</p>
+                      <p className="text-xs text-slate-500">{item.creator_name}</p>
+                      <p className="text-xs text-slate-500">{item.product_type}</p>
+                    </div>
+                    <p className="text-sm font-semibold text-slate-900">{formatEth(item.line_total_eth)}</p>
                   </div>
-                ))}
-              </div>
+                  <div className="mt-3 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void changeQuantity(item.product_id, Math.max(1, item.quantity - 1))}
+                      className="h-7 w-7 rounded-full border border-slate-300 text-sm font-bold text-slate-700"
+                    >
+                      -
+                    </button>
+                    <span className="min-w-8 text-center text-sm font-semibold text-slate-700">{item.quantity}</span>
+                    <button
+                      type="button"
+                      onClick={() => void changeQuantity(item.product_id, item.quantity + 1)}
+                      className="h-7 w-7 rounded-full border border-slate-300 text-sm font-bold text-slate-700"
+                    >
+                      +
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void removeItem(item.product_id)}
+                      className="ml-auto text-xs font-semibold uppercase tracking-[0.14em] text-rose-600"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
 
-              <div className="border-t pt-4 space-y-3">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Subtotal:</span>
-                  <span className="font-semibold">{formatEther(totalPrice)} ETH</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Estimated wallet gas:</span>
-                  <span className="font-semibold">Paid separately</span>
-                </div>
-              </div>
+          <section className="rounded-2xl border border-slate-200 bg-white p-4">
+            <h2 className="text-lg font-bold text-slate-900">Payment</h2>
+            <div className="mt-3 space-y-2">
+              <label className="flex items-center gap-2 rounded-xl border border-slate-200 p-2">
+                <input
+                  type="radio"
+                  checked={paymentMethod === "onchain"}
+                  onChange={() => setPaymentMethod("onchain")}
+                />
+                <span className="text-sm font-medium text-slate-700">Onchain wallet payment</span>
+              </label>
+              <label className="flex items-center gap-2 rounded-xl border border-slate-200 p-2">
+                <input
+                  type="radio"
+                  checked={paymentMethod === "offramp_partner"}
+                  onChange={() => setPaymentMethod("offramp_partner")}
+                />
+                <span className="text-sm font-medium text-slate-700">Off-ramp partner payment</span>
+              </label>
+            </div>
 
-              <div className="border-t pt-4 flex justify-between">
-                <span className="font-bold">Items total:</span>
-                <span className="text-lg font-bold">{formatEther(totalPrice)} ETH</span>
-              </div>
+            <div className="mt-4 space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={isGift} onChange={(event) => setIsGift(event.target.checked)} />
+                <span className="text-sm font-medium text-slate-700">Pay as a gift for another collector</span>
+              </label>
+              {isGift ? (
+                <input
+                  value={recipientLabel}
+                  onChange={(event) => setRecipientLabel(event.target.value)}
+                  placeholder="Recipient name, handle, or wallet label"
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800"
+                />
+              ) : null}
+            </div>
 
-              <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded p-3 text-sm">
-                <p className="font-semibold mb-1">Powered by Base Sepolia</p>
-                <p className="text-muted-foreground">
-                  Checkout submits an onchain purchase for each product in your cart, records the matching tx hash in your order history, and asks your wallet to confirm gas separately.
-                </p>
+            <div className="mt-4 rounded-xl border border-slate-200 p-3">
+              <div className="flex items-center justify-between text-sm text-slate-600">
+                <span>Total</span>
+                <span className="text-lg font-bold text-slate-900">{formatEth(cart.total_eth)}</span>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => void handleCheckout()}
+              disabled={isCheckingOut}
+              className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-70"
+            >
+              {isCheckingOut ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              Buy now
+            </button>
+          </section>
         </div>
-      </div>
+      )}
     </div>
   );
 }

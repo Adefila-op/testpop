@@ -1,19 +1,22 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Loader2, MessageCircle, Send, ShoppingBag } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { useWallet } from "@/hooks/useContracts";
-import { createItemFeedbackThread } from "@/lib/db";
-import { resolveMediaUrl } from "@/lib/pinata";
-import { establishSecureSession } from "@/lib/secureAuth";
+import { useGuestCollector } from "@/hooks/useGuestCollector";
 import {
-  buildRebootShareUrl,
-  createRebootShare,
-  fetchRebootCatalog,
-  resolveRebootBuyIntent,
-  type RebootCatalogItem,
-} from "@/lib/rebootPlatform";
-import { formatPrice } from "@/utils/catalogUtils";
+  addFreshCartItem,
+  createFreshShare,
+  fetchFreshComments,
+  fetchFreshDiscover,
+  postFreshComment,
+  toggleFreshLike,
+  type FreshComment,
+  type FreshFeedItem,
+} from "@/lib/freshApi";
+
+function formatPrice(value: number) {
+  return `${Number(value || 0).toFixed(3)} ETH`;
+}
 
 function formatCreatedAt(value?: string) {
   if (!value) return "Just now";
@@ -22,30 +25,25 @@ function formatCreatedAt(value?: string) {
   return parsed.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-function getCreatorLabel(item: RebootCatalogItem) {
-  const wallet = String(item.creator_wallet || "").trim();
-  if (!wallet) return "creator";
-  if (wallet.length <= 12) return wallet;
-  return `${wallet.slice(0, 8)}...${wallet.slice(-4)}`;
-}
-
 export default function RebootDiscoverFeedPage() {
   const navigate = useNavigate();
-  const { address, isConnected, connectWallet } = useWallet();
-  const [items, setItems] = useState<RebootCatalogItem[]>([]);
+  const collectorId = useGuestCollector();
+  const [posts, setPosts] = useState<FreshFeedItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [busyActionId, setBusyActionId] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
   const [openCommentId, setOpenCommentId] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [commentsByPost, setCommentsByPost] = useState<Record<string, FreshComment[]>>({});
+  const lastTapRef = useRef<Record<string, number>>({});
 
   useEffect(() => {
     let active = true;
 
     async function load() {
       try {
-        const loaded = await fetchRebootCatalog(28);
+        const payload = await fetchFreshDiscover(collectorId);
         if (!active) return;
-        setItems(loaded);
+        setPosts(payload.feed || []);
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "Failed to load discover feed.");
       } finally {
@@ -57,103 +55,108 @@ export default function RebootDiscoverFeedPage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [collectorId]);
 
-  const posts = useMemo(() => items.filter((item) => Boolean(item.id && item.item_type)), [items]);
-
-  async function handleBuy(item: RebootCatalogItem) {
+  async function handleBuy(post: FreshFeedItem) {
     try {
-      setBusyActionId(item.id);
-      const intent = await resolveRebootBuyIntent(item);
-      navigate(buildRebootShareUrl(item, intent), { state: { from: "discover-reboot" } });
+      setBusyId(post.id);
+      await addFreshCartItem(collectorId, post.product_id, 1);
+      navigate("/checkout");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Unable to open buy flow.");
     } finally {
-      setBusyActionId(null);
+      setBusyId(null);
     }
   }
 
-  async function handleShare(item: RebootCatalogItem) {
+  async function handleLike(post: FreshFeedItem) {
     try {
-      setBusyActionId(item.id);
-      const payload = await createRebootShare(item, "copy");
-      const shareUrl = payload.share_url || `${window.location.origin}${buildRebootShareUrl(item)}`;
-      const shareText = payload.share_message || `${item.title} on POPUP`;
+      const next = await toggleFreshLike(post.post_id, collectorId);
+      setPosts((current) =>
+        current.map((entry) =>
+          entry.post_id === post.post_id
+            ? {
+                ...entry,
+                liked: next.liked,
+                like_count: next.like_count,
+              }
+            : entry,
+        ),
+      );
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to like this post.");
+    }
+  }
 
+  async function handleShare(post: FreshFeedItem) {
+    try {
+      setBusyId(post.id);
+      const payload = await createFreshShare(post.post_id);
       if (navigator.share) {
         await navigator.share({
-          title: item.title,
-          text: shareText,
-          url: shareUrl,
+          title: post.title,
+          text: payload.share_message,
+          url: payload.share_url,
         });
-        return;
+      } else {
+        await navigator.clipboard.writeText(payload.share_url);
+        toast.success("Share card link copied. Paste into Twitter or Telegram.");
       }
-
-      await navigator.clipboard.writeText(shareUrl);
-      toast.success("Share link copied.");
-    } catch {
-      const fallbackUrl = `${window.location.origin}${buildRebootShareUrl(item)}`;
-      try {
-        await navigator.clipboard.writeText(fallbackUrl);
-      } catch {
-        // Ignore clipboard fallback failures.
-      }
-      toast.success("Copied fallback share link.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Share failed.");
     } finally {
-      setBusyActionId(null);
+      setBusyId(null);
     }
   }
 
-  function toggleComment(item: RebootCatalogItem) {
-    setOpenCommentId((current) => (current === item.id ? null : item.id));
+  async function toggleComment(post: FreshFeedItem) {
+    const isClosing = openCommentId === post.id;
+    setOpenCommentId(isClosing ? null : post.id);
+    if (isClosing || commentsByPost[post.post_id]) return;
+    try {
+      const payload = await fetchFreshComments(post.post_id);
+      setCommentsByPost((current) => ({ ...current, [post.post_id]: payload.comments || [] }));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to load comments.");
+    }
   }
 
-  async function submitComment(item: RebootCatalogItem) {
-    const body = String(drafts[item.id] || "").trim();
+  async function submitComment(post: FreshFeedItem) {
+    const body = String(drafts[post.id] || "").trim();
     if (!body) {
       toast.error("Write a comment first.");
       return;
     }
 
-    if (!isConnected || !address) {
-      try {
-        await connectWallet();
-        toast.info("Connect your wallet, then post your comment.");
-      } catch {
-        toast.error("Wallet connection is required to post comments.");
-      }
-      return;
-    }
-
     try {
-      setBusyActionId(item.id);
-      await establishSecureSession(address);
-      await createItemFeedbackThread({
-        itemType: item.item_type,
-        itemId: item.id,
-        feedbackType: "review",
-        visibility: "public",
-        body,
-      });
-
-      setItems((current) =>
+      setBusyId(post.id);
+      const payload = await postFreshComment(post.post_id, collectorId, body);
+      setDrafts((current) => ({ ...current, [post.id]: "" }));
+      setCommentsByPost((current) => ({
+        ...current,
+        [post.post_id]: [...(current[post.post_id] || []), payload.comment],
+      }));
+      setPosts((current) =>
         current.map((entry) =>
-          entry.id === item.id
-            ? {
-                ...entry,
-                comment_count: Number(entry.comment_count || 0) + 1,
-              }
-            : entry
-        )
+          entry.post_id === post.post_id
+            ? { ...entry, comment_count: Number(entry.comment_count || 0) + 1 }
+            : entry,
+        ),
       );
-      setDrafts((current) => ({ ...current, [item.id]: "" }));
-      setOpenCommentId(null);
-      toast.success("Comment posted to the public thread.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to post comment.");
     } finally {
-      setBusyActionId(null);
+      setBusyId(null);
     }
+  }
+
+  function handleTouchTap(post: FreshFeedItem) {
+    const now = Date.now();
+    const last = lastTapRef.current[post.post_id] || 0;
+    if (now - last < 280) {
+      void handleLike(post);
+    }
+    lastTapRef.current[post.post_id] = now;
   }
 
   if (loading) {
@@ -166,54 +169,55 @@ export default function RebootDiscoverFeedPage() {
 
   return (
     <div className="mx-auto w-full max-w-2xl space-y-6 px-3 py-6 md:px-0">
-      <section className="rounded-[24px] border border-slate-200 bg-white px-5 py-5 shadow-sm">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Discover</p>
-        <h1 className="mt-1 text-2xl font-bold text-slate-950">Instagram-Style Product Feed</h1>
-        <p className="mt-2 text-sm text-slate-600">
-          Scroll creator posts like social media. Every card keeps only three actions: comment, buy, and share.
-        </p>
-      </section>
-
       {posts.length === 0 ? (
         <div className="rounded-[24px] border border-dashed border-slate-300 bg-white px-6 py-10 text-center text-sm text-slate-600">
-          No posts yet. Publish a creator campaign to populate this feed.
+          No discover posts yet.
         </div>
       ) : (
-        posts.map((item) => {
-          const image = resolveMediaUrl(item.image_url || "");
-          const busy = busyActionId === item.id;
-          const commentsOpen = openCommentId === item.id;
+        posts.map((post) => {
+          const busy = busyId === post.id;
+          const commentsOpen = openCommentId === post.id;
+          const comments = commentsByPost[post.post_id] || [];
 
           return (
-            <article key={item.id} className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm">
+            <article key={post.id} className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm">
               <header className="flex items-center justify-between px-4 py-3">
                 <div>
-                  <p className="text-sm font-semibold text-slate-900">{getCreatorLabel(item)}</p>
+                  <p className="text-sm font-semibold text-slate-900">{post.creator_name}</p>
                   <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
-                    {item.item_type} | {formatCreatedAt(item.created_at)}
+                    {post.product_type} | {formatCreatedAt(post.created_at)}
                   </p>
                 </div>
                 <span className="rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold text-white">
-                  {formatPrice(Number(item.price_eth || 0))}
+                  {formatPrice(Number(post.price_eth || 0))}
                 </span>
               </header>
 
-              <div className="bg-slate-900">
-                {image ? (
-                  <img src={image} alt={item.title} className="aspect-[4/5] w-full object-cover" />
+              <button
+                type="button"
+                onDoubleClick={() => void handleLike(post)}
+                onTouchEnd={() => handleTouchTap(post)}
+                className="block w-full bg-slate-900 text-left"
+              >
+                {post.image_url ? (
+                  <img src={post.image_url} alt={post.title} className="aspect-[4/5] w-full object-cover" />
                 ) : (
                   <div className="flex aspect-[4/5] items-center justify-center text-sm text-white/65">No media preview</div>
                 )}
-              </div>
+              </button>
 
               <div className="space-y-3 px-4 py-4">
-                <h2 className="text-xl font-bold text-slate-950">{item.title}</h2>
-                <p className="text-sm leading-6 text-slate-700">{item.description || "Creator post ready for collector action."}</p>
+                <h2 className="text-xl font-bold text-slate-950">{post.title}</h2>
+                <p className="text-sm leading-6 text-slate-700">{post.description || "Creator post ready for collector action."}</p>
+
+                <div className="text-xs text-slate-500">
+                  {post.like_count || 0} likes | {post.comment_count || 0} comments
+                </div>
 
                 <div className="grid grid-cols-3 gap-2 border-t border-slate-100 pt-3">
                   <button
                     type="button"
-                    onClick={() => toggleComment(item)}
+                    onClick={() => void toggleComment(post)}
                     className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-slate-200 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
                   >
                     <MessageCircle className="h-4 w-4" />
@@ -221,7 +225,7 @@ export default function RebootDiscoverFeedPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => void handleBuy(item)}
+                    onClick={() => void handleBuy(post)}
                     disabled={busy}
                     className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-slate-900 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-70"
                   >
@@ -230,7 +234,7 @@ export default function RebootDiscoverFeedPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => void handleShare(item)}
+                    onClick={() => void handleShare(post)}
                     disabled={busy}
                     className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-slate-200 text-sm font-medium text-slate-700 transition hover:bg-slate-100 disabled:opacity-70"
                   >
@@ -239,22 +243,26 @@ export default function RebootDiscoverFeedPage() {
                   </button>
                 </div>
 
-                <div className="text-xs text-slate-500">
-                  {item.comment_count || 0} public comments
-                </div>
-
                 {commentsOpen ? (
                   <div className="space-y-2 rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                    <label htmlFor={`comment-${item.id}`} className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                      Add a comment
-                    </label>
+                    <div className="max-h-40 space-y-2 overflow-auto rounded-lg bg-white p-2">
+                      {comments.length === 0 ? (
+                        <p className="text-xs text-slate-500">No comments yet.</p>
+                      ) : (
+                        comments.map((comment) => (
+                          <div key={comment.id} className="rounded-lg border border-slate-100 px-2 py-1.5">
+                            <p className="text-[11px] font-semibold text-slate-700">{comment.collector_id}</p>
+                            <p className="text-xs text-slate-600">{comment.body}</p>
+                          </div>
+                        ))
+                      )}
+                    </div>
                     <textarea
-                      id={`comment-${item.id}`}
-                      value={drafts[item.id] || ""}
+                      value={drafts[post.id] || ""}
                       onChange={(event) =>
                         setDrafts((current) => ({
                           ...current,
-                          [item.id]: event.target.value,
+                          [post.id]: event.target.value,
                         }))
                       }
                       placeholder="Share your collector perspective..."
@@ -271,7 +279,7 @@ export default function RebootDiscoverFeedPage() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => void submitComment(item)}
+                        onClick={() => void submitComment(post)}
                         disabled={busy}
                         className="inline-flex items-center gap-1.5 rounded-full bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-800"
                       >

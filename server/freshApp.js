@@ -1,0 +1,854 @@
+import cookieParser from "cookie-parser";
+import cors from "cors";
+import express from "express";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { randomUUID } from "node:crypto";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const DB_PATH = path.resolve(__dirname, "fresh-db.json");
+
+const app = express();
+
+app.use(
+  cors({
+    origin: true,
+    credentials: true,
+    methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Collector-Id"],
+  }),
+);
+app.options("*", cors());
+app.use(express.json({ limit: "2mb" }));
+app.use(cookieParser());
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
+function readDb() {
+  ensureDb();
+  const raw = fs.readFileSync(DB_PATH, "utf8");
+  return JSON.parse(raw);
+}
+
+function writeDb(payload) {
+  fs.writeFileSync(DB_PATH, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
+}
+
+function ensureDb() {
+  if (fs.existsSync(DB_PATH)) return;
+  writeDb(createSeedDb());
+}
+
+function createSeedDb() {
+  const createdAt = nowIso();
+  return {
+    version: 1,
+    creators: [
+      {
+        id: "creator-aurora",
+        name: "Aurora Vale",
+        handle: "@auroravale",
+        profile_image:
+          "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=1200&q=80",
+      },
+      {
+        id: "creator-nova",
+        name: "Nova Ikeda",
+        handle: "@novaikeda",
+        profile_image:
+          "https://images.unsplash.com/photo-1542206395-9feb3edaa68d?auto=format&fit=crop&w=1200&q=80",
+      },
+      {
+        id: "creator-rio",
+        name: "Rio Mercer",
+        handle: "@riomercer",
+        profile_image:
+          "https://images.unsplash.com/photo-1547425260-76bcadfb4f2c?auto=format&fit=crop&w=1200&q=80",
+      },
+    ],
+    products: [
+      {
+        id: "product-starlit-book",
+        creator_id: "creator-aurora",
+        title: "Starlit Sketchbook",
+        description: "Digital art bundle with layered PSD source files and print-ready exports.",
+        image_url:
+          "https://images.unsplash.com/photo-1513364776144-60967b0f800f?auto=format&fit=crop&w=1400&q=80",
+        preview_url:
+          "https://images.unsplash.com/photo-1513364776144-60967b0f800f?auto=format&fit=crop&w=1600&q=80",
+        delivery_url:
+          "https://images.unsplash.com/photo-1513364776144-60967b0f800f?auto=format&fit=crop&w=2200&q=90",
+        price_eth: 0.032,
+        product_type: "digital_art",
+      },
+      {
+        id: "product-neon-ebook",
+        creator_id: "creator-nova",
+        title: "Neon Futures eBook",
+        description: "Interactive eBook featuring concept art, process notes, and bonus chapter drops.",
+        image_url:
+          "https://images.unsplash.com/photo-1495446815901-a7297e633e8d?auto=format&fit=crop&w=1400&q=80",
+        preview_url:
+          "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
+        delivery_url:
+          "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
+        price_eth: 0.018,
+        product_type: "ebook",
+      },
+      {
+        id: "product-rio-pack",
+        creator_id: "creator-rio",
+        title: "Rio Motion Kit",
+        description: "Downloadable creator toolkit: overlays, transitions, LUTs, and presets.",
+        image_url:
+          "https://images.unsplash.com/photo-1460661419201-fd4cecdf8a8b?auto=format&fit=crop&w=1400&q=80",
+        preview_url:
+          "https://images.unsplash.com/photo-1460661419201-fd4cecdf8a8b?auto=format&fit=crop&w=1600&q=80",
+        delivery_url:
+          "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
+        price_eth: 0.025,
+        product_type: "file",
+      },
+      {
+        id: "product-aurora-zine",
+        creator_id: "creator-aurora",
+        title: "Midnight Zine Vol.1",
+        description: "Collector zine PDF with behind-the-scenes project breakdowns.",
+        image_url:
+          "https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=1400&q=80",
+        preview_url:
+          "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
+        delivery_url:
+          "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
+        price_eth: 0.014,
+        product_type: "ebook",
+      },
+    ],
+    posts: [
+      {
+        id: "post-1",
+        product_id: "product-starlit-book",
+        creator_id: "creator-aurora",
+        caption: "Fresh deck drop. Layered files included for collectors.",
+        featured: true,
+        created_at: createdAt,
+      },
+      {
+        id: "post-2",
+        product_id: "product-neon-ebook",
+        creator_id: "creator-nova",
+        caption: "Episode zero of the Neon Futures release is now live.",
+        featured: true,
+        created_at: createdAt,
+      },
+      {
+        id: "post-3",
+        product_id: "product-rio-pack",
+        creator_id: "creator-rio",
+        caption: "Motion kit update includes 24 new transitions.",
+        featured: false,
+        created_at: createdAt,
+      },
+      {
+        id: "post-4",
+        product_id: "product-aurora-zine",
+        creator_id: "creator-aurora",
+        caption: "Limited zine preview. Comment with your favorite spread.",
+        featured: false,
+        created_at: createdAt,
+      },
+    ],
+    likes: [],
+    comments: [],
+    carts: {},
+    orders: [],
+    gifts: [],
+    collections: [],
+    poaps: [],
+    subscriptions: [],
+  };
+}
+
+function normalizeCollectorId(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (!normalized) return "";
+  return normalized.replace(/[^a-z0-9-_]/g, "").slice(0, 64);
+}
+
+function resolveCollectorId(req) {
+  const bodyValue =
+    req.body && typeof req.body === "object" && !Array.isArray(req.body)
+      ? req.body.collector_id
+      : "";
+  const queryValue = typeof req.query.collector_id === "string" ? req.query.collector_id : "";
+  const headerValue = req.get("x-collector-id") || "";
+  const candidate = bodyValue || queryValue || headerValue;
+  const normalized = normalizeCollectorId(candidate);
+  return normalized || `guest-${randomUUID().slice(0, 8)}`;
+}
+
+function firstById(list, id) {
+  return list.find((entry) => entry.id === id) || null;
+}
+
+function normalizeProductType(value) {
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase();
+  if (normalized === "digital_art") return "digital_art";
+  if (normalized === "ebook") return "ebook";
+  if (normalized === "file") return "file";
+  return "file";
+}
+
+function resolveProductRender(product) {
+  const type = normalizeProductType(product?.product_type);
+  const imageUrl = String(product?.image_url || "").trim();
+  const previewUrl = String(product?.preview_url || "").trim();
+  const deliveryUrl = String(product?.delivery_url || "").trim();
+
+  if (type === "digital_art") {
+    return {
+      product_type: type,
+      render_mode: "image",
+      image_url: previewUrl || imageUrl,
+      readable_url: null,
+      download_url: deliveryUrl || previewUrl || imageUrl || null,
+    };
+  }
+
+  if (type === "ebook") {
+    const readable = previewUrl || deliveryUrl || null;
+    return {
+      product_type: type,
+      render_mode: "ebook",
+      image_url: imageUrl || null,
+      readable_url: readable,
+      download_url: deliveryUrl || readable,
+    };
+  }
+
+  return {
+    product_type: "file",
+    render_mode: "download",
+    image_url: imageUrl || previewUrl || null,
+    readable_url: null,
+    download_url: deliveryUrl || null,
+  };
+}
+
+function summarizeCart(db, collectorId) {
+  const items = Array.isArray(db.carts[collectorId]) ? db.carts[collectorId] : [];
+  const hydrated = items
+    .map((entry) => {
+      const product = firstById(db.products, entry.product_id);
+      const creator = product ? firstById(db.creators, product.creator_id) : null;
+      if (!product) return null;
+
+      const quantity = Math.max(1, Number(entry.quantity) || 1);
+      const unitPriceEth = Number(product.price_eth) || 0;
+      const render = resolveProductRender(product);
+      return {
+        product_id: product.id,
+        quantity,
+        unit_price_eth: unitPriceEth,
+        line_total_eth: Number((unitPriceEth * quantity).toFixed(6)),
+        title: product.title,
+        image_url: render.image_url || product.image_url,
+        product_type: render.product_type,
+        render_mode: render.render_mode,
+        readable_url: render.readable_url,
+        download_url: render.download_url,
+        creator_name: creator?.name || "Creator",
+        creator_handle: creator?.handle || "",
+      };
+    })
+    .filter(Boolean);
+
+  return {
+    collector_id: collectorId,
+    items: hydrated,
+    total_eth: Number(hydrated.reduce((sum, item) => sum + Number(item.line_total_eth || 0), 0).toFixed(6)),
+  };
+}
+
+function buildFeedItem(db, collectorId, post) {
+  const product = firstById(db.products, post.product_id);
+  const creator = firstById(db.creators, post.creator_id);
+  if (!product || !creator) return null;
+  const render = resolveProductRender(product);
+
+  const likeCount = db.likes.filter((like) => like.post_id === post.id).length;
+  const commentCount = db.comments.filter((comment) => comment.post_id === post.id).length;
+  const liked = db.likes.some((like) => like.post_id === post.id && like.collector_id === collectorId);
+
+  return {
+    id: post.id,
+    post_id: post.id,
+    product_id: product.id,
+    item_type: "product",
+    title: product.title,
+    description: post.caption || product.description,
+    image_url: render.image_url || product.image_url,
+    price_eth: product.price_eth,
+    product_type: render.product_type,
+    render_mode: render.render_mode,
+    creator_id: creator.id,
+    creator_wallet: creator.handle,
+    creator_name: creator.name,
+    can_purchase: true,
+    can_bid: false,
+    like_count: likeCount,
+    comment_count: commentCount,
+    liked,
+    created_at: post.created_at,
+  };
+}
+
+function mintPoapIfEligible(db, collectorId, order) {
+  const orderCount = db.orders.filter((entry) => entry.collector_id === collectorId).length;
+  if (orderCount < 3) return;
+  const exists = db.poaps.some((poap) => poap.collector_id === collectorId && poap.code === "supporter-3");
+  if (exists) return;
+  db.poaps.push({
+    id: `poap-${randomUUID().slice(0, 10)}`,
+    collector_id: collectorId,
+    code: "supporter-3",
+    title: "Supporter Level 3",
+    description: "Completed three purchases as a guest collector.",
+    created_at: order.created_at,
+  });
+}
+
+function grantCollection(db, collectorId, orderId, items) {
+  for (const item of items) {
+    const existing = db.collections.find(
+      (entry) =>
+        entry.collector_id === collectorId &&
+        entry.order_id === orderId &&
+        entry.product_id === item.product_id,
+    );
+    if (existing) continue;
+    db.collections.push({
+      id: `collection-${randomUUID().slice(0, 10)}`,
+      collector_id: collectorId,
+      order_id: orderId,
+      product_id: item.product_id,
+      quantity: Math.max(1, Number(item.quantity) || 1),
+      acquired_at: nowIso(),
+    });
+  }
+}
+
+function buildProfile(db, collectorId) {
+  const collection = db.collections
+    .filter((entry) => entry.collector_id === collectorId)
+    .map((entry) => {
+      const product = firstById(db.products, entry.product_id);
+      const creator = product ? firstById(db.creators, product.creator_id) : null;
+      const render = product ? resolveProductRender(product) : null;
+      return {
+        id: entry.id,
+        product_id: entry.product_id,
+        title: product?.title || "Untitled Product",
+        image_url: render?.image_url || product?.image_url || "",
+        product_type: render?.product_type || "file",
+        render_mode: render?.render_mode || "download",
+        readable_url: render?.readable_url || null,
+        download_url: render?.download_url || null,
+        creator_name: creator?.name || "Creator",
+        acquired_at: entry.acquired_at,
+      };
+    });
+
+  const orders = db.orders
+    .filter((entry) => entry.collector_id === collectorId)
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .map((entry) => ({
+      id: entry.id,
+      status: entry.status,
+      payment_method: entry.payment_method,
+      total_eth: entry.total_eth,
+      created_at: entry.created_at,
+      items: entry.items,
+      gift_token: entry.gift_token || null,
+    }));
+
+  const pendingGifts = db.gifts
+    .filter((gift) => gift.status === "pending" && gift.sender_collector_id === collectorId)
+    .map((gift) => ({
+      token: gift.token,
+      sender_collector_id: gift.sender_collector_id,
+      recipient_label: gift.recipient_label,
+      created_at: gift.created_at,
+      items: gift.items,
+      claim_url: gift.claim_url,
+    }));
+
+  return {
+    collector_id: collectorId,
+    collection,
+    poaps: db.poaps.filter((entry) => entry.collector_id === collectorId),
+    subscriptions: db.subscriptions.filter((entry) => entry.collector_id === collectorId),
+    cart: summarizeCart(db, collectorId),
+    orders,
+    pending_gifts: pendingGifts,
+    creator_dashboard_path: "/creator/analytics",
+  };
+}
+
+function escapeHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function buildProductResponse(db, product) {
+  const creator = firstById(db.creators, product.creator_id);
+  const render = resolveProductRender(product);
+  return {
+    id: product.id,
+    creator_id: product.creator_id,
+    title: product.title,
+    description: product.description,
+    image_url: render.image_url || product.image_url || "",
+    price_eth: Number(product.price_eth) || 0,
+    product_type: render.product_type,
+    render_mode: render.render_mode,
+    readable_url: render.readable_url,
+    download_url: render.download_url,
+    creator_name: creator?.name || "Creator",
+    creator_handle: creator?.handle || "",
+  };
+}
+
+app.get("/health", (_req, res) => {
+  res.json({ ok: true, service: "popup-fresh-api" });
+});
+
+app.get("/fresh/bootstrap", (req, res) => {
+  const collectorId = resolveCollectorId(req);
+  const db = readDb();
+  const profile = buildProfile(db, collectorId);
+  res.json({
+    collector_id: collectorId,
+    user_type: "guest_collector",
+    profile_summary: {
+      collection_count: profile.collection.length,
+      poap_count: profile.poaps.length,
+      subscription_count: profile.subscriptions.length,
+      cart_items: profile.cart.items.length,
+      order_count: profile.orders.length,
+    },
+  });
+});
+
+app.get("/fresh/home", (req, res) => {
+  const collectorId = resolveCollectorId(req);
+  const db = readDb();
+  const featured = db.posts
+    .filter((post) => Boolean(post.featured))
+    .map((post) => buildFeedItem(db, collectorId, post))
+    .filter(Boolean);
+  res.json({ collector_id: collectorId, featured });
+});
+
+app.get("/fresh/discover", (req, res) => {
+  const collectorId = resolveCollectorId(req);
+  const db = readDb();
+  const feed = db.posts
+    .map((post) => buildFeedItem(db, collectorId, post))
+    .filter(Boolean)
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  res.json({ collector_id: collectorId, feed });
+});
+
+app.post("/fresh/discover/:postId/like", (req, res) => {
+  const collectorId = resolveCollectorId(req);
+  const postId = String(req.params.postId || "").trim();
+  if (!postId) {
+    return res.status(400).json({ error: "postId is required" });
+  }
+
+  const db = readDb();
+  const post = firstById(db.posts, postId);
+  if (!post) {
+    return res.status(404).json({ error: "Post not found" });
+  }
+
+  const existing = db.likes.findIndex(
+    (entry) => entry.post_id === postId && entry.collector_id === collectorId,
+  );
+  if (existing >= 0) {
+    db.likes.splice(existing, 1);
+  } else {
+    db.likes.push({
+      id: `like-${randomUUID().slice(0, 10)}`,
+      post_id: postId,
+      collector_id: collectorId,
+      created_at: nowIso(),
+    });
+  }
+
+  writeDb(db);
+  const liked = db.likes.some((entry) => entry.post_id === postId && entry.collector_id === collectorId);
+  const likeCount = db.likes.filter((entry) => entry.post_id === postId).length;
+  return res.json({ post_id: postId, liked, like_count: likeCount });
+});
+
+app.get("/fresh/discover/:postId/comments", (req, res) => {
+  const postId = String(req.params.postId || "").trim();
+  const db = readDb();
+  const comments = db.comments
+    .filter((entry) => entry.post_id === postId)
+    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+  res.json({ post_id: postId, comments });
+});
+
+app.post("/fresh/discover/:postId/comments", (req, res) => {
+  const collectorId = resolveCollectorId(req);
+  const postId = String(req.params.postId || "").trim();
+  const body = String(req.body?.body || "").trim();
+
+  if (!postId) return res.status(400).json({ error: "postId is required" });
+  if (!body) return res.status(400).json({ error: "Comment body is required" });
+
+  const db = readDb();
+  const post = firstById(db.posts, postId);
+  if (!post) {
+    return res.status(404).json({ error: "Post not found" });
+  }
+
+  const comment = {
+    id: `comment-${randomUUID().slice(0, 10)}`,
+    post_id: postId,
+    collector_id: collectorId,
+    body,
+    created_at: nowIso(),
+  };
+  db.comments.push(comment);
+  writeDb(db);
+  return res.status(201).json({ comment });
+});
+
+app.get("/fresh/products/:id", (req, res) => {
+  const db = readDb();
+  const product = firstById(db.products, String(req.params.id || "").trim());
+  if (!product) return res.status(404).json({ error: "Product not found" });
+  return res.json(buildProductResponse(db, product));
+});
+
+app.get("/fresh/cart/:collectorId", (req, res) => {
+  const collectorId = normalizeCollectorId(req.params.collectorId);
+  if (!collectorId) return res.status(400).json({ error: "collectorId is required" });
+  const db = readDb();
+  return res.json(summarizeCart(db, collectorId));
+});
+
+app.post("/fresh/cart/add", (req, res) => {
+  const collectorId = resolveCollectorId(req);
+  const productId = String(req.body?.product_id || "").trim();
+  const quantity = Math.max(1, Number(req.body?.quantity) || 1);
+  if (!productId) return res.status(400).json({ error: "product_id is required" });
+
+  const db = readDb();
+  const product = firstById(db.products, productId);
+  if (!product) return res.status(404).json({ error: "Product not found" });
+
+  const existing = Array.isArray(db.carts[collectorId]) ? db.carts[collectorId] : [];
+  const item = existing.find((entry) => entry.product_id === productId);
+  if (item) {
+    item.quantity = Math.max(1, Number(item.quantity || 0) + quantity);
+  } else {
+    existing.push({ product_id: productId, quantity });
+  }
+  db.carts[collectorId] = existing;
+  writeDb(db);
+  return res.json(summarizeCart(db, collectorId));
+});
+
+app.patch("/fresh/cart/:collectorId/items/:productId", (req, res) => {
+  const collectorId = normalizeCollectorId(req.params.collectorId);
+  const productId = String(req.params.productId || "").trim();
+  const quantity = Math.max(1, Number(req.body?.quantity) || 1);
+  if (!collectorId || !productId) {
+    return res.status(400).json({ error: "collectorId and productId are required" });
+  }
+
+  const db = readDb();
+  const items = Array.isArray(db.carts[collectorId]) ? db.carts[collectorId] : [];
+  const target = items.find((entry) => entry.product_id === productId);
+  if (!target) return res.status(404).json({ error: "Cart item not found" });
+  target.quantity = quantity;
+  db.carts[collectorId] = items;
+  writeDb(db);
+  return res.json(summarizeCart(db, collectorId));
+});
+
+app.delete("/fresh/cart/:collectorId/items/:productId", (req, res) => {
+  const collectorId = normalizeCollectorId(req.params.collectorId);
+  const productId = String(req.params.productId || "").trim();
+  if (!collectorId || !productId) {
+    return res.status(400).json({ error: "collectorId and productId are required" });
+  }
+
+  const db = readDb();
+  const items = Array.isArray(db.carts[collectorId]) ? db.carts[collectorId] : [];
+  db.carts[collectorId] = items.filter((entry) => entry.product_id !== productId);
+  writeDb(db);
+  return res.json(summarizeCart(db, collectorId));
+});
+
+app.post("/fresh/checkout", (req, res) => {
+  const collectorId = resolveCollectorId(req);
+  const paymentMethodCandidate = String(req.body?.payment_method || "offramp_partner")
+    .trim()
+    .toLowerCase();
+  const paymentMethod =
+    paymentMethodCandidate === "onchain" ? "onchain" : "offramp_partner";
+  const directItems = Array.isArray(req.body?.items) ? req.body.items : [];
+  const db = readDb();
+
+  const cartItems = summarizeCart(db, collectorId).items;
+  const itemsToCheckout = directItems.length > 0
+    ? directItems
+        .map((entry) => ({
+          product_id: String(entry?.product_id || "").trim(),
+          quantity: Math.max(1, Number(entry?.quantity) || 1),
+        }))
+        .filter((entry) => entry.product_id)
+    : cartItems.map((entry) => ({
+        product_id: entry.product_id,
+        quantity: entry.quantity,
+      }));
+
+  if (itemsToCheckout.length === 0) {
+    return res.status(400).json({ error: "No checkout items found" });
+  }
+
+  const hydratedItems = itemsToCheckout.map((entry) => {
+    const product = firstById(db.products, entry.product_id);
+    if (!product) return null;
+    const render = resolveProductRender(product);
+    return {
+      product_id: product.id,
+      quantity: entry.quantity,
+      unit_price_eth: Number(product.price_eth) || 0,
+      line_total_eth: Number(((Number(product.price_eth) || 0) * entry.quantity).toFixed(6)),
+      title: product.title,
+      image_url: render.image_url || product.image_url,
+      product_type: render.product_type,
+      render_mode: render.render_mode,
+      readable_url: render.readable_url,
+      download_url: render.download_url,
+    };
+  });
+
+  if (hydratedItems.some((entry) => !entry)) {
+    return res.status(404).json({ error: "One or more products are unavailable" });
+  }
+
+  const finalizedItems = hydratedItems.filter(Boolean);
+  const totalEth = Number(
+    finalizedItems.reduce((sum, entry) => sum + Number(entry.line_total_eth || 0), 0).toFixed(6),
+  );
+
+  const order = {
+    id: `order-${randomUUID().slice(0, 10)}`,
+    collector_id: collectorId,
+    status: "paid",
+    payment_method: paymentMethod,
+    total_eth: totalEth,
+    items: finalizedItems,
+    created_at: nowIso(),
+    gift_token: null,
+  };
+
+  const giftRequested = Boolean(req.body?.gift && typeof req.body.gift === "object");
+  let giftPayload = null;
+
+  if (giftRequested) {
+    const recipientLabel = String(req.body?.gift?.recipient_label || req.body?.gift?.recipient || "friend").trim();
+    const giftToken = randomUUID().replace(/-/g, "");
+    const claimUrl = `${req.protocol}://${req.get("host")}/gift/${giftToken}`;
+
+    giftPayload = {
+      id: `gift-${randomUUID().slice(0, 10)}`,
+      token: giftToken,
+      order_id: order.id,
+      sender_collector_id: collectorId,
+      recipient_label: recipientLabel || "friend",
+      status: "pending",
+      created_at: nowIso(),
+      responded_at: null,
+      recipient_collector_id: null,
+      items: finalizedItems,
+      claim_url: claimUrl,
+    };
+    order.gift_token = giftToken;
+    db.gifts.push(giftPayload);
+  } else {
+    grantCollection(db, collectorId, order.id, finalizedItems);
+  }
+
+  db.orders.push(order);
+  db.carts[collectorId] = [];
+  mintPoapIfEligible(db, collectorId, order);
+  writeDb(db);
+
+  return res.status(201).json({
+    order,
+    gift: giftPayload
+      ? {
+          token: giftPayload.token,
+          claim_url: giftPayload.claim_url,
+          recipient_label: giftPayload.recipient_label,
+          status: giftPayload.status,
+        }
+      : null,
+  });
+});
+
+app.get("/fresh/gifts/:token", (req, res) => {
+  const token = String(req.params.token || "").trim();
+  const db = readDb();
+  const gift = db.gifts.find((entry) => entry.token === token);
+  if (!gift) return res.status(404).json({ error: "Gift not found" });
+
+  const senderOrder = firstById(db.orders, gift.order_id);
+  return res.json({
+    token: gift.token,
+    status: gift.status,
+    recipient_label: gift.recipient_label,
+    sender_collector_id: gift.sender_collector_id,
+    created_at: gift.created_at,
+    responded_at: gift.responded_at,
+    items: gift.items,
+    order_total_eth: senderOrder?.total_eth || 0,
+  });
+});
+
+app.post("/fresh/gifts/:token/accept", (req, res) => {
+  const collectorId = resolveCollectorId(req);
+  const token = String(req.params.token || "").trim();
+  const db = readDb();
+  const gift = db.gifts.find((entry) => entry.token === token);
+  if (!gift) return res.status(404).json({ error: "Gift not found" });
+  if (gift.status !== "pending") {
+    return res.status(409).json({ error: "Gift has already been processed" });
+  }
+
+  gift.status = "accepted";
+  gift.responded_at = nowIso();
+  gift.recipient_collector_id = collectorId;
+  grantCollection(db, collectorId, gift.order_id, gift.items || []);
+  writeDb(db);
+
+  return res.json({ success: true, token: gift.token, status: gift.status });
+});
+
+app.post("/fresh/gifts/:token/reject", (_req, res) => {
+  const token = String(_req.params.token || "").trim();
+  const db = readDb();
+  const gift = db.gifts.find((entry) => entry.token === token);
+  if (!gift) return res.status(404).json({ error: "Gift not found" });
+  if (gift.status !== "pending") {
+    return res.status(409).json({ error: "Gift has already been processed" });
+  }
+  gift.status = "rejected";
+  gift.responded_at = nowIso();
+  writeDb(db);
+  return res.json({ success: true, token: gift.token, status: gift.status });
+});
+
+app.get("/fresh/profile/:collectorId", (req, res) => {
+  const collectorId = normalizeCollectorId(req.params.collectorId);
+  if (!collectorId) return res.status(400).json({ error: "collectorId is required" });
+  const db = readDb();
+  return res.json(buildProfile(db, collectorId));
+});
+
+app.post("/fresh/share", (req, res) => {
+  const postId = String(req.body?.post_id || "").trim();
+  if (!postId) return res.status(400).json({ error: "post_id is required" });
+  const shareUrl = `${req.protocol}://${req.get("host")}/share/${encodeURIComponent(postId)}`;
+  return res.json({
+    share_url: shareUrl,
+    share_message: "Check this creator post on POPUP.",
+    platform_urls: {
+      twitter: `https://twitter.com/intent/tweet?url=${encodeURIComponent(shareUrl)}`,
+      telegram: `https://t.me/share/url?url=${encodeURIComponent(shareUrl)}`,
+      whatsapp: `https://wa.me/?text=${encodeURIComponent(`Check this creator post ${shareUrl}`)}`,
+    },
+  });
+});
+
+app.get("/share/:postId", (req, res) => {
+  const postId = String(req.params.postId || "").trim();
+  if (!postId) {
+    return res.status(400).send("Invalid share link.");
+  }
+
+  const db = readDb();
+  const post = firstById(db.posts, postId);
+  if (!post) {
+    return res.status(404).send("Share item not found.");
+  }
+
+  const collectorId = resolveCollectorId(req);
+  const feedItem = buildFeedItem(db, collectorId, post);
+  if (!feedItem) {
+    return res.status(404).send("Share item unavailable.");
+  }
+
+  const host = req.get("host");
+  const baseUrl = `${req.protocol}://${host}`;
+  const shareUrl = `${baseUrl}/share/${encodeURIComponent(postId)}`;
+  const redirectUrl = `${baseUrl}/discover?post=${encodeURIComponent(postId)}`;
+  const title = escapeHtml(feedItem.title || "POPUP creator post");
+  const description = escapeHtml(feedItem.description || "Discover this digital product on POPUP.");
+  const image = escapeHtml(feedItem.image_url || `${baseUrl}/logo.png`);
+
+  res.set("Content-Type", "text/html; charset=utf-8");
+  res.send(`<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>${title}</title>
+    <meta name="description" content="${description}" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="${title}" />
+    <meta property="og:description" content="${description}" />
+    <meta property="og:image" content="${image}" />
+    <meta property="og:url" content="${escapeHtml(shareUrl)}" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="${title}" />
+    <meta name="twitter:description" content="${description}" />
+    <meta name="twitter:image" content="${image}" />
+    <meta http-equiv="refresh" content="0;url=${escapeHtml(redirectUrl)}" />
+  </head>
+  <body>
+    <p>Redirecting to POPUP discovery...</p>
+    <a href="${escapeHtml(redirectUrl)}">Continue</a>
+  </body>
+</html>`);
+});
+
+app.use((_req, res) => {
+  res.status(404).json({ error: "Endpoint not found", path: _req.path, method: _req.method });
+});
+
+app.use((err, _req, res, _next) => {
+  console.error("Fresh API error:", err);
+  res.status(500).json({ error: err?.message || "Internal server error" });
+});
+
+export default app;

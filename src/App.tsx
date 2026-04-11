@@ -8,46 +8,16 @@ import { LoadingSpinner } from "@/components/LoadingSpinner";
 import AppLayout from "./components/AppLayout";
 import MobileWebAppGate from "./components/MobileWebAppGate";
 import { ThemeProvider } from "./components/theme-provider";
-import WalletRuntimeProvider from "./components/wallet/WalletRuntimeProvider";
 import NotFound from "./pages/NotFound";
 import { initializePushNotifications } from "@/lib/webPush";
 
-// ─── Route Code Splitting ──────────────────────────────────────────────
-// Lazy load all routes to reduce initial bundle size
-// Critical routes (landing, public) load first; heavier routes (studio, admin) load on demand
-
-// Public routes
 const RebootHomePage = lazy(() => import("./pages/RebootHomePage"));
 const RebootDiscoverFeedPage = lazy(() => import("./pages/RebootDiscoverFeedPage"));
 const RebootProfileDashboardPage = lazy(() => import("./pages/RebootProfileDashboardPage"));
-const WalletArtistApplicationRoute = lazy(() => import("./routes/WalletArtistApplicationRoute"));
-const DropsPage = lazy(() => import("./pages/DropsPage"));
-const DropDetailPage = lazy(() => import("./pages/DropDetailPage"));
-const WalletArtistsRoute = lazy(() => import("./routes/WalletArtistsRoute"));
-const WalletArtistProfileRoute = lazy(() => import("./routes/WalletArtistProfileRoute"));
-const InboxPage = lazy(() => import("./pages/InboxPage"));
-
-// User profile routes
-const WalletCollectionRoute = lazy(() => import("./routes/WalletCollectionRoute"));
-const WalletPOAPsRoute = lazy(() => import("./routes/WalletPOAPsRoute"));
-const WalletSubscriptionsRoute = lazy(() => import("./routes/WalletSubscriptionsRoute"));
-
-// Commerce routes
-const InvestBoardPage = lazy(() => import("./pages/ProductsPage").then((module) => ({ default: module.ProductsPage })));
-const ReleasesPage = lazy(() => import("./pages/ReleasesPage"));
-const SocialMediaFeedReleases = lazy(() => import("./pages/SocialMediaFeedReleases"));
-const ProductDetailPage = lazy(() => import("./pages/ProductDetailPage").then((module) => ({ default: module.ProductDetailPage })));
-const CartPage = lazy(() => import("./pages/CartPage").then((module) => ({ default: module.CartPage })));
 const CheckoutPage = lazy(() => import("./pages/CheckoutPage").then((module) => ({ default: module.CheckoutPage })));
-const OrderHistoryPage = lazy(() => import("./pages/OrderHistoryPage").then((module) => ({ default: module.OrderHistoryPage })));
-const UnifiedDiscoverFeed = lazy(() => import("./pages/UnifiedDiscoverFeed").then((module) => ({ default: module.UnifiedDiscoverFeed })));
+const GiftClaimPage = lazy(() => import("./pages/GiftClaimPage"));
+const FreshProductDetailPage = lazy(() => import("./pages/FreshProductDetailPage"));
 const CreatorDashboard = lazy(() => import("./pages/CreatorDashboard").then((module) => ({ default: module.CreatorDashboard })));
-const ShareLandingPage = lazy(() => import("./pages/ShareLandingPage"));
-const LegacyCatalogItemRoute = lazy(() => import("./pages/LegacyCatalogItemRoute"));
-
-// Heavy routes (studio, admin) - load on demand only
-const WalletStudioRoute = lazy(() => import("./routes/WalletStudioRoute"));
-const WalletAdminRoute = lazy(() => import("./routes/WalletAdminRoute"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -62,63 +32,45 @@ const queryClient = new QueryClient({
 });
 
 const App = () => {
-  // Initialize push notifications when app loads
   useEffect(() => {
     initializePushNotifications().catch((err) => {
-      console.warn('Failed to initialize push notifications:', err);
-      // Don't fail the app if push notifications aren't supported
+      console.warn("Failed to initialize push notifications:", err);
     });
   }, []);
 
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
-        <WalletRuntimeProvider>
-          <TooltipProvider>
-            <Toaster />
-            <Sonner />
-            <MobileWebAppGate>
-              <BrowserRouter>
-                <Suspense fallback={<LoadingSpinner />}>
-                  <Routes>
-                    <Route path="/share/:type/:id" element={<ShareLandingPage />} />
-                    <Route element={<AppLayout />}>
-                      <Route path="/" element={<RebootHomePage />} />
-                      <Route path="/apply" element={<WalletArtistApplicationRoute />} />
-                      <Route path="/drops" element={<DropsPage />} />
-                      <Route path="/drops/:id" element={<DropDetailPage />} />
-                      <Route path="/artists" element={<WalletArtistsRoute />} />
-                      <Route path="/artists/:id" element={<WalletArtistProfileRoute />} />
-                      <Route path="/invest" element={<InvestBoardPage />} />
-                      <Route path="/inbox" element={<InboxPage />} />
-                      <Route path="/profile" element={<RebootProfileDashboardPage />} />
-                      <Route path="/collection" element={<WalletCollectionRoute />} />
-                      <Route path="/poaps" element={<WalletPOAPsRoute />} />
-                      <Route path="/subscriptions" element={<WalletSubscriptionsRoute />} />
-                      <Route path="/discover" element={<RebootDiscoverFeedPage />} />
-                      <Route path="/catalog" element={<Navigate to="/discover" replace />} />
-                      <Route path="/catalog/:type/:id" element={<LegacyCatalogItemRoute />} />
-                      <Route path="/releases/:id" element={<LegacyCatalogItemRoute forcedType="release" />} />
-                      <Route path="/products" element={<SocialMediaFeedReleases />} />
-                      <Route path="/feed" element={<SocialMediaFeedReleases />} />
-                      <Route path="/products/:id" element={<ProductDetailPage />} />
-                      <Route path="/creator/analytics" element={<CreatorDashboard />} />
-                      <Route path="/cart" element={<CartPage />} />
-                      <Route path="/checkout" element={<CheckoutPage />} />
-                      <Route path="/orders" element={<OrderHistoryPage />} />
-                    </Route>
-
-                    {/* Admin/Studio routes - lazy loaded separately */}
-                    <Route path="/admin" element={<WalletAdminRoute />} />
-                    <Route path="/studio" element={<WalletStudioRoute />} />
-                    
-                    <Route path="*" element={<NotFound />} />
-                  </Routes>
-                </Suspense>
-              </BrowserRouter>
-            </MobileWebAppGate>
-          </TooltipProvider>
-        </WalletRuntimeProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <MobileWebAppGate>
+            <BrowserRouter>
+              <Suspense fallback={<LoadingSpinner />}>
+                <Routes>
+                  <Route element={<AppLayout />}>
+                    <Route path="/" element={<RebootHomePage />} />
+                    <Route path="/discover" element={<RebootDiscoverFeedPage />} />
+                    <Route path="/profile" element={<RebootProfileDashboardPage />} />
+                    <Route path="/checkout" element={<CheckoutPage />} />
+                    <Route path="/gift/:token" element={<GiftClaimPage />} />
+                    <Route path="/products/:id" element={<FreshProductDetailPage />} />
+                    <Route path="/creator/analytics" element={<CreatorDashboard />} />
+                    <Route path="/cart" element={<Navigate to="/profile" replace />} />
+                    <Route path="/orders" element={<Navigate to="/profile" replace />} />
+                    <Route path="/collection" element={<Navigate to="/profile" replace />} />
+                    <Route path="/poaps" element={<Navigate to="/profile" replace />} />
+                    <Route path="/subscriptions" element={<Navigate to="/profile" replace />} />
+                    <Route path="/feed" element={<Navigate to="/discover" replace />} />
+                    <Route path="/catalog" element={<Navigate to="/discover" replace />} />
+                    <Route path="/share/:postId" element={<Navigate to="/discover" replace />} />
+                  </Route>
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </Suspense>
+            </BrowserRouter>
+          </MobileWebAppGate>
+        </TooltipProvider>
       </ThemeProvider>
     </QueryClientProvider>
   );
