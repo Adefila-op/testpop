@@ -1,9 +1,6 @@
 import { LayoutDashboard, Presentation, Sparkles, WalletCards } from "lucide-react";
-import { useNavigate } from "react-router-dom";
 
 export function CreatorDashboard() {
-  const navigate = useNavigate();
-
   return (
     <div className="mx-auto max-w-5xl space-y-6 px-4 py-6">
       <section className="rounded-2xl border border-slate-200 bg-white p-5">
@@ -18,35 +15,23 @@ export function CreatorDashboard() {
       </section>
 
       <section className="grid gap-4 md:grid-cols-3">
-        <button
-          type="button"
-          onClick={() => navigate("/studio?tab=drops")}
-          className="rounded-2xl border border-slate-200 bg-white p-4 text-left transition hover:border-slate-900"
-        >
+        <article className="rounded-2xl border border-slate-200 bg-white p-4">
           <Presentation className="h-5 w-5 text-slate-700" />
           <h2 className="mt-3 text-lg font-semibold text-slate-900">Campaign Studio</h2>
           <p className="mt-1 text-sm text-slate-600">Create and manage release campaigns from one place.</p>
-        </button>
+        </article>
 
-        <button
-          type="button"
-          onClick={() => navigate("/studio?tab=raises")}
-          className="rounded-2xl border border-slate-200 bg-white p-4 text-left transition hover:border-slate-900"
-        >
+        <article className="rounded-2xl border border-slate-200 bg-white p-4">
           <WalletCards className="h-5 w-5 text-slate-700" />
           <h2 className="mt-3 text-lg font-semibold text-slate-900">Tokenized Creator Card</h2>
           <p className="mt-1 text-sm text-slate-600">Launch and monitor creator-card offerings.</p>
-        </button>
+        </article>
 
-        <button
-          type="button"
-          onClick={() => navigate("/studio?tab=profile")}
-          className="rounded-2xl border border-slate-200 bg-white p-4 text-left transition hover:border-slate-900"
-        >
+        <article className="rounded-2xl border border-slate-200 bg-white p-4">
           <Sparkles className="h-5 w-5 text-slate-700" />
           <h2 className="mt-3 text-lg font-semibold text-slate-900">Portfolio Showcase</h2>
           <p className="mt-1 text-sm text-slate-600">Curate public portfolio highlights and creator profile assets.</p>
-        </button>
+        </article>
       </section>
     </div>
   );
