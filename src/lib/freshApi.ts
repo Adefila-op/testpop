@@ -28,8 +28,8 @@ export type FreshFeedItem = {
   description: string;
   image_url: string;
   price_eth: number;
-  product_type: "digital_art" | "ebook" | "file" | string;
-  render_mode: "image" | "ebook" | "download" | "delivery" | "collect" | string;
+  product_type: "digital_art" | "ebook" | "file" | "art" | "video" | "pdf" | "downloadable" | string;
+  render_mode: "image" | "ebook" | "download" | "delivery" | "collect" | "video" | "pdf" | string;
   delivery_mode?: "render_online" | "download_mobile" | "collect_onchain" | "deliver_physical" | string;
   fulfillment_label?: string;
   creator_id: string;
@@ -58,8 +58,8 @@ export type FreshCartItem = {
   line_total_eth: number;
   title: string;
   image_url: string;
-  product_type: "digital_art" | "ebook" | "file" | string;
-  render_mode: "image" | "ebook" | "download" | "delivery" | "collect" | string;
+  product_type: "digital_art" | "ebook" | "file" | "art" | "video" | "pdf" | "downloadable" | string;
+  render_mode: "image" | "ebook" | "download" | "delivery" | "collect" | "video" | "pdf" | string;
   delivery_mode?: "render_online" | "download_mobile" | "collect_onchain" | "deliver_physical" | string;
   fulfillment_label?: string;
   readable_url: string | null;
@@ -88,8 +88,8 @@ export type FreshOrder = {
     line_total_eth: number;
     title: string;
     image_url: string;
-    product_type: "digital_art" | "ebook" | "file" | string;
-    render_mode: "image" | "ebook" | "download" | "delivery" | "collect" | string;
+    product_type: "digital_art" | "ebook" | "file" | "art" | "video" | "pdf" | "downloadable" | string;
+    render_mode: "image" | "ebook" | "download" | "delivery" | "collect" | "video" | "pdf" | string;
     delivery_mode?: "render_online" | "download_mobile" | "collect_onchain" | "deliver_physical" | string;
     fulfillment_label?: string;
     readable_url: string | null;
@@ -118,8 +118,8 @@ export type FreshProduct = {
   description: string;
   image_url: string;
   price_eth: number;
-  product_type: "digital_art" | "ebook" | "file" | string;
-  render_mode: "image" | "ebook" | "download" | "delivery" | "collect" | string;
+  product_type: "digital_art" | "ebook" | "file" | "art" | "video" | "pdf" | "downloadable" | string;
+  render_mode: "image" | "ebook" | "download" | "delivery" | "collect" | "video" | "pdf" | string;
   delivery_mode?: "render_online" | "download_mobile" | "collect_onchain" | "deliver_physical" | string;
   fulfillment_label?: string;
   readable_url: string | null;
@@ -140,8 +140,8 @@ export type FreshProfile = {
     product_id: string;
     title: string;
     image_url: string;
-    product_type: "digital_art" | "ebook" | "file" | string;
-    render_mode: "image" | "ebook" | "download" | "delivery" | "collect" | string;
+    product_type: "digital_art" | "ebook" | "file" | "art" | "video" | "pdf" | "downloadable" | string;
+    render_mode: "image" | "ebook" | "download" | "delivery" | "collect" | "video" | "pdf" | string;
     delivery_mode?: "render_online" | "download_mobile" | "collect_onchain" | "deliver_physical" | string;
     fulfillment_label?: string;
     readable_url: string | null;

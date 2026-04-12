@@ -128,7 +128,7 @@ function createSeedDb() {
         delivery_url:
           "https://images.unsplash.com/photo-1513364776144-60967b0f800f?auto=format&fit=crop&w=2200&q=90",
         price_eth: 0.032,
-        product_type: "digital_art",
+        product_type: "art",
         delivery_mode: "render_online",
       },
       {
@@ -143,7 +143,7 @@ function createSeedDb() {
         delivery_url:
           "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
         price_eth: 0.018,
-        product_type: "ebook",
+        product_type: "pdf",
         delivery_mode: "render_online",
       },
       {
@@ -158,7 +158,7 @@ function createSeedDb() {
         delivery_url:
           "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
         price_eth: 0.025,
-        product_type: "file",
+        product_type: "downloadable",
         delivery_mode: "download_mobile",
       },
       {
@@ -173,7 +173,7 @@ function createSeedDb() {
         delivery_url:
           "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
         price_eth: 0.014,
-        product_type: "ebook",
+        product_type: "pdf",
         delivery_mode: "render_online",
       },
       {
@@ -201,12 +201,27 @@ function createSeedDb() {
           "https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=1600&q=80",
         delivery_url: "",
         price_eth: 0.055,
-        product_type: "collectible",
+        product_type: "art",
         delivery_mode: "collect_onchain",
         onchain: {
           chain: "base-sepolia",
           contract_address: "0xNeonCollectibleContract",
         },
+      },
+      {
+        id: "product-nova-video",
+        creator_id: "creator-nova",
+        title: "Neon Futures Trailer",
+        description: "Short cinematic teaser to view directly in the app.",
+        image_url:
+          "https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?auto=format&fit=crop&w=1400&q=80",
+        preview_url:
+          "https://sample-videos.com/video321/mp4/720/big_buck_bunny_720p_1mb.mp4",
+        delivery_url:
+          "https://sample-videos.com/video321/mp4/720/big_buck_bunny_720p_1mb.mp4",
+        price_eth: 0.022,
+        product_type: "video",
+        delivery_mode: "render_online",
       },
     ],
     posts: [
@@ -316,6 +331,10 @@ function normalizeProductType(value) {
   if (normalized === "file") return "file";
   if (normalized === "physical") return "physical";
   if (normalized === "collectible") return "collectible";
+  if (normalized === "art") return "art";
+  if (normalized === "video") return "video";
+  if (normalized === "pdf") return "pdf";
+  if (normalized === "downloadable") return "downloadable";
   return "file";
 }
 
@@ -325,9 +344,13 @@ function resolveDeliveryMode(product) {
   if (product?.onchain) return "collect_onchain";
   const type = normalizeProductType(product?.product_type);
   if (type === "digital_art") return "render_online";
+  if (type === "art") return "render_online";
+  if (type === "video") return "render_online";
+  if (type === "pdf") return "render_online";
   if (type === "ebook") return "render_online";
   if (type === "physical") return "deliver_physical";
   if (type === "collectible") return "collect_onchain";
+  if (type === "downloadable") return "download_mobile";
   return "download_mobile";
 }
 
@@ -381,6 +404,29 @@ function resolveProductRender(product) {
       product_type: type,
       delivery_mode: deliveryMode,
       render_mode: "ebook",
+      image_url: imageUrl || null,
+      readable_url: readable,
+      download_url: deliveryUrl || readable,
+    };
+  }
+
+  if (type === "video") {
+    return {
+      product_type: type,
+      delivery_mode: deliveryMode,
+      render_mode: "video",
+      image_url: imageUrl || previewUrl || null,
+      readable_url: null,
+      download_url: deliveryUrl || null,
+    };
+  }
+
+  if (type === "pdf") {
+    const readable = previewUrl || deliveryUrl || null;
+    return {
+      product_type: type,
+      delivery_mode: deliveryMode,
+      render_mode: "pdf",
       image_url: imageUrl || null,
       readable_url: readable,
       download_url: deliveryUrl || readable,
