@@ -1,6 +1,6 @@
-# ⚡ Supabase Setup Guide
+﻿# âš¡ Supabase Setup Guide
 
-## 1️⃣ Create Supabase Account & Project
+## 1ï¸âƒ£ Create Supabase Account & Project
 
 1. Go to [supabase.com](https://supabase.com)
 2. Sign up (use email or GitHub)
@@ -10,15 +10,15 @@
    - **Region**: Pick closest to users (US recommended)
    - Click "Create new project" (wait ~2 min for initialization)
 
-## 2️⃣ Get Your Credentials
+## 2ï¸âƒ£ Get Your Credentials
 
 After project loads:
-1. Go to **Settings** → **API** (left sidebar)
+1. Go to **Settings** â†’ **API** (left sidebar)
 2. Copy these values:
-   - 📋 **Project URL** (looks like `https://XXX.supabase.co`)
-   - 🔑 **anon public key** (long string starting with `eyJ...`)
+   - ðŸ“‹ **Project URL** (looks like `https://XXX.supabase.co`)
+   - ðŸ”‘ **anon public key** (long string starting with `eyJ...`)
 
-## 3️⃣ Set Up Environment Variables
+## 3ï¸âƒ£ Set Up Environment Variables
 
 Create or update your `.env.local` file in project root:
 
@@ -29,16 +29,16 @@ VITE_SUPABASE_ANON_KEY=your_anon_key_here
 
 Save the file.
 
-## 4️⃣ Create Database Schema
+## 4ï¸âƒ£ Create Database Schema
 
 1. In Supabase dashboard, go to **SQL Editor** (left sidebar)
 2. Click **New Query**
-3. Copy entire contents from `SUPABASE_SCHEMA.sql` in this repo
+3. Copy entire contents from `supabase/migrations/20260412_reboot_schema_reset.sql` in this repo
 4. Paste into the SQL editor
 5. Click **Run** (green button)
-6. Wait for tables to be created ✅
+6. Wait for tables to be created âœ…`r`n7. Note: this reset migration drops the current `public` schema before recreating the reboot model
 
-## 5️⃣ Test Connection
+## 5ï¸âƒ£ Test Connection
 
 Run this in your terminal:
 
@@ -50,7 +50,7 @@ The app should load without Supabase errors.
 
 ---
 
-## 📊 Database Tables Created
+## ðŸ“Š Database Tables Created
 
 | Table | Purpose | Rows |
 |-------|---------|------|
@@ -63,18 +63,18 @@ The app should load without Supabase errors.
 
 ---
 
-## 🔐 Security (RLS)
+## ðŸ” Security (RLS)
 
 Row-Level Security is **enabled** on all tables:
-- ✅ Artists see only their own data (with update permission)
-- ✅ Buyers see only their own orders
-- ✅ Sellers see orders for their products
-- ✅ Public profiles visible to everyone
-- ✅ Wallet required for modifications
+- âœ… Artists see only their own data (with update permission)
+- âœ… Buyers see only their own orders
+- âœ… Sellers see orders for their products
+- âœ… Public profiles visible to everyone
+- âœ… Wallet required for modifications
 
 ---
 
-## 🔄 Next Steps
+## ðŸ”„ Next Steps
 
 After credentials are set:
 
@@ -93,7 +93,7 @@ After credentials are set:
 
 ---
 
-## 💾 Data Migration (Optional)
+## ðŸ’¾ Data Migration (Optional)
 
 To migrate existing localStorage data to Supabase:
 
@@ -111,7 +111,7 @@ const localStorage_drops = JSON.parse(
 
 ---
 
-## 🚀 Deployment to Production
+## ðŸš€ Deployment to Production
 
 When ready to deploy:
 
@@ -131,27 +131,29 @@ When ready to deploy:
 
 ---
 
-## 🆘 Troubleshooting
+## ðŸ†˜ Troubleshooting
 
 ### "Missing Supabase environment variables"
-→ Make sure `.env.local` has both variables and you ran `npm run dev` fresh
+â†’ Make sure `.env.local` has both variables and you ran `npm run dev` fresh
 
 ### "Table does not exist"
-→ Run the SQL schema again in Supabase SQL Editor
+â†’ Run the SQL schema again in Supabase SQL Editor
 
 ### "Failed to fetch data"
-→ Check that Supabase project is running (check dashboard status)
+â†’ Check that Supabase project is running (check dashboard status)
 
 ### "RLS policy violated"
-→ Wallet auth not working - ensure wallet signature is logged
+â†’ Wallet auth not working - ensure wallet signature is logged
 
 ---
 
-## 📞 Support
+## ðŸ“ž Support
 
 - Supabase docs: https://supabase.com/docs
 - Discord: https://discord.supabase.com
 
 ---
 
-✅ **Once you provide credentials in `.env.local`, everything is ready to go!**
+âœ… **Once you provide credentials in `.env.local`, everything is ready to go!**
+
+

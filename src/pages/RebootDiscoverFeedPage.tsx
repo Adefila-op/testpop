@@ -25,6 +25,21 @@ function formatCreatedAt(value?: string) {
   return parsed.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
+function formatDeliveryMode(mode?: string) {
+  switch (mode) {
+    case "collect_onchain":
+      return "Collect onchain";
+    case "render_online":
+      return "Render online";
+    case "download_mobile":
+      return "Download mobile";
+    case "deliver_physical":
+      return "Physical delivery";
+    default:
+      return "Digital delivery";
+  }
+}
+
 export default function RebootDiscoverFeedPage() {
   const navigate = useNavigate();
   const collectorId = useGuestCollector();
@@ -182,11 +197,22 @@ export default function RebootDiscoverFeedPage() {
           return (
             <article key={post.id} className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm">
               <header className="flex items-center justify-between px-4 py-3">
-                <div>
-                  <p className="text-sm font-semibold text-slate-900">{post.creator_name}</p>
-                  <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
-                    {post.product_type} | {formatCreatedAt(post.created_at)}
-                  </p>
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 overflow-hidden rounded-full border border-slate-200 bg-slate-100">
+                    {post.creator_avatar_url ? (
+                      <img src={post.creator_avatar_url} alt={post.creator_name} className="h-full w-full object-cover" />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-slate-600">
+                        {post.creator_name?.slice(0, 1) || "C"}
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">{post.creator_name}</p>
+                    <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
+                      {post.product_type} | {formatDeliveryMode(post.delivery_mode)} | {formatCreatedAt(post.created_at)}
+                    </p>
+                  </div>
                 </div>
                 <span className="rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold text-white">
                   {formatPrice(Number(post.price_eth || 0))}

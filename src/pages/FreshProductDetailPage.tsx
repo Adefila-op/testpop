@@ -9,6 +9,21 @@ function formatEth(value: number) {
   return `${Number(value || 0).toFixed(3)} ETH`;
 }
 
+function formatDeliveryMode(mode?: string) {
+  switch (mode) {
+    case "collect_onchain":
+      return "Collect onchain";
+    case "render_online":
+      return "Render online";
+    case "download_mobile":
+      return "Download on mobile";
+    case "deliver_physical":
+      return "Physical delivery";
+    default:
+      return "Digital delivery";
+  }
+}
+
 export default function FreshProductDetailPage() {
   const navigate = useNavigate();
   const { id = "" } = useParams();
@@ -81,6 +96,7 @@ export default function FreshProductDetailPage() {
         <h1 className="mt-2 text-3xl font-bold text-slate-950">{product.title}</h1>
         <p className="mt-2 text-sm text-slate-600">{product.description}</p>
         <p className="mt-3 text-lg font-semibold text-slate-900">{formatEth(product.price_eth)}</p>
+        <p className="mt-1 text-xs uppercase tracking-[0.18em] text-slate-500">{formatDeliveryMode(product.delivery_mode)}</p>
       </section>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-4">
@@ -139,6 +155,15 @@ export default function FreshProductDetailPage() {
             ) : (
               <p className="text-sm text-slate-600">No download path is configured for this file.</p>
             )}
+          </div>
+        ) : null}
+
+        {product.render_mode === "delivery" ? (
+          <div className="space-y-3">
+            {product.image_url ? <img src={product.image_url} alt={product.title} className="h-72 w-full rounded-xl object-cover" /> : null}
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+              Physical delivery item. Shipping details and tracking will appear in your profile after purchase.
+            </div>
           </div>
         ) : null}
       </section>

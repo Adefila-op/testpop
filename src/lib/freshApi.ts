@@ -30,9 +30,11 @@ export type FreshFeedItem = {
   price_eth: number;
   product_type: "digital_art" | "ebook" | "file" | string;
   render_mode: "image" | "ebook" | "download" | string;
+  delivery_mode?: "render_online" | "download_mobile" | "collect_onchain" | "deliver_physical" | string;
   creator_id: string;
   creator_name: string;
   creator_wallet: string;
+  creator_avatar_url?: string | null;
   like_count: number;
   comment_count: number;
   liked: boolean;
@@ -56,6 +58,7 @@ export type FreshCartItem = {
   image_url: string;
   product_type: "digital_art" | "ebook" | "file" | string;
   render_mode: "image" | "ebook" | "download" | string;
+  delivery_mode?: "render_online" | "download_mobile" | "collect_onchain" | "deliver_physical" | string;
   readable_url: string | null;
   download_url: string | null;
   creator_name: string;
@@ -98,10 +101,12 @@ export type FreshProduct = {
   price_eth: number;
   product_type: "digital_art" | "ebook" | "file" | string;
   render_mode: "image" | "ebook" | "download" | string;
+  delivery_mode?: "render_online" | "download_mobile" | "collect_onchain" | "deliver_physical" | string;
   readable_url: string | null;
   download_url: string | null;
   creator_name: string;
   creator_handle: string;
+  creator_avatar_url?: string | null;
 };
 
 export type FreshProfile = {

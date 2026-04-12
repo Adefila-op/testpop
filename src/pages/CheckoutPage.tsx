@@ -16,6 +16,14 @@ function formatEth(value: number) {
   return `${Number(value || 0).toFixed(3)} ETH`;
 }
 
+function resolveFulfillmentLabel(items: FreshCart["items"]) {
+  const modes = new Set(items.map((item) => item.delivery_mode));
+  if (modes.has("deliver_physical")) return "Physical delivery";
+  if (modes.has("collect_onchain")) return "Onchain collection";
+  if (modes.has("render_online")) return "Online rendering";
+  return "Mobile download";
+}
+
 export function CheckoutPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -250,6 +258,10 @@ export function CheckoutPage() {
                 />
                 <span className="text-sm font-medium text-slate-700">Off-ramp partner payment</span>
               </label>
+            </div>
+
+            <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+              Fulfillment mode: {cart ? resolveFulfillmentLabel(cart.items) : "Loading"}
             </div>
 
             <div className="mt-4 space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3">

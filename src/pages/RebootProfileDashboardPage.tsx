@@ -116,12 +116,17 @@ export default function RebootProfileDashboardPage() {
                 <img src={item.image_url} alt={item.title} className="h-36 w-full rounded-lg object-cover" />
                 <p className="mt-2 text-sm font-semibold text-slate-900">{item.title}</p>
                 <p className="text-xs text-slate-500">{item.creator_name}</p>
+                {item.render_mode === "delivery" ? (
+                  <p className="mt-1 text-xs font-semibold uppercase tracking-[0.12em] text-amber-600">
+                    Physical delivery
+                  </p>
+                ) : null}
                 <button
                   type="button"
                   onClick={() => navigate(`/products/${item.product_id}`)}
                   className="mt-2 rounded-full border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700"
                 >
-                  Open asset
+                  {item.render_mode === "delivery" ? "View delivery details" : "Open asset"}
                 </button>
               </article>
             ))}
