@@ -29,8 +29,9 @@ export type FreshFeedItem = {
   image_url: string;
   price_eth: number;
   product_type: "digital_art" | "ebook" | "file" | string;
-  render_mode: "image" | "ebook" | "download" | string;
+  render_mode: "image" | "ebook" | "download" | "delivery" | "collect" | string;
   delivery_mode?: "render_online" | "download_mobile" | "collect_onchain" | "deliver_physical" | string;
+  fulfillment_label?: string;
   creator_id: string;
   creator_name: string;
   creator_wallet: string;
@@ -51,14 +52,16 @@ export type FreshComment = {
 
 export type FreshCartItem = {
   product_id: string;
+  creator_id?: string;
   quantity: number;
   unit_price_eth: number;
   line_total_eth: number;
   title: string;
   image_url: string;
   product_type: "digital_art" | "ebook" | "file" | string;
-  render_mode: "image" | "ebook" | "download" | string;
+  render_mode: "image" | "ebook" | "download" | "delivery" | "collect" | string;
   delivery_mode?: "render_online" | "download_mobile" | "collect_onchain" | "deliver_physical" | string;
+  fulfillment_label?: string;
   readable_url: string | null;
   download_url: string | null;
   creator_name: string;
@@ -79,17 +82,33 @@ export type FreshOrder = {
   created_at: string;
   items: Array<{
     product_id: string;
+    creator_id?: string;
     quantity: number;
     unit_price_eth: number;
     line_total_eth: number;
     title: string;
     image_url: string;
     product_type: "digital_art" | "ebook" | "file" | string;
-    render_mode: "image" | "ebook" | "download" | string;
+    render_mode: "image" | "ebook" | "download" | "delivery" | "collect" | string;
+    delivery_mode?: "render_online" | "download_mobile" | "collect_onchain" | "deliver_physical" | string;
+    fulfillment_label?: string;
     readable_url: string | null;
     download_url: string | null;
   }>;
   gift_token?: string | null;
+  fulfillment?: {
+    status: string;
+    delivery_modes: string[];
+  } | null;
+  onchain?: {
+    chain: string;
+    tx_hash: string;
+    status: string;
+  } | null;
+  offchain?: {
+    provider: string;
+    status: string;
+  } | null;
 };
 
 export type FreshProduct = {
@@ -100,13 +119,18 @@ export type FreshProduct = {
   image_url: string;
   price_eth: number;
   product_type: "digital_art" | "ebook" | "file" | string;
-  render_mode: "image" | "ebook" | "download" | string;
+  render_mode: "image" | "ebook" | "download" | "delivery" | "collect" | string;
   delivery_mode?: "render_online" | "download_mobile" | "collect_onchain" | "deliver_physical" | string;
+  fulfillment_label?: string;
   readable_url: string | null;
   download_url: string | null;
   creator_name: string;
   creator_handle: string;
   creator_avatar_url?: string | null;
+  onchain?: {
+    chain: string;
+    contract_address?: string;
+  } | null;
 };
 
 export type FreshProfile = {
@@ -117,7 +141,9 @@ export type FreshProfile = {
     title: string;
     image_url: string;
     product_type: "digital_art" | "ebook" | "file" | string;
-    render_mode: "image" | "ebook" | "download" | string;
+    render_mode: "image" | "ebook" | "download" | "delivery" | "collect" | string;
+    delivery_mode?: "render_online" | "download_mobile" | "collect_onchain" | "deliver_physical" | string;
+    fulfillment_label?: string;
     readable_url: string | null;
     download_url: string | null;
     creator_name: string;
@@ -147,6 +173,46 @@ export type FreshProfile = {
     claim_url: string;
   }>;
   creator_dashboard_path: string;
+};
+
+export type FreshCreatorProfile = {
+  id: string;
+  name: string;
+  handle: string;
+  bio: string;
+  wallet: string;
+  profile_image: string;
+  banner_image: string;
+  featured_portfolio: Array<{
+    id: string;
+    title: string;
+    asset_url: string;
+    asset_type: string;
+    created_at: string;
+    ipfs?: {
+      cid: string;
+      ipfs_url: string;
+      gateway_url: string;
+      is_mock?: boolean;
+    } | null;
+  }>;
+  products: FreshProduct[];
+  stats: {
+    total_products: number;
+    total_sales: number;
+    total_revenue_eth: number;
+  };
+};
+
+export type FreshPin = {
+  id: string;
+  name: string;
+  metadata: Record<string, unknown>;
+  cid: string;
+  ipfs_url: string;
+  gateway_url: string;
+  is_mock?: boolean;
+  created_at: string;
 };
 
 export type FreshGift = {
@@ -294,4 +360,60 @@ export async function createFreshShare(postId: string) {
     method: "POST",
     body: JSON.stringify({ post_id: postId }),
   });
+}
+
+export async function fetchFreshCreator(creatorId: string) {
+  return requestJson<FreshCreatorProfile>(`/fresh/creator/${encodeURIComponent(creatorId)}`);
+}
+
+export async function fetchFreshCreatorPortfolio(creatorId: string) {
+  return requestJson<{ creator_id: string; portfolio: FreshCreatorProfile["featured_portfolio"] }>(
+    `/fresh/creator/${encodeURIComponent(creatorId)}/portfolio`,
+  );
+}
+
+export async function addFreshCreatorPortfolioItem(creatorId: string, payload: {
+  title: string;
+  asset_url?: string;
+  asset_type?: string;
+  pin_to_ipfs?: boolean;
+  metadata?: Record<string, unknown>;
+}) {
+  return requestJson<FreshCreatorProfile["featured_portfolio"][number]>(
+    `/fresh/creator/${encodeURIComponent(creatorId)}/portfolio`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export async function pinFreshMetadata(name: string, metadata: Record<string, unknown>) {
+  return requestJson<FreshPin>("/fresh/pinata/metadata", {
+    method: "POST",
+    body: JSON.stringify({ name, metadata }),
+  });
+}
+
+export async function fetchFreshAdminOverview() {
+  return requestJson<{
+    creators: number;
+    products: number;
+    orders: number;
+    gifts: number;
+    pending_gifts: number;
+    applications_review: number;
+  }>("/fresh/admin/overview");
+}
+
+export async function fetchFreshAdminCreators() {
+  return requestJson<{ creators: FreshCreatorProfile[] }>("/fresh/admin/creators");
+}
+
+export async function fetchFreshAdminOrders() {
+  return requestJson<{ orders: FreshOrder[] }>("/fresh/admin/orders");
+}
+
+export async function fetchFreshAdminGifts() {
+  return requestJson<{ gifts: FreshGift[] }>("/fresh/admin/gifts");
 }

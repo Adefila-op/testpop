@@ -1,3 +1,3 @@
-﻿import app from "../freshSupabaseApp.js";
+﻿import app from "../freshApp.js";
 
 export default app;

@@ -9,6 +9,9 @@ import { randomUUID } from "node:crypto";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const DB_PATH = path.resolve(__dirname, "fresh-db.json");
+const PINATA_JWT = process.env.PINATA_JWT || "";
+const PINATA_GATEWAY = process.env.PINATA_GATEWAY || "https://gateway.pinata.cloud/ipfs";
+const PINATA_ENDPOINT = process.env.PINATA_ENDPOINT || "https://api.pinata.cloud/pinning/pinJSONToIPFS";
 
 const app = express();
 
@@ -52,22 +55,64 @@ function createSeedDb() {
         id: "creator-aurora",
         name: "Aurora Vale",
         handle: "@auroravale",
+        wallet: "0xAuroraCreatorWallet",
+        bio: "Mixed media storyteller blending neon fragments with handwritten textures.",
         profile_image:
           "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=1200&q=80",
+        banner_image:
+          "https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=1400&q=80",
+        featured_portfolio: [
+          {
+            id: "portfolio-aurora-1",
+            title: "Starlit Panels",
+            asset_url:
+              "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=80",
+            asset_type: "image",
+            created_at: createdAt,
+          },
+        ],
       },
       {
         id: "creator-nova",
         name: "Nova Ikeda",
         handle: "@novaikeda",
+        wallet: "0xNovaCreatorWallet",
+        bio: "Futurist illustrator shipping episodic worlds and collector zines.",
         profile_image:
           "https://images.unsplash.com/photo-1542206395-9feb3edaa68d?auto=format&fit=crop&w=1200&q=80",
+        banner_image:
+          "https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=1400&q=80",
+        featured_portfolio: [
+          {
+            id: "portfolio-nova-1",
+            title: "Neon Futures",
+            asset_url:
+              "https://images.unsplash.com/photo-1472162314594-9b9b1ea60944?auto=format&fit=crop&w=1200&q=80",
+            asset_type: "image",
+            created_at: createdAt,
+          },
+        ],
       },
       {
         id: "creator-rio",
         name: "Rio Mercer",
         handle: "@riomercer",
+        wallet: "0xRioCreatorWallet",
+        bio: "Motion design kits for creators who ship fast.",
         profile_image:
           "https://images.unsplash.com/photo-1547425260-76bcadfb4f2c?auto=format&fit=crop&w=1200&q=80",
+        banner_image:
+          "https://images.unsplash.com/photo-1469474968028-56623f02e42e?auto=format&fit=crop&w=1400&q=80",
+        featured_portfolio: [
+          {
+            id: "portfolio-rio-1",
+            title: "Motion Kit Frames",
+            asset_url:
+              "https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?auto=format&fit=crop&w=1200&q=80",
+            asset_type: "image",
+            created_at: createdAt,
+          },
+        ],
       },
     ],
     products: [
@@ -84,6 +129,7 @@ function createSeedDb() {
           "https://images.unsplash.com/photo-1513364776144-60967b0f800f?auto=format&fit=crop&w=2200&q=90",
         price_eth: 0.032,
         product_type: "digital_art",
+        delivery_mode: "render_online",
       },
       {
         id: "product-neon-ebook",
@@ -98,6 +144,7 @@ function createSeedDb() {
           "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
         price_eth: 0.018,
         product_type: "ebook",
+        delivery_mode: "render_online",
       },
       {
         id: "product-rio-pack",
@@ -112,6 +159,7 @@ function createSeedDb() {
           "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
         price_eth: 0.025,
         product_type: "file",
+        delivery_mode: "download_mobile",
       },
       {
         id: "product-aurora-zine",
@@ -126,6 +174,39 @@ function createSeedDb() {
           "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
         price_eth: 0.014,
         product_type: "ebook",
+        delivery_mode: "render_online",
+      },
+      {
+        id: "product-aurora-print",
+        creator_id: "creator-aurora",
+        title: "Aurora Holo Print",
+        description: "Limited run physical print with holographic foil finish.",
+        image_url:
+          "https://images.unsplash.com/photo-1457305237443-44c3d5a30b89?auto=format&fit=crop&w=1400&q=80",
+        preview_url:
+          "https://images.unsplash.com/photo-1457305237443-44c3d5a30b89?auto=format&fit=crop&w=1600&q=80",
+        delivery_url: "",
+        price_eth: 0.09,
+        product_type: "physical",
+        delivery_mode: "deliver_physical",
+      },
+      {
+        id: "product-nova-collectible",
+        creator_id: "creator-nova",
+        title: "Neon Token Collectible",
+        description: "Onchain collectible drop with unlockable art pack.",
+        image_url:
+          "https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=1400&q=80",
+        preview_url:
+          "https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=1600&q=80",
+        delivery_url: "",
+        price_eth: 0.055,
+        product_type: "collectible",
+        delivery_mode: "collect_onchain",
+        onchain: {
+          chain: "base-sepolia",
+          contract_address: "0xNeonCollectibleContract",
+        },
       },
     ],
     posts: [
@@ -161,6 +242,22 @@ function createSeedDb() {
         featured: false,
         created_at: createdAt,
       },
+      {
+        id: "post-5",
+        product_id: "product-aurora-print",
+        creator_id: "creator-aurora",
+        caption: "Holo print shipment available for the next 48 hours.",
+        featured: false,
+        created_at: createdAt,
+      },
+      {
+        id: "post-6",
+        product_id: "product-nova-collectible",
+        creator_id: "creator-nova",
+        caption: "Collectible drop: claim onchain + unlocks digital pack.",
+        featured: true,
+        created_at: createdAt,
+      },
     ],
     likes: [],
     comments: [],
@@ -170,6 +267,21 @@ function createSeedDb() {
     collections: [],
     poaps: [],
     subscriptions: [],
+    pins: [],
+    creator_applications: [
+      {
+        id: "application-aurora",
+        creator_id: "creator-aurora",
+        status: "approved",
+        submitted_at: createdAt,
+      },
+      {
+        id: "application-nova",
+        creator_id: "creator-nova",
+        status: "review",
+        submitted_at: createdAt,
+      },
+    ],
   };
 }
 
@@ -202,7 +314,36 @@ function normalizeProductType(value) {
   if (normalized === "digital_art") return "digital_art";
   if (normalized === "ebook") return "ebook";
   if (normalized === "file") return "file";
+  if (normalized === "physical") return "physical";
+  if (normalized === "collectible") return "collectible";
   return "file";
+}
+
+function resolveDeliveryMode(product) {
+  const explicit = String(product?.delivery_mode || "").trim();
+  if (explicit) return explicit;
+  if (product?.onchain) return "collect_onchain";
+  const type = normalizeProductType(product?.product_type);
+  if (type === "digital_art") return "render_online";
+  if (type === "ebook") return "render_online";
+  if (type === "physical") return "deliver_physical";
+  if (type === "collectible") return "collect_onchain";
+  return "download_mobile";
+}
+
+function resolveFulfillmentLabel(deliveryMode) {
+  switch (deliveryMode) {
+    case "deliver_physical":
+      return "Physical delivery";
+    case "collect_onchain":
+      return "Collect onchain";
+    case "render_online":
+      return "Render online";
+    case "download_mobile":
+      return "Download to mobile";
+    default:
+      return "Digital delivery";
+  }
 }
 
 function resolveProductRender(product) {
@@ -210,10 +351,23 @@ function resolveProductRender(product) {
   const imageUrl = String(product?.image_url || "").trim();
   const previewUrl = String(product?.preview_url || "").trim();
   const deliveryUrl = String(product?.delivery_url || "").trim();
+  const deliveryMode = resolveDeliveryMode(product);
+
+  if (deliveryMode === "deliver_physical") {
+    return {
+      product_type: type,
+      delivery_mode: deliveryMode,
+      render_mode: "delivery",
+      image_url: imageUrl || previewUrl || null,
+      readable_url: null,
+      download_url: null,
+    };
+  }
 
   if (type === "digital_art") {
     return {
       product_type: type,
+      delivery_mode: deliveryMode,
       render_mode: "image",
       image_url: previewUrl || imageUrl,
       readable_url: null,
@@ -225,6 +379,7 @@ function resolveProductRender(product) {
     const readable = previewUrl || deliveryUrl || null;
     return {
       product_type: type,
+      delivery_mode: deliveryMode,
       render_mode: "ebook",
       image_url: imageUrl || null,
       readable_url: readable,
@@ -233,7 +388,8 @@ function resolveProductRender(product) {
   }
 
   return {
-    product_type: "file",
+    product_type: type,
+    delivery_mode: deliveryMode,
     render_mode: "download",
     image_url: imageUrl || previewUrl || null,
     readable_url: null,
@@ -254,6 +410,7 @@ function summarizeCart(db, collectorId) {
       const render = resolveProductRender(product);
       return {
         product_id: product.id,
+        creator_id: product.creator_id,
         quantity,
         unit_price_eth: unitPriceEth,
         line_total_eth: Number((unitPriceEth * quantity).toFixed(6)),
@@ -261,6 +418,8 @@ function summarizeCart(db, collectorId) {
         image_url: render.image_url || product.image_url,
         product_type: render.product_type,
         render_mode: render.render_mode,
+        delivery_mode: render.delivery_mode,
+        fulfillment_label: resolveFulfillmentLabel(render.delivery_mode),
         readable_url: render.readable_url,
         download_url: render.download_url,
         creator_name: creator?.name || "Creator",
@@ -297,9 +456,12 @@ function buildFeedItem(db, collectorId, post) {
     price_eth: product.price_eth,
     product_type: render.product_type,
     render_mode: render.render_mode,
+    delivery_mode: render.delivery_mode,
+    fulfillment_label: resolveFulfillmentLabel(render.delivery_mode),
     creator_id: creator.id,
-    creator_wallet: creator.handle,
+    creator_wallet: creator.wallet || creator.handle,
     creator_name: creator.name,
+    creator_avatar_url: creator.profile_image,
     can_purchase: true,
     can_bid: false,
     like_count: likeCount,
@@ -339,6 +501,7 @@ function grantCollection(db, collectorId, orderId, items) {
       order_id: orderId,
       product_id: item.product_id,
       quantity: Math.max(1, Number(item.quantity) || 1),
+      delivery_mode: item.delivery_mode || null,
       acquired_at: nowIso(),
     });
   }
@@ -358,6 +521,8 @@ function buildProfile(db, collectorId) {
         image_url: render?.image_url || product?.image_url || "",
         product_type: render?.product_type || "file",
         render_mode: render?.render_mode || "download",
+        delivery_mode: entry.delivery_mode || render?.delivery_mode || "download_mobile",
+        fulfillment_label: resolveFulfillmentLabel(entry.delivery_mode || render?.delivery_mode),
         readable_url: render?.readable_url || null,
         download_url: render?.download_url || null,
         creator_name: creator?.name || "Creator",
@@ -373,6 +538,7 @@ function buildProfile(db, collectorId) {
       status: entry.status,
       payment_method: entry.payment_method,
       total_eth: entry.total_eth,
+      fulfillment: entry.fulfillment || null,
       created_at: entry.created_at,
       items: entry.items,
       gift_token: entry.gift_token || null,
@@ -422,11 +588,78 @@ function buildProductResponse(db, product) {
     price_eth: Number(product.price_eth) || 0,
     product_type: render.product_type,
     render_mode: render.render_mode,
+    delivery_mode: render.delivery_mode,
+    fulfillment_label: resolveFulfillmentLabel(render.delivery_mode),
     readable_url: render.readable_url,
     download_url: render.download_url,
     creator_name: creator?.name || "Creator",
     creator_handle: creator?.handle || "",
+    creator_avatar_url: creator?.profile_image || null,
+    onchain: product?.onchain || null,
   };
+}
+
+function buildCreatorProfile(db, creator) {
+  const products = db.products
+    .filter((entry) => entry.creator_id === creator.id)
+    .map((entry) => buildProductResponse(db, entry));
+  const featured = Array.isArray(creator.featured_portfolio) ? creator.featured_portfolio : [];
+  return {
+    id: creator.id,
+    name: creator.name,
+    handle: creator.handle,
+    bio: creator.bio || "",
+    wallet: creator.wallet || "",
+    profile_image: creator.profile_image || "",
+    banner_image: creator.banner_image || "",
+    featured_portfolio: featured,
+    products,
+    stats: {
+      total_products: products.length,
+      total_sales: db.orders.filter((order) => order.items?.some((item) => item.creator_id === creator.id)).length,
+      total_revenue_eth: Number(
+        db.orders
+          .filter((order) => order.items?.some((item) => item.creator_id === creator.id))
+          .reduce((sum, order) => sum + Number(order.total_eth || 0), 0)
+          .toFixed(6),
+      ),
+    },
+  };
+}
+
+function buildIpfsUrls(cid) {
+  const safeCid = String(cid || "").trim();
+  return {
+    cid: safeCid,
+    ipfs_url: safeCid ? `ipfs://${safeCid}` : "",
+    gateway_url: safeCid ? `${PINATA_GATEWAY}/${safeCid}` : "",
+  };
+}
+
+async function pinataPinJson({ name, data }) {
+  if (!PINATA_JWT) {
+    const mockCid = `bafy${randomUUID().replace(/-/g, "").slice(0, 20)}`;
+    return { ...buildIpfsUrls(mockCid), is_mock: true };
+  }
+
+  const response = await fetch(PINATA_ENDPOINT, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${PINATA_JWT}`,
+    },
+    body: JSON.stringify({
+      pinataMetadata: { name: name || "popup-asset" },
+      pinataContent: data,
+    }),
+  });
+
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(payload?.error || payload?.message || "Pinata upload failed");
+  }
+  const cid = payload?.IpfsHash || payload?.Hash || payload?.cid || "";
+  return { ...buildIpfsUrls(cid), is_mock: false };
 }
 
 app.get("/health", (_req, res) => {
@@ -448,6 +681,127 @@ app.get("/fresh/bootstrap", (req, res) => {
       order_count: profile.orders.length,
     },
   });
+});
+
+app.post("/fresh/pinata/metadata", async (req, res, next) => {
+  try {
+    const name = String(req.body?.name || "popup-asset").trim();
+    const metadata = req.body?.metadata && typeof req.body.metadata === "object" ? req.body.metadata : {};
+    const db = readDb();
+    const pin = await pinataPinJson({ name, data: metadata });
+    const entry = {
+      id: `pin-${randomUUID().slice(0, 10)}`,
+      name,
+      metadata,
+      ...pin,
+      created_at: nowIso(),
+    };
+    db.pins.push(entry);
+    writeDb(db);
+    res.status(201).json(entry);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get("/fresh/creator/:creatorId", (req, res) => {
+  const creatorId = String(req.params.creatorId || "").trim();
+  const db = readDb();
+  const creator = firstById(db.creators, creatorId);
+  if (!creator) return res.status(404).json({ error: "Creator not found" });
+  return res.json(buildCreatorProfile(db, creator));
+});
+
+app.get("/fresh/creator/:creatorId/portfolio", (req, res) => {
+  const creatorId = String(req.params.creatorId || "").trim();
+  const db = readDb();
+  const creator = firstById(db.creators, creatorId);
+  if (!creator) return res.status(404).json({ error: "Creator not found" });
+  const portfolio = Array.isArray(creator.featured_portfolio) ? creator.featured_portfolio : [];
+  return res.json({ creator_id: creatorId, portfolio });
+});
+
+app.post("/fresh/creator/:creatorId/portfolio", async (req, res, next) => {
+  try {
+    const creatorId = String(req.params.creatorId || "").trim();
+    const db = readDb();
+    const creator = firstById(db.creators, creatorId);
+    if (!creator) return res.status(404).json({ error: "Creator not found" });
+
+    const title = String(req.body?.title || "").trim();
+    if (!title) return res.status(400).json({ error: "title is required" });
+
+    const assetUrl = String(req.body?.asset_url || "").trim();
+    const assetType = String(req.body?.asset_type || "image").trim();
+    const metadata = req.body?.metadata && typeof req.body.metadata === "object" ? req.body.metadata : {};
+    const pinToIpfs = Boolean(req.body?.pin_to_ipfs);
+
+    let ipfs = null;
+    if (pinToIpfs) {
+      ipfs = await pinataPinJson({
+        name: `${creatorId}-${title}`,
+        data: {
+          title,
+          asset_url: assetUrl,
+          asset_type: assetType,
+          ...metadata,
+        },
+      });
+    }
+
+    const portfolioItem = {
+      id: `portfolio-${randomUUID().slice(0, 10)}`,
+      title,
+      asset_url: assetUrl || ipfs?.gateway_url || "",
+      asset_type: assetType,
+      ipfs,
+      created_at: nowIso(),
+    };
+
+    creator.featured_portfolio = Array.isArray(creator.featured_portfolio)
+      ? creator.featured_portfolio
+      : [];
+    creator.featured_portfolio.unshift(portfolioItem);
+    writeDb(db);
+
+    res.status(201).json(portfolioItem);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get("/fresh/admin/overview", (req, res) => {
+  const db = readDb();
+  res.json({
+    creators: db.creators.length,
+    products: db.products.length,
+    orders: db.orders.length,
+    gifts: db.gifts.length,
+    pending_gifts: db.gifts.filter((gift) => gift.status === "pending").length,
+    applications_review: db.creator_applications.filter((app) => app.status === "review").length,
+  });
+});
+
+app.get("/fresh/admin/creators", (req, res) => {
+  const db = readDb();
+  const creators = db.creators.map((creator) => buildCreatorProfile(db, creator));
+  res.json({ creators });
+});
+
+app.get("/fresh/admin/orders", (req, res) => {
+  const db = readDb();
+  const orders = db.orders
+    .slice()
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  res.json({ orders });
+});
+
+app.get("/fresh/admin/gifts", (req, res) => {
+  const db = readDb();
+  const gifts = db.gifts
+    .slice()
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  res.json({ gifts });
 });
 
 app.get("/fresh/home", (req, res) => {
@@ -637,8 +991,10 @@ app.post("/fresh/checkout", (req, res) => {
     const product = firstById(db.products, entry.product_id);
     if (!product) return null;
     const render = resolveProductRender(product);
+    const deliveryMode = render.delivery_mode;
     return {
       product_id: product.id,
+      creator_id: product.creator_id,
       quantity: entry.quantity,
       unit_price_eth: Number(product.price_eth) || 0,
       line_total_eth: Number(((Number(product.price_eth) || 0) * entry.quantity).toFixed(6)),
@@ -646,6 +1002,8 @@ app.post("/fresh/checkout", (req, res) => {
       image_url: render.image_url || product.image_url,
       product_type: render.product_type,
       render_mode: render.render_mode,
+      delivery_mode: deliveryMode,
+      fulfillment_label: resolveFulfillmentLabel(deliveryMode),
       readable_url: render.readable_url,
       download_url: render.download_url,
     };
@@ -667,9 +1025,26 @@ app.post("/fresh/checkout", (req, res) => {
     payment_method: paymentMethod,
     total_eth: totalEth,
     items: finalizedItems,
+    fulfillment: {
+      status: paymentMethod === "onchain" ? "awaiting_mint" : "processing",
+      delivery_modes: Array.from(new Set(finalizedItems.map((item) => item.delivery_mode || ""))).filter(Boolean),
+    },
     created_at: nowIso(),
     gift_token: null,
   };
+
+  if (paymentMethod === "onchain") {
+    order.onchain = {
+      chain: "base-sepolia",
+      tx_hash: `0x${randomUUID().replace(/-/g, "")}`,
+      status: "submitted",
+    };
+  } else {
+    order.offchain = {
+      provider: "offramp_partner",
+      status: "confirmed",
+    };
+  }
 
   const giftRequested = Boolean(req.body?.gift && typeof req.body.gift === "object");
   let giftPayload = null;
