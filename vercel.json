@@ -2,6 +2,14 @@
   "version": 2,
   "routes": [
     {
+      "src": "/api/pinata/file",
+      "dest": "/api/pinata/file.js"
+    },
+    {
+      "src": "/api/pinata/json",
+      "dest": "/api/pinata/json.js"
+    },
+    {
       "src": "/api/(.*)",
       "dest": "/api/index.js"
     },

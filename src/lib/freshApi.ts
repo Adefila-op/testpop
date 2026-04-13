@@ -19,6 +19,8 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   return payload as T;
 }
 
+export type FreshInAppAction = "collect_in_app" | "view_in_app" | string;
+
 export type FreshFeedItem = {
   id: string;
   post_id: string;
@@ -32,6 +34,8 @@ export type FreshFeedItem = {
   render_mode: "image" | "ebook" | "download" | "delivery" | "collect" | "video" | "pdf" | string;
   delivery_mode?: "render_online" | "download_mobile" | "collect_onchain" | "deliver_physical" | string;
   fulfillment_label?: string;
+  in_app_action?: FreshInAppAction;
+  in_app_action_label?: string;
   creator_id: string;
   creator_name: string;
   creator_wallet: string;
@@ -62,6 +66,8 @@ export type FreshCartItem = {
   render_mode: "image" | "ebook" | "download" | "delivery" | "collect" | "video" | "pdf" | string;
   delivery_mode?: "render_online" | "download_mobile" | "collect_onchain" | "deliver_physical" | string;
   fulfillment_label?: string;
+  in_app_action?: FreshInAppAction;
+  in_app_action_label?: string;
   readable_url: string | null;
   download_url: string | null;
   creator_name: string;
@@ -92,6 +98,8 @@ export type FreshOrder = {
     render_mode: "image" | "ebook" | "download" | "delivery" | "collect" | "video" | "pdf" | string;
     delivery_mode?: "render_online" | "download_mobile" | "collect_onchain" | "deliver_physical" | string;
     fulfillment_label?: string;
+    in_app_action?: FreshInAppAction;
+    in_app_action_label?: string;
     readable_url: string | null;
     download_url: string | null;
   }>;
@@ -122,6 +130,8 @@ export type FreshProduct = {
   render_mode: "image" | "ebook" | "download" | "delivery" | "collect" | "video" | "pdf" | string;
   delivery_mode?: "render_online" | "download_mobile" | "collect_onchain" | "deliver_physical" | string;
   fulfillment_label?: string;
+  in_app_action?: FreshInAppAction;
+  in_app_action_label?: string;
   readable_url: string | null;
   download_url: string | null;
   creator_name: string;
@@ -144,6 +154,8 @@ export type FreshProfile = {
     render_mode: "image" | "ebook" | "download" | "delivery" | "collect" | "video" | "pdf" | string;
     delivery_mode?: "render_online" | "download_mobile" | "collect_onchain" | "deliver_physical" | string;
     fulfillment_label?: string;
+    in_app_action?: FreshInAppAction;
+    in_app_action_label?: string;
     readable_url: string | null;
     download_url: string | null;
     creator_name: string;

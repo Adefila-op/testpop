@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Loader2, MessageCircle, Send, ShoppingBag } from "lucide-react";
+import { Eye, Loader2, MessageCircle, Send, ShoppingBag } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useGuestCollector } from "@/hooks/useGuestCollector";
@@ -72,7 +72,12 @@ export default function RebootDiscoverFeedPage() {
     };
   }, [collectorId]);
 
-  async function handleBuy(post: FreshFeedItem) {
+  async function handlePrimaryAction(post: FreshFeedItem) {
+    if (post.in_app_action === "view_in_app") {
+      navigate(`/products/${encodeURIComponent(post.product_id)}`);
+      return;
+    }
+
     try {
       setBusyId(post.id);
       await addFreshCartItem(collectorId, post.product_id, 1);
@@ -193,6 +198,8 @@ export default function RebootDiscoverFeedPage() {
           const busy = busyId === post.id;
           const commentsOpen = openCommentId === post.id;
           const comments = commentsByPost[post.post_id] || [];
+          const isViewAction = post.in_app_action === "view_in_app";
+          const actionLabel = post.in_app_action_label || (isViewAction ? "View in app" : "Collect in app");
 
           return (
             <article key={post.id} className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm">
@@ -251,12 +258,12 @@ export default function RebootDiscoverFeedPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => void handleBuy(post)}
+                    onClick={() => void handlePrimaryAction(post)}
                     disabled={busy}
                     className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-slate-900 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-70"
                   >
-                    {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShoppingBag className="h-4 w-4" />}
-                    Buy
+                    {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : isViewAction ? <Eye className="h-4 w-4" /> : <ShoppingBag className="h-4 w-4" />}
+                    {busy ? (isViewAction ? "Opening..." : "Adding...") : actionLabel}
                   </button>
                   <button
                     type="button"

@@ -12,6 +12,9 @@ const DB_PATH = path.resolve(__dirname, "fresh-db.json");
 const PINATA_JWT = process.env.PINATA_JWT || "";
 const PINATA_GATEWAY = process.env.PINATA_GATEWAY || "https://gateway.pinata.cloud/ipfs";
 const PINATA_ENDPOINT = process.env.PINATA_ENDPOINT || "https://api.pinata.cloud/pinning/pinJSONToIPFS";
+const READ_ONLY_FS_ERROR_CODES = new Set(["EROFS", "EACCES", "EPERM"]);
+let useInMemoryDb = false;
+let inMemoryDb = null;
 
 const app = express();
 
@@ -31,19 +34,64 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+function cloneDb(payload) {
+  return JSON.parse(JSON.stringify(payload));
+}
+
+function enableInMemoryDb(seed) {
+  useInMemoryDb = true;
+  if (!inMemoryDb) {
+    inMemoryDb = seed ? cloneDb(seed) : createSeedDb();
+  }
+}
+
 function readDb() {
   ensureDb();
+  if (useInMemoryDb) {
+    if (!inMemoryDb) {
+      inMemoryDb = createSeedDb();
+    }
+    return cloneDb(inMemoryDb);
+  }
   const raw = fs.readFileSync(DB_PATH, "utf8");
   return JSON.parse(raw);
 }
 
 function writeDb(payload) {
-  fs.writeFileSync(DB_PATH, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
+  if (useInMemoryDb) {
+    inMemoryDb = cloneDb(payload);
+    return;
+  }
+
+  try {
+    fs.writeFileSync(DB_PATH, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
+  } catch (error) {
+    if (READ_ONLY_FS_ERROR_CODES.has(error?.code)) {
+      enableInMemoryDb(payload);
+      return;
+    }
+    throw error;
+  }
 }
 
 function ensureDb() {
-  if (fs.existsSync(DB_PATH)) return;
-  writeDb(createSeedDb());
+  if (useInMemoryDb) {
+    if (!inMemoryDb) {
+      inMemoryDb = createSeedDb();
+    }
+    return;
+  }
+
+  try {
+    if (fs.existsSync(DB_PATH)) return;
+    writeDb(createSeedDb());
+  } catch (error) {
+    if (READ_ONLY_FS_ERROR_CODES.has(error?.code)) {
+      enableInMemoryDb();
+      return;
+    }
+    throw error;
+  }
 }
 
 function createSeedDb() {
@@ -387,7 +435,7 @@ function resolveProductRender(product) {
     };
   }
 
-  if (type === "digital_art") {
+  if (type === "digital_art" || type === "art" || type === "collectible") {
     return {
       product_type: type,
       delivery_mode: deliveryMode,
@@ -411,13 +459,14 @@ function resolveProductRender(product) {
   }
 
   if (type === "video") {
+    const readable = previewUrl || deliveryUrl || null;
     return {
       product_type: type,
       delivery_mode: deliveryMode,
       render_mode: "video",
       image_url: imageUrl || previewUrl || null,
-      readable_url: null,
-      download_url: deliveryUrl || null,
+      readable_url: readable,
+      download_url: deliveryUrl || readable,
     };
   }
 
@@ -443,6 +492,23 @@ function resolveProductRender(product) {
   };
 }
 
+function resolveInAppAction(product, render) {
+  const resolvedRender = render || resolveProductRender(product);
+  const mode = String(resolvedRender?.render_mode || "").trim().toLowerCase();
+
+  if (mode === "video" || mode === "pdf" || mode === "ebook") {
+    return {
+      in_app_action: "view_in_app",
+      in_app_action_label: "View in app",
+    };
+  }
+
+  return {
+    in_app_action: "collect_in_app",
+    in_app_action_label: "Collect in app",
+  };
+}
+
 function summarizeCart(db, collectorId) {
   const items = Array.isArray(db.carts[collectorId]) ? db.carts[collectorId] : [];
   const hydrated = items
@@ -454,6 +520,7 @@ function summarizeCart(db, collectorId) {
       const quantity = Math.max(1, Number(entry.quantity) || 1);
       const unitPriceEth = Number(product.price_eth) || 0;
       const render = resolveProductRender(product);
+      const inAppAction = resolveInAppAction(product, render);
       return {
         product_id: product.id,
         creator_id: product.creator_id,
@@ -466,6 +533,8 @@ function summarizeCart(db, collectorId) {
         render_mode: render.render_mode,
         delivery_mode: render.delivery_mode,
         fulfillment_label: resolveFulfillmentLabel(render.delivery_mode),
+        in_app_action: inAppAction.in_app_action,
+        in_app_action_label: inAppAction.in_app_action_label,
         readable_url: render.readable_url,
         download_url: render.download_url,
         creator_name: creator?.name || "Creator",
@@ -486,6 +555,7 @@ function buildFeedItem(db, collectorId, post) {
   const creator = firstById(db.creators, post.creator_id);
   if (!product || !creator) return null;
   const render = resolveProductRender(product);
+  const inAppAction = resolveInAppAction(product, render);
 
   const likeCount = db.likes.filter((like) => like.post_id === post.id).length;
   const commentCount = db.comments.filter((comment) => comment.post_id === post.id).length;
@@ -504,6 +574,8 @@ function buildFeedItem(db, collectorId, post) {
     render_mode: render.render_mode,
     delivery_mode: render.delivery_mode,
     fulfillment_label: resolveFulfillmentLabel(render.delivery_mode),
+    in_app_action: inAppAction.in_app_action,
+    in_app_action_label: inAppAction.in_app_action_label,
     creator_id: creator.id,
     creator_wallet: creator.wallet || creator.handle,
     creator_name: creator.name,
@@ -560,6 +632,7 @@ function buildProfile(db, collectorId) {
       const product = firstById(db.products, entry.product_id);
       const creator = product ? firstById(db.creators, product.creator_id) : null;
       const render = product ? resolveProductRender(product) : null;
+      const inAppAction = product ? resolveInAppAction(product, render) : null;
       return {
         id: entry.id,
         product_id: entry.product_id,
@@ -569,6 +642,8 @@ function buildProfile(db, collectorId) {
         render_mode: render?.render_mode || "download",
         delivery_mode: entry.delivery_mode || render?.delivery_mode || "download_mobile",
         fulfillment_label: resolveFulfillmentLabel(entry.delivery_mode || render?.delivery_mode),
+        in_app_action: inAppAction?.in_app_action || "collect_in_app",
+        in_app_action_label: inAppAction?.in_app_action_label || "Collect in app",
         readable_url: render?.readable_url || null,
         download_url: render?.download_url || null,
         creator_name: creator?.name || "Creator",
@@ -625,6 +700,7 @@ function escapeHtml(value) {
 function buildProductResponse(db, product) {
   const creator = firstById(db.creators, product.creator_id);
   const render = resolveProductRender(product);
+  const inAppAction = resolveInAppAction(product, render);
   return {
     id: product.id,
     creator_id: product.creator_id,
@@ -636,6 +712,8 @@ function buildProductResponse(db, product) {
     render_mode: render.render_mode,
     delivery_mode: render.delivery_mode,
     fulfillment_label: resolveFulfillmentLabel(render.delivery_mode),
+    in_app_action: inAppAction.in_app_action,
+    in_app_action_label: inAppAction.in_app_action_label,
     readable_url: render.readable_url,
     download_url: render.download_url,
     creator_name: creator?.name || "Creator",
@@ -961,6 +1039,13 @@ app.post("/fresh/cart/add", (req, res) => {
   const db = readDb();
   const product = firstById(db.products, productId);
   if (!product) return res.status(404).json({ error: "Product not found" });
+  const inAppAction = resolveInAppAction(product, resolveProductRender(product));
+  if (inAppAction.in_app_action === "view_in_app") {
+    return res.status(409).json({
+      error: "This product is view-only in app and cannot be added to checkout.",
+      in_app_action: inAppAction.in_app_action,
+    });
+  }
 
   const existing = Array.isArray(db.carts[collectorId]) ? db.carts[collectorId] : [];
   const item = existing.find((entry) => entry.product_id === productId);
@@ -1037,6 +1122,14 @@ app.post("/fresh/checkout", (req, res) => {
     const product = firstById(db.products, entry.product_id);
     if (!product) return null;
     const render = resolveProductRender(product);
+    const inAppAction = resolveInAppAction(product, render);
+    if (inAppAction.in_app_action === "view_in_app") {
+      return {
+        blocked: true,
+        product_id: product.id,
+        title: product.title,
+      };
+    }
     const deliveryMode = render.delivery_mode;
     return {
       product_id: product.id,
@@ -1050,6 +1143,8 @@ app.post("/fresh/checkout", (req, res) => {
       render_mode: render.render_mode,
       delivery_mode: deliveryMode,
       fulfillment_label: resolveFulfillmentLabel(deliveryMode),
+      in_app_action: inAppAction.in_app_action,
+      in_app_action_label: inAppAction.in_app_action_label,
       readable_url: render.readable_url,
       download_url: render.download_url,
     };
@@ -1057,6 +1152,15 @@ app.post("/fresh/checkout", (req, res) => {
 
   if (hydratedItems.some((entry) => !entry)) {
     return res.status(404).json({ error: "One or more products are unavailable" });
+  }
+
+  const blockedItem = hydratedItems.find((entry) => entry?.blocked);
+  if (blockedItem) {
+    return res.status(409).json({
+      error: `${blockedItem.title || "This product"} is view-only in app and cannot be collected through checkout.`,
+      product_id: blockedItem.product_id,
+      in_app_action: "view_in_app",
+    });
   }
 
   const finalizedItems = hydratedItems.filter(Boolean);

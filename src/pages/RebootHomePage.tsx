@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Gift, Heart, Loader2, User } from "lucide-react";
+import { Eye, Gift, Heart, Loader2, User } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useGuestCollector } from "@/hooks/useGuestCollector";
@@ -70,8 +70,12 @@ export default function RebootHomePage() {
     }
   }
 
-  function openGiftFlow(post: FreshFeedItem) {
-    navigate(`/checkout?product=${encodeURIComponent(post.product_id)}&gift=1`);
+  function openPrimaryAction(post: FreshFeedItem) {
+    if (post.in_app_action === "view_in_app") {
+      navigate(`/products/${encodeURIComponent(post.product_id)}`);
+      return;
+    }
+    navigate(`/checkout?product=${encodeURIComponent(post.product_id)}`);
   }
 
   return (
@@ -113,11 +117,11 @@ export default function RebootHomePage() {
                   <div className="flex flex-wrap gap-2 pt-1">
                     <button
                       type="button"
-                      onClick={() => openGiftFlow(activeItem)}
+                      onClick={() => openPrimaryAction(activeItem)}
                       className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
                     >
-                      <Gift className="h-4 w-4" />
-                      Gift
+                      {activeItem.in_app_action === "view_in_app" ? <Eye className="h-4 w-4" /> : <Gift className="h-4 w-4" />}
+                      {activeItem.in_app_action_label || (activeItem.in_app_action === "view_in_app" ? "View in app" : "Collect in app")}
                     </button>
                     <button
                       type="button"
