@@ -96,7 +96,7 @@ export default function RebootProfileDashboardPage() {
           </button>
           <button
             type="button"
-            onClick={() => navigate("/creator/analytics")}
+            onClick={() => navigate("/studio")}
             className="rounded-full bg-slate-900 px-4 py-1.5 text-xs font-semibold text-white"
           >
             Artist dashboard
@@ -280,7 +280,7 @@ export default function RebootProfileDashboardPage() {
           </p>
           <button
             type="button"
-            onClick={() => navigate("/creator/analytics")}
+            onClick={() => navigate("/studio")}
             className="mt-3 rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
           >
             Open artist dashboard

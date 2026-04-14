@@ -122,11 +122,6 @@ async function listenToSubscriptionEvents(artistContractAddress, artistId, artis
       }
     });
 
-    // Handle listener errors
-    contract.on('error', (error) => {
-      console.error(`❌ Subscription listener error for ${artistWallet}:`, error);
-    });
-
     console.log(`✅ Subscription listener active for ${artistWallet}`);
   } catch (error) {
     console.error(`❌ Error setting up subscription listener:`, error);
@@ -188,11 +183,6 @@ async function listenToPurchaseEvents(productStoreAddress, productStoreABI) {
       } catch (error) {
         console.error('❌ Error processing purchase event:', error);
       }
-    });
-
-    // Handle listener errors
-    contract.on('error', (error) => {
-      console.error(`❌ Purchase listener error:`, error);
     });
 
     console.log(`✅ Purchase listener active for ProductStore`);

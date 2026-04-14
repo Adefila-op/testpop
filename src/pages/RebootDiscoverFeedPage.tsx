@@ -1,10 +1,15 @@
 import { useEffect, useRef, useState } from "react";
-import { Eye, Loader2, MessageCircle, Send, ShoppingBag } from "lucide-react";
+import { Eye, Loader2, MessageCircle, Send, ShoppingBag, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { parseEther } from "viem";
 import { toast } from "sonner";
 import { useGuestCollector } from "@/hooks/useGuestCollector";
+import { useWallet } from "@/hooks/useContracts";
+import { useMintArtist } from "@/hooks/useContractsArtist";
+import { ACTIVE_CHAIN } from "@/lib/wagmi";
 import {
   addFreshCartItem,
+  collectFreshOnchain,
   createFreshShare,
   fetchFreshComments,
   fetchFreshDiscover,
@@ -50,6 +55,16 @@ export default function RebootDiscoverFeedPage() {
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [commentsByPost, setCommentsByPost] = useState<Record<string, FreshComment[]>>({});
   const lastTapRef = useRef<Record<string, number>>({});
+  const [showcasePost, setShowcasePost] = useState<FreshFeedItem | null>(null);
+  const [collectingPost, setCollectingPost] = useState<FreshFeedItem | null>(null);
+
+  const { isConnected, connectWallet, chain, requestActiveChainSwitch, isSwitchingNetwork } = useWallet();
+  const {
+    mint: mintArtist,
+    isConfirming: isMintConfirming,
+    isSuccess: isMintSuccess,
+    error: mintError,
+  } = useMintArtist();
 
   useEffect(() => {
     let active = true;
@@ -72,7 +87,69 @@ export default function RebootDiscoverFeedPage() {
     };
   }, [collectorId]);
 
+  useEffect(() => {
+    if (!isMintSuccess || !collectingPost) return;
+
+    collectFreshOnchain(collectorId, collectingPost.product_id)
+      .then(() => {
+        toast.success("Onchain collect confirmed. The gated pass is in your collection.");
+        navigate("/profile");
+      })
+      .catch((error) => {
+        toast.error(error instanceof Error ? error.message : "Failed to update collection.");
+      })
+      .finally(() => {
+        setCollectingPost(null);
+        setBusyId(null);
+      });
+  }, [collectorId, collectingPost, isMintSuccess, navigate]);
+
+  useEffect(() => {
+    if (!mintError) return;
+    toast.error((mintError as Error).message || "Onchain collect failed.");
+    setCollectingPost(null);
+    setBusyId(null);
+  }, [mintError]);
+
+  async function handleOnchainCollect(post: FreshFeedItem) {
+    if (!isConnected) {
+      await connectWallet();
+      return;
+    }
+    if (chain?.id !== ACTIVE_CHAIN.id) {
+      try {
+        await requestActiveChainSwitch(`Collecting onchain requires ${ACTIVE_CHAIN.name}.`);
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : `Switch to ${ACTIVE_CHAIN.name} and try again.`);
+      }
+      return;
+    }
+
+    const dropId = post.onchain?.drop_id;
+    const contractAddress = post.onchain?.contract_address;
+    if (!dropId || !contractAddress) {
+      toast.error("Onchain collect is not fully configured for this item yet.");
+      return;
+    }
+
+    try {
+      setBusyId(post.id);
+      setCollectingPost(post);
+      mintArtist(dropId, parseEther(String(post.price_eth || 0)), contractAddress);
+      toast.loading("Submitting onchain collect...");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to start onchain collect.");
+      setBusyId(null);
+      setCollectingPost(null);
+    }
+  }
+
   async function handlePrimaryAction(post: FreshFeedItem) {
+    if (post.delivery_mode === "collect_onchain") {
+      await handleOnchainCollect(post);
+      return;
+    }
+
     if (post.in_app_action === "view_in_app") {
       navigate(`/products/${encodeURIComponent(post.product_id)}`);
       return;
@@ -195,16 +272,23 @@ export default function RebootDiscoverFeedPage() {
         </div>
       ) : (
         posts.map((post) => {
-          const busy = busyId === post.id;
+          const busy = busyId === post.id || (collectingPost?.id === post.id && (isMintConfirming || isSwitchingNetwork));
           const commentsOpen = openCommentId === post.id;
           const comments = commentsByPost[post.post_id] || [];
           const isViewAction = post.in_app_action === "view_in_app";
-          const actionLabel = post.in_app_action_label || (isViewAction ? "View in app" : "Collect in app");
+          const isOnchain = post.delivery_mode === "collect_onchain";
+          const actionLabel =
+            post.in_app_action_label ||
+            (isOnchain ? "Collect onchain" : isViewAction ? "View in app" : "Collect in app");
 
           return (
             <article key={post.id} className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm">
               <header className="flex items-center justify-between px-4 py-3">
-                <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => navigate(`/artists/${post.creator_id}`)}
+                  className="flex items-center gap-3 text-left"
+                >
                   <div className="h-10 w-10 overflow-hidden rounded-full border border-slate-200 bg-slate-100">
                     {post.creator_avatar_url ? (
                       <img src={post.creator_avatar_url} alt={post.creator_name} className="h-full w-full object-cover" />
@@ -220,7 +304,7 @@ export default function RebootDiscoverFeedPage() {
                       {post.product_type} | {formatDeliveryMode(post.delivery_mode)} | {formatCreatedAt(post.created_at)}
                     </p>
                   </div>
-                </div>
+                </button>
                 <span className="rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold text-white">
                   {formatPrice(Number(post.price_eth || 0))}
                 </span>
@@ -240,8 +324,20 @@ export default function RebootDiscoverFeedPage() {
               </button>
 
               <div className="space-y-3 px-4 py-4">
-                <h2 className="text-xl font-bold text-slate-950">{post.title}</h2>
-                <p className="text-sm leading-6 text-slate-700">{post.description || "Creator post ready for collector action."}</p>
+                <button
+                  type="button"
+                  onClick={() => setShowcasePost(post)}
+                  className="block w-full text-left"
+                >
+                  <h2 className="text-xl font-bold text-slate-950">{post.title}</h2>
+                  <p className="text-sm leading-6 text-slate-700">
+                    {post.description || "Creator post ready for collector action."}
+                  </p>
+                </button>
+
+                <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                  Payment: {isOnchain ? "Onchain (Base Sepolia)" : "Offchain (Checkout)"}
+                </div>
 
                 <div className="text-xs text-slate-500">
                   {post.like_count || 0} likes | {post.comment_count || 0} comments
@@ -263,7 +359,13 @@ export default function RebootDiscoverFeedPage() {
                     className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-slate-900 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-70"
                   >
                     {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : isViewAction ? <Eye className="h-4 w-4" /> : <ShoppingBag className="h-4 w-4" />}
-                    {busy ? (isViewAction ? "Opening..." : "Adding...") : actionLabel}
+                    {busy
+                      ? isOnchain
+                        ? "Collecting..."
+                        : isViewAction
+                          ? "Opening..."
+                          : "Adding..."
+                      : actionLabel}
                   </button>
                   <button
                     type="button"
@@ -327,6 +429,57 @@ export default function RebootDiscoverFeedPage() {
           );
         })
       )}
+
+      {showcasePost ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+          <div className="w-full max-w-xl rounded-2xl bg-white shadow-xl">
+            <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+              <div>
+                <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Showcase</p>
+                <h3 className="text-lg font-semibold text-slate-950">{showcasePost.title}</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowcasePost(null)}
+                className="rounded-full border border-slate-200 p-2 text-slate-500 hover:text-slate-900"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="space-y-4 p-4">
+              {showcasePost.image_url ? (
+                <img src={showcasePost.image_url} alt={showcasePost.title} className="h-60 w-full rounded-xl object-cover" />
+              ) : null}
+              <p className="text-sm text-slate-600">
+                {showcasePost.description || "Creator post ready for collector action."}
+              </p>
+              <div className="flex items-center justify-between rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700">
+                <span>Price</span>
+                <span className="font-semibold">{formatPrice(Number(showcasePost.price_eth || 0))}</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => navigate(`/artists/${showcasePost.creator_id}`)}
+                  className="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700"
+                >
+                  Open creator
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowcasePost(null);
+                    void handlePrimaryAction(showcasePost);
+                  }}
+                  className="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
+                >
+                  {showcasePost.delivery_mode === "collect_onchain" ? "Collect onchain" : "Continue"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

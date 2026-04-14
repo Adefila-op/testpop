@@ -621,6 +621,17 @@ function DiscoverCard({
   const PrimaryCtaIcon = primaryCta.icon;
   const typePill = getTypePill(post);
   const creatorAvatarUrl = creator?.avatar_url || undefined;
+  const catalogAction = getCatalogPrimaryAction(post);
+  const paymentLabel =
+    catalogAction === "cart"
+      ? "Offchain (Checkout)"
+      : catalogAction === "details"
+        ? "Explore"
+        : `Onchain (${ACTIVE_CHAIN.name})`;
+  const paymentTone =
+    catalogAction === "cart" || catalogAction === "details"
+      ? "bg-slate-100 text-slate-600"
+      : "bg-emerald-100 text-emerald-700";
 
   async function handlePrimaryAction() {
     try {
@@ -744,6 +755,9 @@ function DiscoverCard({
           <div className="text-right">
             <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-400">Price</p>
             <p className="text-xl font-semibold text-slate-950">{formatPrice(post.price_eth)}</p>
+            <span className={`mt-2 inline-flex rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] ${paymentTone}`}>
+              {paymentLabel}
+            </span>
           </div>
         </div>
 

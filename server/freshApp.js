@@ -254,6 +254,7 @@ function createSeedDb() {
         onchain: {
           chain: "base-sepolia",
           contract_address: "0xNeonCollectibleContract",
+          drop_id: 1,
         },
       },
       {
@@ -522,6 +523,42 @@ function isOnchainGated(product, render) {
   return String(resolvedRender?.delivery_mode || "").trim().toLowerCase() === "collect_onchain";
 }
 
+function grantOnchainCollection(db, collectorId, productId, txHash) {
+  const product = firstById(db.products, productId);
+  if (!product) {
+    throw new Error("Product not found");
+  }
+
+  const render = resolveProductRender(product);
+  const deliveryMode = String(render?.delivery_mode || "").trim().toLowerCase();
+  if (deliveryMode !== "collect_onchain") {
+    throw new Error("This product is not configured for onchain collection.");
+  }
+
+  const existing = db.collections.find(
+    (entry) =>
+      entry.collector_id === collectorId &&
+      entry.product_id === productId,
+  );
+  if (existing) {
+    return existing;
+  }
+
+  const entry = {
+    id: `collection-${randomUUID().slice(0, 10)}`,
+    collector_id: collectorId,
+    order_id: null,
+    product_id: productId,
+    quantity: 1,
+    delivery_mode: deliveryMode,
+    is_gated: true,
+    onchain_tx_hash: String(txHash || "").trim() || null,
+    acquired_at: nowIso(),
+  };
+  db.collections.push(entry);
+  return entry;
+}
+
 function summarizeCart(db, collectorId) {
   const items = Array.isArray(db.carts[collectorId]) ? db.carts[collectorId] : [];
   const hydrated = items
@@ -593,6 +630,7 @@ function buildFeedItem(db, collectorId, post) {
     in_app_action: inAppAction.in_app_action,
     in_app_action_label: inAppAction.in_app_action_label,
     is_gated: isGated,
+    onchain: product?.onchain || null,
     creator_id: creator.id,
     creator_wallet: creator.wallet || creator.handle,
     creator_name: creator.name,
@@ -667,6 +705,7 @@ function buildProfile(db, collectorId) {
         download_url: render?.download_url || null,
         is_gated: isGated,
         owned: true,
+        onchain_tx_hash: entry.onchain_tx_hash || null,
         creator_name: creator?.name || "Creator",
         acquired_at: entry.acquired_at,
       };
@@ -1051,6 +1090,28 @@ app.get("/fresh/products/:id", (req, res) => {
   if (!product) return res.status(404).json({ error: "Product not found" });
   const collectorId = normalizeCollectorId(req.query?.collector_id || req.get("x-collector-id") || "");
   return res.json(buildProductResponse(db, product, collectorId));
+});
+
+app.post("/fresh/collect/onchain", (req, res) => {
+  const collectorId = resolveCollectorId(req);
+  const productId = String(req.body?.product_id || "").trim();
+  const txHash = String(req.body?.tx_hash || "").trim();
+  if (!productId) return res.status(400).json({ error: "product_id is required" });
+
+  const db = readDb();
+  const product = firstById(db.products, productId);
+  if (!product) return res.status(404).json({ error: "Product not found" });
+
+  try {
+    const entry = grantOnchainCollection(db, collectorId, productId, txHash || null);
+    writeDb(db);
+    return res.status(201).json({
+      success: true,
+      collection: entry,
+    });
+  } catch (error) {
+    return res.status(400).json({ error: error?.message || "Unable to record onchain collection." });
+  }
 });
 
 app.get("/fresh/cart/:collectorId", (req, res) => {

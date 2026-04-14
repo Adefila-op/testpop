@@ -37,6 +37,11 @@ export type FreshFeedItem = {
   in_app_action?: FreshInAppAction;
   in_app_action_label?: string;
   is_gated?: boolean;
+  onchain?: {
+    chain: string;
+    contract_address?: string;
+    drop_id?: number | null;
+  } | null;
   creator_id: string;
   creator_name: string;
   creator_wallet: string;
@@ -145,6 +150,7 @@ export type FreshProduct = {
   onchain?: {
     chain: string;
     contract_address?: string;
+    drop_id?: number | null;
   } | null;
 };
 
@@ -165,6 +171,7 @@ export type FreshProfile = {
     download_url: string | null;
     is_gated?: boolean;
     owned?: boolean;
+    onchain_tx_hash?: string | null;
     creator_name: string;
     acquired_at: string;
   }>;
@@ -276,6 +283,20 @@ export async function fetchFreshComments(postId: string) {
 export async function fetchFreshProduct(productId: string, collectorId?: string) {
   const query = collectorId ? `?collector_id=${encodeURIComponent(collectorId)}` : "";
   return requestJson<FreshProduct>(`/fresh/products/${encodeURIComponent(productId)}${query}`);
+}
+
+export async function collectFreshOnchain(collectorId: string, productId: string, txHash?: string) {
+  return requestJson<{ success: boolean; collection: Record<string, unknown> }>(
+    "/fresh/collect/onchain",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        collector_id: collectorId,
+        product_id: productId,
+        tx_hash: txHash || null,
+      }),
+    },
+  );
 }
 
 export async function postFreshComment(postId: string, collectorId: string, body: string) {

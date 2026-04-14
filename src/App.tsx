@@ -7,6 +7,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import AppLayout from "./components/AppLayout";
 import MobileWebAppGate from "./components/MobileWebAppGate";
+import WalletRuntimeProvider from "./components/wallet/WalletRuntimeProvider";
 import { ThemeProvider } from "./components/theme-provider";
 import NotFound from "./pages/NotFound";
 import { initializePushNotifications } from "@/lib/webPush";
@@ -18,6 +19,9 @@ const CheckoutPage = lazy(() => import("./pages/CheckoutPage").then((module) => 
 const GiftClaimPage = lazy(() => import("./pages/GiftClaimPage"));
 const FreshProductDetailPage = lazy(() => import("./pages/FreshProductDetailPage"));
 const CreatorDashboard = lazy(() => import("./pages/CreatorDashboard").then((module) => ({ default: module.CreatorDashboard })));
+const ArtistsPage = lazy(() => import("./pages/ArtistsPage"));
+const ArtistProfilePage = lazy(() => import("./pages/ArtistProfilePage"));
+const ArtistStudioPage = lazy(() => import("./pages/ArtistStudioPage"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -40,38 +44,43 @@ const App = () => {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <MobileWebAppGate>
-            <BrowserRouter>
-              <Suspense fallback={<LoadingSpinner />}>
-                <Routes>
-                  <Route element={<AppLayout />}>
-                    <Route path="/" element={<RebootHomePage />} />
-                    <Route path="/discover" element={<RebootDiscoverFeedPage />} />
-                    <Route path="/profile" element={<RebootProfileDashboardPage />} />
-                    <Route path="/checkout" element={<CheckoutPage />} />
-                    <Route path="/gift/:token" element={<GiftClaimPage />} />
-                    <Route path="/products/:id" element={<FreshProductDetailPage />} />
-                    <Route path="/creator/analytics" element={<CreatorDashboard />} />
-                    <Route path="/cart" element={<Navigate to="/profile" replace />} />
-                    <Route path="/orders" element={<Navigate to="/profile" replace />} />
-                    <Route path="/collection" element={<Navigate to="/profile" replace />} />
-                    <Route path="/poaps" element={<Navigate to="/profile" replace />} />
-                    <Route path="/subscriptions" element={<Navigate to="/profile" replace />} />
-                    <Route path="/feed" element={<Navigate to="/discover" replace />} />
-                    <Route path="/catalog" element={<Navigate to="/discover" replace />} />
-                    <Route path="/share/:postId" element={<Navigate to="/discover" replace />} />
-                  </Route>
-                  <Route path="*" element={<NotFound />} />
-                </Routes>
-              </Suspense>
-            </BrowserRouter>
-          </MobileWebAppGate>
-        </TooltipProvider>
-      </ThemeProvider>
+      <WalletRuntimeProvider>
+        <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <MobileWebAppGate>
+              <BrowserRouter>
+                <Suspense fallback={<LoadingSpinner />}>
+                  <Routes>
+                    <Route element={<AppLayout />}>
+                      <Route path="/" element={<RebootHomePage />} />
+                      <Route path="/discover" element={<RebootDiscoverFeedPage />} />
+                      <Route path="/profile" element={<RebootProfileDashboardPage />} />
+                      <Route path="/checkout" element={<CheckoutPage />} />
+                      <Route path="/gift/:token" element={<GiftClaimPage />} />
+                      <Route path="/products/:id" element={<FreshProductDetailPage />} />
+                      <Route path="/artists" element={<ArtistsPage />} />
+                      <Route path="/artists/:id" element={<ArtistProfilePage />} />
+                      <Route path="/studio" element={<ArtistStudioPage />} />
+                      <Route path="/creator/analytics" element={<CreatorDashboard />} />
+                      <Route path="/cart" element={<Navigate to="/profile" replace />} />
+                      <Route path="/orders" element={<Navigate to="/profile" replace />} />
+                      <Route path="/collection" element={<Navigate to="/profile" replace />} />
+                      <Route path="/poaps" element={<Navigate to="/profile" replace />} />
+                      <Route path="/subscriptions" element={<Navigate to="/profile" replace />} />
+                      <Route path="/feed" element={<Navigate to="/discover" replace />} />
+                      <Route path="/catalog" element={<Navigate to="/discover" replace />} />
+                      <Route path="/share/:postId" element={<Navigate to="/discover" replace />} />
+                    </Route>
+                    <Route path="*" element={<NotFound />} />
+                  </Routes>
+                </Suspense>
+              </BrowserRouter>
+            </MobileWebAppGate>
+          </TooltipProvider>
+        </ThemeProvider>
+      </WalletRuntimeProvider>
     </QueryClientProvider>
   );
 };

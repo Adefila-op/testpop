@@ -1,6 +1,9 @@
 import { LayoutDashboard, Presentation, Sparkles, WalletCards } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 export function CreatorDashboard() {
+  const navigate = useNavigate();
+
   return (
     <div className="mx-auto max-w-5xl space-y-6 px-4 py-6">
       <section className="rounded-2xl border border-slate-200 bg-white p-5">
@@ -19,18 +22,39 @@ export function CreatorDashboard() {
           <Presentation className="h-5 w-5 text-slate-700" />
           <h2 className="mt-3 text-lg font-semibold text-slate-900">Campaign Studio</h2>
           <p className="mt-1 text-sm text-slate-600">Create and manage release campaigns from one place.</p>
+          <button
+            type="button"
+            onClick={() => navigate("/studio?tab=drops")}
+            className="mt-3 rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
+          >
+            Open Campaign Studio
+          </button>
         </article>
 
         <article className="rounded-2xl border border-slate-200 bg-white p-4">
           <WalletCards className="h-5 w-5 text-slate-700" />
           <h2 className="mt-3 text-lg font-semibold text-slate-900">Tokenized Creator Card</h2>
           <p className="mt-1 text-sm text-slate-600">Launch and monitor creator-card offerings.</p>
+          <button
+            type="button"
+            onClick={() => navigate("/studio?tab=raises")}
+            className="mt-3 rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700"
+          >
+            Open Creator Card Flow
+          </button>
         </article>
 
         <article className="rounded-2xl border border-slate-200 bg-white p-4">
           <Sparkles className="h-5 w-5 text-slate-700" />
           <h2 className="mt-3 text-lg font-semibold text-slate-900">Portfolio Showcase</h2>
           <p className="mt-1 text-sm text-slate-600">Curate public portfolio highlights and creator profile assets.</p>
+          <button
+            type="button"
+            onClick={() => navigate("/studio?tab=profile")}
+            className="mt-3 rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700"
+          >
+            Open Portfolio
+          </button>
         </article>
       </section>
     </div>

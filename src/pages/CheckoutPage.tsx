@@ -11,6 +11,7 @@ import {
   updateFreshCartItem,
   type FreshCart,
 } from "@/lib/freshApi";
+import { ACTIVE_CHAIN } from "@/lib/wagmi";
 
 function formatEth(value: number) {
   return `${Number(value || 0).toFixed(3)} ETH`;
@@ -128,6 +129,16 @@ export function CheckoutPage() {
     } finally {
       setIsCheckingOut(false);
     }
+  }
+
+  function openCoinbasePay() {
+    const appId = import.meta.env.VITE_COINBASE_PAY_APP_ID?.trim();
+    if (!appId) {
+      toast.error("Coinbase Pay is not configured yet.");
+      return;
+    }
+    const url = `https://pay.coinbase.com/buy/select-asset?appId=${encodeURIComponent(appId)}`;
+    window.open(url, "_blank", "noopener,noreferrer");
   }
 
   if (loading) {
@@ -260,6 +271,12 @@ export function CheckoutPage() {
               </label>
             </div>
 
+            <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs uppercase tracking-[0.18em] text-slate-500">
+              {paymentMethod === "onchain"
+                ? `Chain: ${ACTIVE_CHAIN.name}`
+                : "Offchain: Coinbase Pay (stubbed)"}
+            </div>
+
             <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
               Fulfillment mode: {cart ? resolveFulfillmentLabel(cart.items) : "Loading"}
             </div>
@@ -285,6 +302,16 @@ export function CheckoutPage() {
                 <span className="text-lg font-bold text-slate-900">{formatEth(cart.total_eth)}</span>
               </div>
             </div>
+
+            {paymentMethod === "offramp_partner" ? (
+              <button
+                type="button"
+                onClick={openCoinbasePay}
+                className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700"
+              >
+                Open Coinbase Pay
+              </button>
+            ) : null}
 
             <button
               type="button"

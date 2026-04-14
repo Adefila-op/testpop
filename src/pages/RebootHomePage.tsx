@@ -1,9 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { Eye, Gift, Heart, Loader2, User } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { parseEther } from "viem";
 import { toast } from "sonner";
 import { useGuestCollector } from "@/hooks/useGuestCollector";
-import { fetchFreshHome, toggleFreshLike, type FreshFeedItem } from "@/lib/freshApi";
+import { useWallet } from "@/hooks/useContracts";
+import { useMintArtist } from "@/hooks/useContractsArtist";
+import { ACTIVE_CHAIN } from "@/lib/wagmi";
+import { collectFreshOnchain, fetchFreshHome, toggleFreshLike, type FreshFeedItem } from "@/lib/freshApi";
 
 function formatPrice(value: number) {
   return `${Number(value || 0).toFixed(3)} ETH`;
@@ -16,6 +20,15 @@ export default function RebootHomePage() {
   const [featured, setFeatured] = useState<FreshFeedItem[]>([]);
   const [activeIndex, setActiveIndex] = useState(0);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [collectingItem, setCollectingItem] = useState<FreshFeedItem | null>(null);
+
+  const { isConnected, connectWallet, chain, requestActiveChainSwitch, isSwitchingNetwork } = useWallet();
+  const {
+    mint: mintArtist,
+    isConfirming: isMintConfirming,
+    isSuccess: isMintSuccess,
+    error: mintError,
+  } = useMintArtist();
 
   useEffect(() => {
     let active = true;
@@ -48,6 +61,30 @@ export default function RebootHomePage() {
 
   const activeItem = useMemo(() => featured[activeIndex] || null, [featured, activeIndex]);
 
+  useEffect(() => {
+    if (!isMintSuccess || !collectingItem) return;
+
+    collectFreshOnchain(collectorId, collectingItem.product_id)
+      .then(() => {
+        toast.success("Onchain collect confirmed. The gated pass is in your collection.");
+        navigate("/profile");
+      })
+      .catch((error) => {
+        toast.error(error instanceof Error ? error.message : "Failed to update collection.");
+      })
+      .finally(() => {
+        setCollectingItem(null);
+        setBusyId(null);
+      });
+  }, [collectorId, collectingItem, isMintSuccess, navigate]);
+
+  useEffect(() => {
+    if (!mintError) return;
+    toast.error((mintError as Error).message || "Onchain collect failed.");
+    setCollectingItem(null);
+    setBusyId(null);
+  }, [mintError]);
+
   async function handleLike(post: FreshFeedItem) {
     try {
       setBusyId(post.id);
@@ -70,7 +107,44 @@ export default function RebootHomePage() {
     }
   }
 
+  async function handleOnchainCollect(post: FreshFeedItem) {
+    if (!isConnected) {
+      await connectWallet();
+      return;
+    }
+    if (chain?.id !== ACTIVE_CHAIN.id) {
+      try {
+        await requestActiveChainSwitch(`Collecting onchain requires ${ACTIVE_CHAIN.name}.`);
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : `Switch to ${ACTIVE_CHAIN.name} and try again.`);
+      }
+      return;
+    }
+
+    const dropId = post.onchain?.drop_id;
+    const contractAddress = post.onchain?.contract_address;
+    if (!dropId || !contractAddress) {
+      toast.error("Onchain collect is not fully configured for this item yet.");
+      return;
+    }
+
+    try {
+      setBusyId(post.id);
+      setCollectingItem(post);
+      mintArtist(dropId, parseEther(String(post.price_eth || 0)), contractAddress);
+      toast.loading("Submitting onchain collect...");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to start onchain collect.");
+      setBusyId(null);
+      setCollectingItem(null);
+    }
+  }
+
   function openPrimaryAction(post: FreshFeedItem) {
+    if (post.delivery_mode === "collect_onchain") {
+      void handleOnchainCollect(post);
+      return;
+    }
     if (post.in_app_action === "view_in_app") {
       navigate(`/products/${encodeURIComponent(post.product_id)}`);
       return;
@@ -114,14 +188,32 @@ export default function RebootHomePage() {
                     <p className="mt-1 text-base font-semibold text-slate-950">{formatPrice(Number(activeItem.price_eth || 0))}</p>
                   </div>
 
+                  <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs uppercase tracking-[0.18em] text-slate-500">
+                    Payment: {activeItem.delivery_mode === "collect_onchain" ? "Onchain (Base Sepolia)" : "Offchain (Checkout)"}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/artists/${activeItem.creator_id}`)}
+                    className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800 transition hover:border-slate-900 hover:text-slate-950"
+                  >
+                    <User className="h-4 w-4" />
+                    {activeItem.creator_name || "Open creator"}
+                  </button>
+
                   <div className="flex flex-wrap gap-2 pt-1">
                     <button
                       type="button"
                       onClick={() => openPrimaryAction(activeItem)}
-                      className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+                      disabled={busyId === activeItem.id || isMintConfirming || isSwitchingNetwork}
+                      className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-70"
                     >
                       {activeItem.in_app_action === "view_in_app" ? <Eye className="h-4 w-4" /> : <Gift className="h-4 w-4" />}
-                      {activeItem.in_app_action_label || (activeItem.in_app_action === "view_in_app" ? "View in app" : "Collect in app")}
+                      {activeItem.delivery_mode === "collect_onchain"
+                        ? busyId === activeItem.id
+                          ? "Collecting..."
+                          : "Collect onchain"
+                        : activeItem.in_app_action_label || (activeItem.in_app_action === "view_in_app" ? "View in app" : "Collect in app")}
                     </button>
                     <button
                       type="button"

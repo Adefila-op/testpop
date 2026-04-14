@@ -1,9 +1,13 @@
 import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
+import { parseEther } from "viem";
 import { toast } from "sonner";
 import { useGuestCollector } from "@/hooks/useGuestCollector";
-import { addFreshCartItem, fetchFreshProduct, type FreshProduct } from "@/lib/freshApi";
+import { useWallet } from "@/hooks/useContracts";
+import { useMintArtist } from "@/hooks/useContractsArtist";
+import { ACTIVE_CHAIN } from "@/lib/wagmi";
+import { addFreshCartItem, collectFreshOnchain, fetchFreshProduct, type FreshProduct } from "@/lib/freshApi";
 
 function formatEth(value: number) {
   return `${Number(value || 0).toFixed(3)} ETH`;
@@ -31,6 +35,22 @@ export default function FreshProductDetailPage() {
   const [product, setProduct] = useState<FreshProduct | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [collecting, setCollecting] = useState(false);
+
+  const {
+    address,
+    isConnected,
+    connectWallet,
+    chain,
+    requestActiveChainSwitch,
+    isSwitchingNetwork,
+  } = useWallet();
+  const {
+    mint: mintArtist,
+    isConfirming: isMintConfirming,
+    isSuccess: isMintSuccess,
+    error: mintError,
+  } = useMintArtist();
 
   useEffect(() => {
     let active = true;
@@ -71,6 +91,59 @@ export default function FreshProductDetailPage() {
     }
   }
 
+  async function handleCollectOnchain() {
+    if (!product) return;
+    if (!isConnected) {
+      await connectWallet();
+      return;
+    }
+    if (chain?.id !== ACTIVE_CHAIN.id) {
+      try {
+        await requestActiveChainSwitch(`Collecting onchain requires ${ACTIVE_CHAIN.name}.`);
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : `Switch to ${ACTIVE_CHAIN.name} and try again.`);
+      }
+      return;
+    }
+
+    const dropId = product.onchain?.drop_id;
+    const contractAddress = product.onchain?.contract_address;
+    if (!dropId || !contractAddress) {
+      toast.error("Onchain collect is not fully configured for this item yet.");
+      return;
+    }
+
+    try {
+      setCollecting(true);
+      mintArtist(dropId, parseEther(String(product.price_eth || 0)), contractAddress);
+      toast.loading("Submitting onchain collect...");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to start onchain collect.");
+      setCollecting(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!isMintSuccess || !product || !collecting) return;
+    collectFreshOnchain(collectorId, product.id)
+      .then(() => {
+        toast.success("Onchain collect confirmed. The gated pass is in your collection.");
+        navigate("/profile");
+      })
+      .catch((error) => {
+        toast.error(error instanceof Error ? error.message : "Failed to update collection.");
+      })
+      .finally(() => {
+        setCollecting(false);
+      });
+  }, [collectorId, collecting, isMintSuccess, navigate, product]);
+
+  useEffect(() => {
+    if (!mintError) return;
+    toast.error((mintError as Error).message || "Onchain collect failed.");
+    setCollecting(false);
+  }, [mintError]);
+
   function handleViewInApp() {
     const mediaSection = document.getElementById("fresh-product-media");
     if (!mediaSection) return;
@@ -98,6 +171,7 @@ export default function FreshProductDetailPage() {
   const isViewInApp = product.in_app_action === "view_in_app";
   const isGated = Boolean(product.is_gated);
   const hasAccess = !isGated || Boolean(product.owned);
+  const isOnchain = product.delivery_mode === "collect_onchain";
   const primaryActionLabel = product.in_app_action_label || (isViewInApp ? "View in app" : "Collect in app");
 
   return (
@@ -108,6 +182,9 @@ export default function FreshProductDetailPage() {
         <p className="mt-2 text-sm text-slate-600">{product.description}</p>
         <p className="mt-3 text-lg font-semibold text-slate-900">{formatEth(product.price_eth)}</p>
         <p className="mt-1 text-xs uppercase tracking-[0.18em] text-slate-500">{formatDeliveryMode(product.delivery_mode)}</p>
+        <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs uppercase tracking-[0.18em] text-slate-500">
+          Payment: {isOnchain ? "Onchain (Base Sepolia)" : "Offchain (Checkout)"}
+        </div>
       </section>
 
       <section id="fresh-product-media" className="rounded-2xl border border-slate-200 bg-white p-4">
@@ -242,16 +319,24 @@ export default function FreshProductDetailPage() {
         <button
           type="button"
           onClick={() => {
+            if (isOnchain) {
+              void handleCollectOnchain();
+              return;
+            }
             if (isViewInApp) {
               handleViewInApp();
               return;
             }
             void handleCollectInApp();
           }}
-          disabled={busy}
+          disabled={busy || collecting || isMintConfirming || isSwitchingNetwork}
           className="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-70"
         >
-          {busy ? "Adding..." : primaryActionLabel}
+          {busy || collecting || isMintConfirming
+            ? "Collecting..."
+            : isOnchain
+              ? "Collect onchain"
+              : primaryActionLabel}
         </button>
         {isViewInApp ? (
           <button

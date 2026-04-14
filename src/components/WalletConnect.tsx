@@ -1,9 +1,9 @@
 import { Button } from "@/components/ui/button";
-import { Wallet, LogOut, Copy, Check, AlertTriangle, ChevronDown } from "lucide-react";
+import { Wallet, LogOut, Copy, Check, AlertTriangle, ChevronDown, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { useWallet } from "@/hooks/useContracts";
 import { formatEther } from "viem";
-import { ACTIVE_CHAIN } from "@/lib/wagmi";
+import { ACTIVE_CHAIN, isWeb3AuthConfigured } from "@/lib/wagmi";
 import { toast } from "sonner";
 
 const WalletConnect = () => {
@@ -14,12 +14,15 @@ const WalletConnect = () => {
     chain,
     balance,
     connectWallet,
+    connectWeb3Auth,
     requestActiveChainSwitch,
     isSwitchingNetwork,
     disconnect,
+    connectorName,
   } = useWallet();
   const [copied, setCopied] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
+  const [isWeb3AuthConnecting, setIsWeb3AuthConnecting] = useState(false);
 
   const copyAddress = () => {
     if (address) {
@@ -36,16 +39,41 @@ const WalletConnect = () => {
   // Mobile-optimized connect button
   if (!isConnected) {
     return (
-      <Button
-        onClick={connectWallet}
-        disabled={isConnecting}
-        size="sm"
-        className="rounded-full gradient-primary text-primary-foreground font-semibold text-sm px-3 h-8 md:h-9 md:px-4"
-      >
-        <Wallet className="h-3.5 w-3.5 mr-1.5 md:h-4 md:w-4 md:mr-2" />
-        <span className="hidden xs:inline">{isConnecting ? "Connecting..." : "Connect"}</span>
-        <span className="xs:hidden">{isConnecting ? "..." : "Connect"}</span>
-      </Button>
+      <div className="flex items-center gap-2">
+        <Button
+          onClick={connectWallet}
+          disabled={isConnecting}
+          size="sm"
+          className="rounded-full gradient-primary text-primary-foreground font-semibold text-sm px-3 h-8 md:h-9 md:px-4"
+        >
+          <Wallet className="h-3.5 w-3.5 mr-1.5 md:h-4 md:w-4 md:mr-2" />
+          <span className="hidden xs:inline">{isConnecting ? "Connecting..." : "Connect"}</span>
+          <span className="xs:hidden">{isConnecting ? "..." : "Connect"}</span>
+        </Button>
+        {isWeb3AuthConfigured && (
+          <Button
+            onClick={async () => {
+              try {
+                setIsWeb3AuthConnecting(true);
+                await connectWeb3Auth();
+              } catch (error) {
+                const message = error instanceof Error ? error.message : "Web3Auth connection failed.";
+                toast.error(message);
+              } finally {
+                setIsWeb3AuthConnecting(false);
+              }
+            }}
+            disabled={isConnecting || isWeb3AuthConnecting}
+            size="sm"
+            variant="outline"
+            className="rounded-full border-slate-200 text-sm px-3 h-8 md:h-9 md:px-4"
+          >
+            <Sparkles className="h-3.5 w-3.5 mr-1.5 md:h-4 md:w-4 md:mr-2" />
+            <span className="hidden xs:inline">{isWeb3AuthConnecting ? "Signing in..." : "Web3Auth"}</span>
+            <span className="xs:hidden">{isWeb3AuthConnecting ? "..." : "Auth"}</span>
+          </Button>
+        )}
+      </div>
     );
   }
 
@@ -102,10 +130,16 @@ const WalletConnect = () => {
 
         {/* Mobile dropdown for balance */}
         {showDetails && (
-          <div className="absolute top-full mt-1 right-0 bg-popover border border-border rounded-lg p-2 shadow-lg z-50 min-w-[120px]">
-            <div className="text-xs text-muted-foreground mb-1">Balance</div>
-            <div className="text-sm font-medium">
-              {balance ? `${parseFloat(formatEther(balance.value)).toFixed(4)} ETH` : "..."}
+          <div className="absolute top-full mt-1 right-0 bg-popover border border-border rounded-lg p-2 shadow-lg z-50 min-w-[160px] space-y-1">
+            <div>
+              <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Balance</div>
+              <div className="text-sm font-medium">
+                {balance ? `${parseFloat(formatEther(balance.value)).toFixed(4)} ETH` : "..."}
+              </div>
+            </div>
+            <div>
+              <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Connected via</div>
+              <div className="text-xs font-semibold text-foreground">{connectorName || "Wallet"}</div>
             </div>
           </div>
         )}

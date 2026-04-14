@@ -85,6 +85,7 @@ function DropPrimaryActionCardInner({
   const isAuctionDrop = behavior.mode === "auction";
   const isCampaignDrop = behavior.mode === "campaign";
   const isCheckoutDrop = behavior.mode === "checkout";
+  const paymentLabel = isCheckoutDrop ? "Offchain (Checkout)" : `Onchain (${ACTIVE_CHAIN.name})`;
   const checkoutContractKind =
     linkedProduct?.contract_kind ??
     (drop.contractKind === "creativeReleaseEscrow" || drop.contractKind === "productStore"
@@ -302,6 +303,13 @@ function DropPrimaryActionCardInner({
             {isCheckoutDrop ? checkoutPriceEth : drop.currentBidEth || drop.priceEth} ETH
           </p>
         </div>
+        <span
+          className={`rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] ${
+            isCheckoutDrop ? "bg-slate-100 text-slate-600" : "bg-emerald-100 text-emerald-700"
+          }`}
+        >
+          {paymentLabel}
+        </span>
         {drop.bids > 0 && (
           <p className="text-xs text-muted-foreground flex items-center gap-1">
             <Gavel className="h-3 w-3" /> {drop.bids} bids
