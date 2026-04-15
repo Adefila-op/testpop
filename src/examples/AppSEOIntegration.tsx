@@ -5,7 +5,8 @@
  * This file shows how to integrate SEO throughout your React app
  */
 
-import { useEffect, useLocation } from 'react-router-dom';
+import { useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { SEOHead } from '@/components/seo/SEOHead';
 import {
   initializeCoreWebVitals,
@@ -122,39 +123,10 @@ export const SEO_CONFIG = {
 };
 
 /**
- * Instrumentation:
+ * Integration Instructions:
  * 
- * 1. Add to App.tsx:
- * 
- *    function App() {
- *      useEffect(() => {
- *        setupSEO();
- *      }, []);
- * 
- *      return (
- *        <HelmetProvider>
- *          <Router>
- *            <Routes>
- *              <Route path="/" element={<HomePage />} />
- *              <Route path="/artist/:id" element={<ArtistProfilePage />} />
- *              {/* etc */}
- *            </Routes>
- *          </Router>
- *        </HelmetProvider>
- *      );
- *    }
- * 
- * 2. In each page component:
- * 
- *    function MyPage() {
- *      const { seoMeta, schema } = useDynamicSEO(data, generator, schemaGen);
- *      return (
- *        <>
- *          <SEOHead meta={seoMeta} schema={schema} />
- *          <main>
- *            {/* page content */}
- *          </main>
- *        </>
- *      );
- *    }
+ * 1. In App.tsx, wrap with HelmetProvider and add setupSEO() call on mount
+ * 2. In each page component, use SEOHead with generated meta and schema
+ * 3. See SimpleMetaTags or SEOHead component for usage examples
+ * 4. Each route should call useDynamicSEO with appropriate data generator
  */

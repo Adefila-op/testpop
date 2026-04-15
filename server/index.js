@@ -39,6 +39,12 @@ import notificationRoutes from "./api/notifications.js";
 import fanHubRoutes from "./api/fanHub.js";
 import catalogRoutes from "./routes/catalog.js";
 import createPersonalizationRoutes from "./routes/personalization.js";
+// Phase 2: Backend API Integration Routes
+import productsRoutes from "./routes/products.js";
+import auctionsRoutes from "./routes/auctions.js";
+import giftsRoutes from "./routes/gifts.js";
+import creatorRoutes from "./routes/creator.js";
+import royaltiesRoutes from "./routes/royalties.js";
 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -103,7 +109,7 @@ const SHARE_BOT_UA_PATTERN =
   /(twitterbot|xbot|facebookexternalhit|facebot|linkedinbot|telegrambot|slackbot|discordbot|whatsapp|skypeuripreview|pinterest|embedly|googlebot|bingbot)/i;
 const GIFT_ORDER_STATUSES = new Set(["pending", "accepted", "declined"]);
 
-
+function normalizeDropObject(drop) {
   return Object.fromEntries(
     Object.entries(drop).filter(([key, value]) => LEGACY_DROP_COLUMNS.has(key) && value !== undefined)
   );
@@ -220,7 +226,6 @@ const {
   PINATA_API_SECRET,
   ADMIN_WALLETS = "",
   NODE_ENV: envNodeEnv = "development",
-  NODE_ENV = "development",
 } = process.env;
 const NODE_ENV = envNodeEnv;
 
@@ -1942,9 +1947,9 @@ app.patch("/drops/:id", authRequired, csrfProtection, async (req, res) => {
   }
 
   // Validate drop update payload
-  const validation = validateInput(dropUpdateSchema, req.body || {});
-  if (!validation.success) {
-    return res.status(400).json({ error: "Invalid drop data", details: validation.error });
+  const dropValidation = validateInput(dropUpdateSchema, req.body || {});
+  if (!dropValidation.success) {
+    return res.status(400).json({ error: "Invalid drop data", details: dropValidation.error });
   }
 
   const { data: existing, error: existingError } = await supabase
@@ -1970,10 +1975,9 @@ app.patch("/drops/:id", authRequired, csrfProtection, async (req, res) => {
     return res.status(403).json({ error: "Cannot update another artist drop" });
   }
 
-  // Validate input
-  const validation = validateInput(dropUpdateSchema, req.body);
-  if (!validation.success) {
-    return res.status(400).json({ error: "Invalid input", details: validation.error });
+  // Validation already performed above
+  if (!dropValidation.success) {
+    return res.status(400).json({ error: "Invalid input", details: dropValidation.error });
   }
 
   const updates = {
@@ -5034,6 +5038,16 @@ app.use('/api/notifications', notificationRoutes);
 app.use("/api/fan-hub", fanHubRoutes);
 app.use("/api", catalogRoutes(supabase));
 app.use("/api", createPersonalizationRoutes(supabase));
+
+// ============================================
+// PHASE 2: BACKEND API INTEGRATION ROUTES
+// Smart Contract Transaction Handling
+// ============================================
+app.use('/api/products', productsRoutes);
+app.use('/api/auctions', auctionsRoutes);
+app.use('/api/gifts', giftsRoutes);
+app.use('/api/creator', creatorRoutes);
+app.use('/api/royalties', royaltiesRoutes);
 
 // 404 handler - API routes that don't match
 app.use((_req, res) => {

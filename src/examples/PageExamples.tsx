@@ -6,7 +6,6 @@
  */
 
 import { useParams } from 'react-router-dom';
-import { Helmet } from 'react-helmet-async';
 import { SEOHead } from '@/components/seo/SEOHead';
 import {
   generateHomeSeo,
@@ -390,7 +389,7 @@ export function BlogPostExample() {
     <p>You'll need ETH to purchase on POPUP...</p>
   `;
 
-  const seoMeta = generateArticleSeo({ ...article, keywords: article.keywords.join(', ') });
+  const seoMeta = generateArticleSeo({ ...article, keywords: article.keywords });
   const breadcrumbs = getBreadcrumbs(`/blog/${article.slug}`);
   const schema = generateArticleSchema({ ...article, content });
 

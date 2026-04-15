@@ -21,7 +21,25 @@ export interface WebVitals {
  */
 export async function initializeCoreWebVitals() {
   try {
-    const { getCLS, getFID, getFCP, getLCP, getTTFB } = await import('web-vitals');
+    // Dynamically import web-vitals with fallback
+    let getCLS, getFID, getFCP, getLCP, getTTFB;
+    try {
+      const vitals = await import('web-vitals');
+      getCLS = vitals.getCLS;
+      getFID = vitals.getFID;
+      getFCP = vitals.getFCP;
+      getLCP = vitals.getLCP;
+      getTTFB = vitals.getTTFB;
+    } catch {
+      // web-vitals not available, use basic performance API instead
+      console.warn('web-vitals library not available, using basic performance monitoring');
+      reportToAnalytics({
+        name: 'performance-warning',
+        value: 0,
+        rating: 'poor'
+      });
+      return;
+    }
 
     // Largest Contentful Paint
     getLCP((metric) => {

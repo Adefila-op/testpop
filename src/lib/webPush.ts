@@ -73,7 +73,7 @@ export async function subscribeToPushNotifications(token: string) {
       userVisibleOnly: true,
       applicationServerKey: urlBase64ToUint8Array(
         process.env.REACT_APP_VAPID_PUBLIC_KEY || ''
-      )
+      ) as BufferSource
     });
 
     console.log('✅ Push subscription created');

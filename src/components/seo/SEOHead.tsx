@@ -11,7 +11,7 @@
  * />
  */
 
-import { Helmet } from 'react-helmet-async';
+import { useEffect } from 'react';
 import type { SeoMetaTags } from '@/utils/seo';
 import { getCanonicalUrl } from '@/utils/seo';
 
@@ -28,90 +28,84 @@ interface SEOHeadProps {
 export function SEOHead({ meta, schema, breadcrumbs, children }: SEOHeadProps) {
   const canonicalUrl = getCanonicalUrl(meta.url.replace('https://testpop-one.vercel.app', ''));
 
-  return (
-    <Helmet>
-      {/* Basic Meta Tags */}
-      <title>{meta.title}</title>
-      <meta name="description" content={meta.description} />
-      <meta name="keywords" content={meta.keywords} />
-      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-      <meta charSet="utf-8" />
+  useEffect(() => {
+    // Set title
+    document.title = meta.title;
 
-      {/* Canonical URL - Prevent duplicate content */}
-      <link rel="canonical" href={canonicalUrl} />
+    // Helper function to set meta tag
+    const setMetaTag = (name: string, content: string, property = false) => {
+      const selector = property ? `meta[property="${name}"]` : `meta[name="${name}"]`;
+      let element = document.querySelector(selector) as HTMLMetaElement;
+      if (!element) {
+        element = document.createElement('meta');
+        if (property) {
+          element.setAttribute('property', name);
+        } else {
+          element.setAttribute('name', name);
+        }
+        document.head.appendChild(element);
+      }
+      element.content = content;
+    };
 
-      {/* Open Graph Tags - Social Media Sharing */}
-      <meta property="og:title" content={meta.title} />
-      <meta property="og:description" content={meta.description} />
-      <meta property="og:image" content={meta.image} />
-      <meta property="og:url" content={meta.url} />
-      <meta property="og:type" content={meta.type} />
-      <meta property="og:site_name" content="POPUP" />
+    // Basic Meta Tags
+    setMetaTag('description', meta.description);
+    setMetaTag('keywords', meta.keywords);
+    setMetaTag('viewport', 'width=device-width, initial-scale=1.0');
 
-      {/* Twitter Card Tags */}
-      <meta name="twitter:card" content="summary_large_image" />
-      <meta name="twitter:title" content={meta.title} />
-      <meta name="twitter:description" content={meta.description} />
-      <meta name="twitter:image" content={meta.image} />
-      <meta name="twitter:site" content="@popupnft" />
+    // Open Graph Tags
+    setMetaTag('og:title', meta.title, true);
+    setMetaTag('og:description', meta.description, true);
+    setMetaTag('og:image', meta.image, true);
+    setMetaTag('og:url', meta.url, true);
+    setMetaTag('og:type', meta.type, true);
+    setMetaTag('og:site_name', 'POPUP', true);
 
-      {/* Author & Publishing Info */}
-      {meta.author && <meta name="author" content={meta.author} />}
-      {meta.publishDate && <meta property="article:published_time" content={meta.publishDate} />}
-      {meta.updatedDate && <meta property="article:modified_time" content={meta.updatedDate} />}
+    // Twitter Card Tags
+    setMetaTag('twitter:card', 'summary_large_image');
+    setMetaTag('twitter:title', meta.title);
+    setMetaTag('twitter:description', meta.description);
+    setMetaTag('twitter:image', meta.image);
+    setMetaTag('twitter:site', '@popupnft');
 
-      {/* Additional SEO Meta Tags */}
-      <meta name="robots" content="index, follow" />
-      <meta name="googlebot" content="index, follow" />
-      <meta httpEquiv="x-ua-compatible" content="IE=edge" />
+    // Author & Publishing Info
+    if (meta.author) setMetaTag('author', meta.author);
+    if (meta.publishDate) setMetaTag('article:published_time', meta.publishDate, true);
+    if (meta.updatedDate) setMetaTag('article:modified_time', meta.updatedDate, true);
 
-      {/* Favicon & Icons */}
-      <link rel="icon" href="/favicon.ico" />
-      <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    // Additional SEO Meta Tags
+    setMetaTag('robots', 'index, follow');
+    setMetaTag('googlebot', 'index, follow');
 
-      {/* JSON-LD Structured Data */}
-      {schema && (
-        <script type="application/ld+json">
-          {Array.isArray(schema) 
-            ? JSON.stringify({
-                '@context': 'https://schema.org',
-                '@graph': schema
-              })
-            : JSON.stringify(schema)
-          }
-        </script>
-      )}
+    // Canonical URL
+    let canonicalLink = document.querySelector('link[rel="canonical"]') as HTMLLinkElement;
+    if (!canonicalLink) {
+      canonicalLink = document.createElement('link');
+      canonicalLink.rel = 'canonical';
+      document.head.appendChild(canonicalLink);
+    }
+    canonicalLink.href = canonicalUrl;
 
-      {/* Breadcrumb Schema */}
-      {breadcrumbs && breadcrumbs.length > 0 && (
-        <script type="application/ld+json">
-          {JSON.stringify({
+    // JSON-LD Structured Data
+    if (schema) {
+      const schemaData = Array.isArray(schema) 
+        ? {
             '@context': 'https://schema.org',
-            '@type': 'BreadcrumbList',
-            itemListElement: breadcrumbs.map((item, index) => ({
-              '@type': 'ListItem',
-              position: index + 1,
-              name: item.label,
-              item: `https://testpop-one.vercel.app${item.url}`
-            }))
-          })}
-        </script>
-      )}
+            '@graph': schema
+          }
+        : schema;
 
-      {/* Preload Critical Resources */}
-      <link rel="preload" as="image" href={meta.image} />
+      let scriptElement = document.querySelector('script[type="application/ld+json"]') as HTMLScriptElement;
+      if (!scriptElement) {
+        scriptElement = document.createElement('script');
+        scriptElement.type = 'application/ld+json';
+        document.head.appendChild(scriptElement);
+      }
+      scriptElement.textContent = JSON.stringify(schemaData);
+    }
+  }, [meta, schema, canonicalUrl]);
 
-      {/* DNS Prefetch for External Resources */}
-      <link rel="dns-prefetch" href="https://fonts.googleapis.com" />
-      <link rel="dns-prefetch" href="https://www.google-analytics.com" />
-
-      {/* Preconnect to Critical Origins */}
-      <link rel="preconnect" href="https://fonts.googleapis.com" />
-
-      {/* Additional children */}
-      {children}
-    </Helmet>
-  );
+  return <>{children}</>;
 }
 
 /**
@@ -125,12 +119,15 @@ export function SimpleMetaTags({
   title: string;
   description: string;
 }) {
-  return (
-    <Helmet>
-      <title>{title}</title>
-      <meta name="description" content={description} />
-    </Helmet>
-  );
+  useEffect(() => {
+    document.title = title;
+    const descMeta = document.querySelector('meta[name="description"]') as HTMLMetaElement;
+    if (descMeta) {
+      descMeta.content = description;
+    }
+  }, [title, description]);
+
+  return null;
 }
 
 /**
@@ -165,18 +162,18 @@ export function ProductSEOHead({
     }
   };
 
-  return (
-    <Helmet>
-      <title>{title}</title>
-      <meta name="description" content={description} />
-      <meta property="og:title" content={title} />
-      <meta property="og:description" content={description} />
-      <meta property="og:image" content={image} />
-      <meta property="og:type" content="product" />
-      <meta name="twitter:card" content="summary_large_image" />
-      <script type="application/ld+json">{JSON.stringify(schema)}</script>
-    </Helmet>
-  );
+  useEffect(() => {
+    document.title = title;
+    const descMeta = document.querySelector('meta[name="description"]') as HTMLMetaElement;
+    if (descMeta) descMeta.content = description;
+
+    const schemaScript = document.querySelector('script[type="application/ld+json"]') as HTMLScriptElement;
+    if (schemaScript) {
+      schemaScript.textContent = JSON.stringify(schema);
+    }
+  }, [title, description, schema]);
+
+  return null;
 }
 
 /**
@@ -211,19 +208,11 @@ export function ArticleSEOHead({
     dateModified: modifiedDate || publishDate
   };
 
-  return (
-    <Helmet>
-      <title>{title}</title>
-      <meta name="description" content={description} />
-      <meta property="og:title" content={title} />
-      <meta property="og:description" content={description} />
-      <meta property="og:image" content={image} />
-      <meta property="og:type" content="article" />
-      <meta property="article:author" content={author} />
-      <meta property="article:published_time" content={publishDate} />
-      {modifiedDate && <meta property="article:modified_time" content={modifiedDate} />}
-      <meta name="twitter:card" content="summary_large_image" />
-      <script type="application/ld+json">{JSON.stringify(schema)}</script>
-    </Helmet>
-  );
+  useEffect(() => {
+    document.title = title;
+    const descMeta = document.querySelector('meta[name="description"]') as HTMLMetaElement;
+    if (descMeta) descMeta.content = description;
+  }, [title, description, schema]);
+
+  return null;
 }

@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { supabase } from '../utils/supabase.js';
+import { supabase } from '../utils/supabase';
 
 const router = Router();
 
@@ -97,7 +97,8 @@ router.get('/catalog', async (req: Request, res: Response) => {
  */
 router.get('/catalog/:type/:id', async (req: Request, res: Response) => {
   try {
-    const { type, id } = req.params;
+    const { type: typeParam, id } = req.params;
+    const type = typeParam as string;
 
     if (!['drop', 'product', 'release'].includes(type)) {
       return res.status(400).json({ error: 'Invalid item type' });
