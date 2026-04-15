@@ -571,20 +571,11 @@ async function ensureCampaignSubmissionsTableReady() {
 }
 
 function getCampaignSigner() {
-  if (campaignSigner) return campaignSigner;
-  if (!DEPLOYER_PRIVATE_KEY || !isValidPrivateKey(DEPLOYER_PRIVATE_KEY)) {
-    throw new Error("DEPLOYER_PRIVATE_KEY is missing or invalid");
-  }
-
-  const provider = new ethers.JsonRpcProvider(BASE_SEPOLIA_RPC_URL);
-  campaignSigner = new ethers.Wallet(DEPLOYER_PRIVATE_KEY, provider);
-  return campaignSigner;
+  throw new Error("Campaign signer disabled - smart contracts removed");
 }
 
 function getCampaignProvider() {
-  if (campaignProvider) return campaignProvider;
-  campaignProvider = new ethers.JsonRpcProvider(BASE_SEPOLIA_RPC_URL);
-  return campaignProvider;
+  throw new Error("Campaign provider disabled - smart contracts removed");
 }
 
 function getProductStoreProvider() {

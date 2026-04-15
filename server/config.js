@@ -65,21 +65,9 @@ const {
   PINATA_API_KEY,
   PINATA_API_SECRET,
   ADMIN_WALLETS = "",
-  BASE_SEPOLIA_RPC_URL: rawBaseSepoliaRpcUrl = "https://sepolia-preconf.base.org",
-  ART_DROP_FACTORY_ADDRESS: rawArtDropFactoryAddress = "0x2d044a0AFAbE0C07Ee12b8f4c18691b82fb6cF01",
-  POAP_CAMPAIGN_V2_ADDRESS: rawPoapCampaignV2Address = "0x532dd9e3232B59eDc62B82e4822482696e49A627",
-  PRODUCT_STORE_ADDRESS: rawProductStoreAddress = "0x58BB50b4370898dED4d5d724E4A521825a4B0cE6",
-  CREATIVE_RELEASE_ESCROW_ADDRESS: rawCreativeReleaseEscrowAddress = "0xf95505B5c4738dc39250f32DeFd3E1FC3196C478",
-  DEPLOYER_PRIVATE_KEY: rawDeployerPrivateKey,
   NODE_ENV = "development",
 } = process.env;
 
-const BASE_SEPOLIA_RPC_URL = rawBaseSepoliaRpcUrl.trim();
-const ART_DROP_FACTORY_ADDRESS = rawArtDropFactoryAddress.trim();
-const POAP_CAMPAIGN_V2_ADDRESS = rawPoapCampaignV2Address.trim();
-const PRODUCT_STORE_ADDRESS = rawProductStoreAddress.trim();
-const CREATIVE_RELEASE_ESCROW_ADDRESS = rawCreativeReleaseEscrowAddress.trim();
-const DEPLOYER_PRIVATE_KEY = rawDeployerPrivateKey?.trim();
 const SUPABASE_SERVER_KEY = SUPABASE_SECRET_KEY?.trim() || SUPABASE_SERVICE_ROLE_KEY?.trim();
 const EXPIRED_DROP_RETENTION_HOURS = Math.max(24, Number(process.env.EXPIRED_DROP_RETENTION_HOURS || 24 * 30));
 const DROP_MAINTENANCE_INTERVAL_MS = Math.max(
