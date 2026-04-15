@@ -1740,10 +1740,25 @@ app.get("/debug/dist-status", (req, res) => {
 // ╚═══════════════════════════════════════════════════════════════════════════╝
 
 app.post("/artists/profile", authRequired, csrfProtection, async (req, res) => {
+  // Flatten nested profile structure for validation
+  // Frontend sends: { wallet, profile: { name, handle, ... } }
+  // Schema expects: { wallet, name, handle, ... }
+  const flatData = {
+    wallet: req.body?.wallet,
+    ...(req.body?.profile || {}),
+  };
+
   // Validate artist profile payload
-  const validation = validateInput(artistProfileSchema, req.body || {});
+  const validation = validateInput(artistProfileSchema, flatData);
   if (!validation.success) {
-    return res.status(400).json({ error: "Invalid artist profile data", details: validation.error });
+    const errorMessages = validation.error.issues
+      ?.map((issue) => `${issue.path.join(".")}: ${issue.message}`)
+      .join("; ") || String(validation.error);
+    return res.status(400).json({ 
+      error: "Invalid artist profile data", 
+      message: errorMessages,
+      details: validation.error 
+    });
   }
 
   const wallet = normalizeWallet(validation.data.wallet);
