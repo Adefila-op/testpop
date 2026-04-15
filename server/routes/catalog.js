@@ -10,6 +10,8 @@ export default function catalogRoutes(supabase) {
    *   - GET /api/drops
    *   - GET /api/products
    *   - GET /api/releases
+   *
+   * ⭐ FIXED (Issue #5): N+1 Query - Now includes artist relations
    */
   router.get('/catalog', async (req, res) => {
     try {
@@ -25,9 +27,11 @@ export default function catalogRoutes(supabase) {
       const pageNumber = Math.max(parseInt(page, 10) || 1, 1);
       const pageSize = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 100);
       const offset = (pageNumber - 1) * pageSize;
+      
+      // ⭐ FIXED: Include artist relations to prevent N+1 queries
       let query = supabase
         .from('catalog_with_engagement')
-        .select('*', { count: 'exact' });
+        .select('*, artists(id, wallet, name, avatar_url, bio, verified)', { count: 'exact' });
 
       if (type !== 'all') {
         query = query.eq('item_type', type);

@@ -22,6 +22,8 @@ import {
   whitelistUpdateSchema,
   validateInput,
 } from "./validation.js";
+// ⭐ FIXED (Issues #8, #9): Import metadata normalization utilities
+import { normalizeIpfsUri, portfolioSchema, validateMetadata } from "./schemas/metadata.js";
 import { appJwtSecret } from "./config.js";
 import { getPinataAuthMode, requirePinataAuthStrategies } from "./pinataAuth.js";
 import { validateCSRF, generateCSRFToken, getCSRFTokenEndpoint } from "./middleware/csrf.js";
@@ -1775,6 +1777,36 @@ app.post("/artists/profile", authRequired, csrfProtection, async (req, res) => {
           ? "pending"
           : null);
 
+  // ⭐ FIXED (Issue #8, #9): Normalize portfolio URIs to IPFS format
+  let normalizedPortfolio = profile.portfolio;
+  if (Array.isArray(profile.portfolio)) {
+    normalizedPortfolio = profile.portfolio.map((item) => {
+      if (!item.image_url) return item;
+      
+      const normalized = normalizeIpfsUri(item.image_url);
+      return {
+        ...item,
+        image_url: normalized || item.image_url, // Fall back to original if invalid
+      };
+    });
+
+    // Validate portfolio schema
+    const portfolioValidation = validateMetadata(normalizedPortfolio, portfolioSchema);
+    if (!portfolioValidation.valid) {
+      console.warn("Portfolio validation warning:", portfolioValidation.error);
+      // Don't fail; just log and use original
+    }
+  }
+
+  // ⭐ FIXED (Issue #9): Normalize avatar_url and banner_url to IPFS format
+  const normalizedAvatarUrl = profile.avatar_url || profile.avatar
+    ? normalizeIpfsUri(profile.avatar_url || profile.avatar) || (profile.avatar_url || profile.avatar)
+    : null;
+  
+  const normalizedBannerUrl = profile.banner_url || profile.banner
+    ? normalizeIpfsUri(profile.banner_url || profile.banner) || (profile.banner_url || profile.banner)
+    : null;
+
   const payload = {
     wallet,
     name: profile.name ?? null,
@@ -1784,13 +1816,13 @@ app.post("/artists/profile", authRequired, csrfProtection, async (req, res) => {
     role: isAdmin ? (profile.role ?? null) : "artist",
     status: isAdmin ? (profile.status ?? inferredStatus) : inferredStatus,
     subscription_price: profile.subscription_price ?? profile.subscriptionPrice ?? null,
-    avatar_url: profile.avatar_url ?? profile.avatar ?? null,
-    banner_url: profile.banner_url ?? profile.banner ?? null,
+    avatar_url: normalizedAvatarUrl,
+    banner_url: normalizedBannerUrl,
     twitter_url: profile.twitter_url ?? profile.twitterUrl ?? null,
     instagram_url: profile.instagram_url ?? profile.instagramUrl ?? null,
     website_url: profile.website_url ?? profile.websiteUrl ?? null,
     poap_allocation: profile.poap_allocation ?? profile.defaultPoapAllocation ?? undefined,
-    portfolio: profile.portfolio ?? undefined,
+    portfolio: normalizedPortfolio ?? undefined,
     contract_address: isAdmin ? (profile.contract_address ?? profile.contractAddress ?? undefined) : undefined,
     contract_deployment_tx: isAdmin ? (profile.contract_deployment_tx ?? profile.contractDeploymentTx ?? undefined) : undefined,
     contract_deployed_at: isAdmin ? (profile.contract_deployed_at ?? profile.contractDeployedAt ?? undefined) : undefined,
