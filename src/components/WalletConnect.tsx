@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Wallet, LogOut, Copy, Check, AlertTriangle, ChevronDown, Sparkles } from "lucide-react";
 import { useState } from "react";
-import { useWallet } from "@/hooks/useContracts";
+import { useWallet } from "@/hooks/useWallet";
 import { formatEther } from "viem";
 import { ACTIVE_CHAIN, isWeb3AuthConfigured } from "@/lib/wagmi";
 import { toast } from "sonner";

@@ -5,7 +5,7 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { supabase } from "@/lib/db";
 import { SECURE_API_BASE } from "@/lib/apiBase";
 import { getRuntimeApiToken } from "@/lib/runtimeSession";
-import { useWallet } from "@/hooks/useContracts";
+import { useWallet } from "@/hooks/useWallet";
 import { useMintArtist } from "@/hooks/useContractsArtist";
 import { toast } from "@/components/ui/use-toast";
 import { useCartStore } from "@/stores/cartStore";

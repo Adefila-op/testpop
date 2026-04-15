@@ -5,7 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { useWallet } from "@/hooks/useContracts";
+import { useWallet } from "@/hooks/useWallet";
 import { useSupabaseAllDrops } from "@/hooks/useSupabase";
 import { useCampaignV2State, useRedeemCampaignV2 } from "@/hooks/useCampaignV2";
 import { trackPOAPsView } from "@/lib/analyticsStore";

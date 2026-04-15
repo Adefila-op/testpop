@@ -3,7 +3,7 @@ import { Inbox, Loader2, MessageSquare, Plus, Send, Sparkles, Star, Users } from
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { useWallet } from "@/hooks/useContracts";
+import { useWallet } from "@/hooks/useWallet";
 import { toast } from "sonner";
 import {
   broadcastCreatorThreads,

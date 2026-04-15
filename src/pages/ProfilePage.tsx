@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Award, Gift, Loader2, LogOut, Package, Shield, ShoppingBag, ShoppingCart, Sparkles, Wallet } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
-import { useWallet } from "@/hooks/useContracts";
+import { useWallet } from "@/hooks/useWallet";
 import { toast } from "sonner";
 import { useIsMobile } from "@/hooks/use-mobile";
 import MyCollectionPage from "@/pages/MyCollectionPage";

@@ -16,7 +16,7 @@ import {
   useCampaignV2State,
   useRedeemCampaignV2,
 } from "@/hooks/useCampaignV2";
-import { useWallet } from "@/hooks/useContracts";
+import { useWallet } from "@/hooks/useWallet";
 import { ACTIVE_CHAIN } from "@/lib/wagmi";
 
 type CampaignActionPanelProps = {

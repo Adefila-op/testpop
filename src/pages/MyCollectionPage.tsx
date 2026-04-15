@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Grid3X3, Loader2, MessageSquare, X } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { useWallet } from "@/hooks/useContracts";
+import { useWallet } from "@/hooks/useWallet";
 import { trackCollectionView } from "@/lib/analyticsStore";
 import { ImageViewer, VideoViewer, AudioPlayer, PdfReader, DownloadPanel } from "@/components/collection";
 import { ipfsToHttp } from "@/lib/pinata";

@@ -3,7 +3,7 @@ import { ArrowLeft, Heart } from "lucide-react";
 import { useNavigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { useWallet } from "@/hooks/useContracts";
+import { useWallet } from "@/hooks/useWallet";
 import type { ArtistPublicProfile } from "@/lib/artistStore";
 import { trackSubscriptionsView, trackCampaignInteraction } from "@/lib/analyticsStore";
 import { toggleArtistFavorite, isArtistFavorited, getFavorites } from "@/lib/favoritesStore";

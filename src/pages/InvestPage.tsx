@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { ShoppingCart, Star, ChevronRight, X, Truck, CheckCircle2, Loader2 } from "lucide-react";
-import { useWallet } from "@/hooks/useContracts";
+import { useWallet } from "@/hooks/useWallet";
 import { Product, CartItem, OrderInfo } from "@/lib/types";
 import { toast } from "sonner";
 import { useSupabasePublishedProducts } from "@/hooks/useSupabase";

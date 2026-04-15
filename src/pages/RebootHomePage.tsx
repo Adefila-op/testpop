@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { parseEther } from "viem";
 import { toast } from "sonner";
 import { useGuestCollector } from "@/hooks/useGuestCollector";
-import { useWallet } from "@/hooks/useContracts";
+import { useWallet } from "@/hooks/useWallet";
 import { useMintArtist } from "@/hooks/useContractsArtist";
 import { ACTIVE_CHAIN } from "@/lib/wagmi";
 import { collectFreshOnchain, fetchFreshHome, toggleFreshLike, type FreshFeedItem } from "@/lib/freshApi";

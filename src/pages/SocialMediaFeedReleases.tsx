@@ -6,7 +6,7 @@ import { supabase } from "@/lib/db";
 import { CatalogItem, formatPrice } from "@/utils/catalogUtils";
 import { SocialShareButton, SubscribeButton } from "@/components/PersonalizationComponents";
 import { useCartStore } from "@/stores/cartStore";
-import { useWallet } from "@/hooks/useContracts";
+import { useWallet } from "@/hooks/useWallet";
 import { addProductToCart, resolveDiscoverPrimaryAction } from "@/lib/discoveryActions";
 
 interface SocialFeedPost extends CatalogItem {

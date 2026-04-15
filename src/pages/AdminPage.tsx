@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { supabase } from "@/lib/db";
-import { useWallet } from "@/hooks/useContracts";
+import { useWallet } from "@/hooks/useWallet";
 import { ipfsToHttp, uploadFileToPinata, uploadMetadataToPinata } from "@/lib/pinata";
 import {
   type ArtistWhitelistEntry as WhitelistEntry,
