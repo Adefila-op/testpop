@@ -1,7 +1,4 @@
 import { createRoot } from "react-dom/client";
-import App from "./App.tsx";
-import ErrorBoundary from "./components/ErrorBoundary.tsx";
-import { initializeFromSupabase } from "@/lib/artistStore";
 import "./index.css";
 
 // Register a minimal service worker so mobile browsers can offer install-to-homescreen behavior.
@@ -14,12 +11,28 @@ if ("serviceWorker" in navigator) {
 }
 
 // Load artist bootstrap data from Supabase (async, non-blocking)
-initializeFromSupabase().catch((err) =>
-  console.error("Supabase initialization failed:", err)
-);
+void import("@/lib/artistStore")
+  .then(({ initializeFromSupabase }) => initializeFromSupabase())
+  .catch((err) => console.error("Supabase initialization failed:", err));
 
-createRoot(document.getElementById("root")!).render(
-  <ErrorBoundary>
-    <App />
-  </ErrorBoundary>
-);
+async function mountApp() {
+  const rootEl = document.getElementById("root");
+  if (!rootEl) {
+    throw new Error("Missing #root element");
+  }
+
+  const [{ default: App }, { default: ErrorBoundary }] = await Promise.all([
+    import("./App.tsx"),
+    import("./components/ErrorBoundary.tsx"),
+  ]);
+
+  createRoot(rootEl).render(
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
+  );
+}
+
+mountApp().catch((err) => {
+  console.error("Application bootstrap failed:", err);
+});

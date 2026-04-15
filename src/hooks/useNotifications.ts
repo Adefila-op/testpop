@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { useWallet } from './useContracts';
+import { useWallet } from './useWallet';
 
 export interface Notification {
   id: string;

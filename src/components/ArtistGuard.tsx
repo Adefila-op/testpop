@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Palette, Wallet, Lock, LogOut, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useWallet } from "@/hooks/useContracts";
+import { useWallet } from "@/hooks/useWallet";
 import { establishSecureSession } from "@/lib/secureAuth";
 import { toast } from "sonner";
 

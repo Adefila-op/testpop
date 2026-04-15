@@ -1,6 +1,6 @@
 import { Shield, Wallet, AlertTriangle, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useWallet } from "@/hooks/useContracts";
+import { useWallet } from "@/hooks/useWallet";
 import { ADMIN_WALLETS, isAdminWallet } from "@/lib/admin";
 import { establishSecureSession } from "@/lib/secureAuth";
 import { getRuntimeSession, clearRuntimeSession } from "@/lib/runtimeSession";

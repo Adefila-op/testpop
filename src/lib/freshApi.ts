@@ -286,17 +286,8 @@ export async function fetchFreshProduct(productId: string, collectorId?: string)
 }
 
 export async function collectFreshOnchain(collectorId: string, productId: string, txHash?: string) {
-  return requestJson<{ success: boolean; collection: Record<string, unknown> }>(
-    "/fresh/collect/onchain",
-    {
-      method: "POST",
-      body: JSON.stringify({
-        collector_id: collectorId,
-        product_id: productId,
-        tx_hash: txHash || null,
-      }),
-    },
-  );
+  // Onchain contracts have been disabled
+  throw new Error("Onchain collection is disabled");
 }
 
 export async function postFreshComment(postId: string, collectorId: string, body: string) {

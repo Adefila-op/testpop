@@ -18,7 +18,6 @@ export const dropUpdateSchema = z.object({
   type: z.enum(["drop", "auction", "campaign"]).optional(),
   contract_address: z.string().regex(/^0x[a-fA-F0-9]{40}$/).optional(),
   contract_drop_id: z.number().int().min(0).optional(),
-  contract_kind: z.enum(["artDrop", "poapCampaign", "poapCampaignV2", "creativeReleaseEscrow"]).optional(),
   revenue: z.number().min(0).optional(),
   ends_at: z.string().datetime().optional(),
   metadata: z.record(z.any()).optional(),
@@ -42,7 +41,6 @@ export const productCreateSchema = z.object({
   status: z.enum(["draft", "published"]).optional(),
   contract_address: z.string().regex(/^0x[a-fA-F0-9]{40}$/).optional(),
   contract_drop_id: z.number().int().min(0).optional(),
-  contract_kind: z.enum(["artDrop", "poapCampaign", "poapCampaignV2", "creativeReleaseEscrow"]).optional(),
   metadata: z.record(z.any()).optional(),
 });
 

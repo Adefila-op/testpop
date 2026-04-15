@@ -1,4 +1,6 @@
-const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+/**
+ * POAP Campaign Contract Address
+ * Onchain contracts have been removed
+ */
 
-export const POAP_CAMPAIGN_ADDRESS =
-  import.meta.env.VITE_POAP_CAMPAIGN_ADDRESS?.trim() || ZERO_ADDRESS;
+export const POAP_CAMPAIGN_ADDRESS = null;

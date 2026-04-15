@@ -1092,27 +1092,6 @@ app.get("/fresh/products/:id", (req, res) => {
   return res.json(buildProductResponse(db, product, collectorId));
 });
 
-app.post("/fresh/collect/onchain", (req, res) => {
-  const collectorId = resolveCollectorId(req);
-  const productId = String(req.body?.product_id || "").trim();
-  const txHash = String(req.body?.tx_hash || "").trim();
-  if (!productId) return res.status(400).json({ error: "product_id is required" });
-
-  const db = readDb();
-  const product = firstById(db.products, productId);
-  if (!product) return res.status(404).json({ error: "Product not found" });
-
-  try {
-    const entry = grantOnchainCollection(db, collectorId, productId, txHash || null);
-    writeDb(db);
-    return res.status(201).json({
-      success: true,
-      collection: entry,
-    });
-  } catch (error) {
-    return res.status(400).json({ error: error?.message || "Unable to record onchain collection." });
-  }
-});
 
 app.get("/fresh/cart/:collectorId", (req, res) => {
   const collectorId = normalizeCollectorId(req.params.collectorId);
