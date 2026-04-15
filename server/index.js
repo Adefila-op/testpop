@@ -804,7 +804,7 @@ async function verifyCreativeReleasePurchaseTx({ txHash, buyerWallet, normalized
 async function findCampaignDropById(dropId) {
   const { data, error } = await supabase
     .from("drops")
-    .select("id, artist_id, title, type, status, ends_at, contract_address, contract_drop_id, contract_kind, artists!inner(wallet)")
+    .select("id, artist_id, title, type, status, ends_at, artists!inner(wallet)")
     .eq("id", dropId)
     .single();
 
@@ -1148,7 +1148,7 @@ async function getArtistRecordByWallet(wallet) {
 
   const { data, error } = await supabase
     .from("artists")
-    .select("id, wallet, name, handle, contract_address, shares_enabled, shares_contract_address")
+    .select("id, wallet, name, handle")
     .eq("wallet", normalizedWallet)
     .maybeSingle();
 
