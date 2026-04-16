@@ -166,8 +166,8 @@ export default function RebootHomePage() {
         ) : (
           <div className="space-y-4">
             <article className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-[0_24px_50px_-28px_rgba(15,23,42,0.5)]">
-              <div className="grid gap-0 lg:grid-cols-[1.45fr_1fr]">
-                <div className="relative min-h-[380px] bg-slate-900">
+              <div className="grid gap-0 md:gap-0 lg:grid-cols-[1.45fr_1fr]">
+                <div className="relative min-h-[280px] bg-slate-900 md:min-h-[380px]">
                   {activeItem.image_url ? (
                     <img src={activeItem.image_url} alt={activeItem.title} className="h-full w-full object-cover" />
                   ) : (
@@ -176,29 +176,29 @@ export default function RebootHomePage() {
                   <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
                 </div>
 
-                <div className="space-y-4 px-5 py-5">
+                <div className="space-y-3 px-4 py-4 md:space-y-4 md:px-5 md:py-5">
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Deck Slide Showcase</p>
-                  <h3 className="text-2xl font-bold text-slate-950">{activeItem.title}</h3>
-                  <p className="text-sm leading-6 text-slate-600">
+                  <h3 className="text-xl font-bold text-slate-950 md:text-2xl line-clamp-2">{activeItem.title}</h3>
+                  <p className="text-xs leading-5 text-slate-600 md:text-sm md:leading-6 line-clamp-3">
                     {activeItem.description || "Creator-owned release ready for collector flow."}
                   </p>
 
-                  <div className="rounded-2xl bg-slate-100 px-4 py-3">
-                    <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Price</p>
-                    <p className="mt-1 text-base font-semibold text-slate-950">{formatPrice(Number(activeItem.price_eth || 0))}</p>
+                  <div className="rounded-2xl bg-slate-100 px-3 py-2 md:px-4 md:py-3">
+                    <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Price</p>
+                    <p className="mt-0.5 text-sm font-semibold text-slate-950 md:text-base">{formatPrice(Number(activeItem.price_eth || 0))}</p>
                   </div>
 
-                  <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs uppercase tracking-[0.18em] text-slate-500">
+                  <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-[10px] uppercase tracking-[0.18em] text-slate-500 md:px-4 md:py-3 md:text-xs">
                     Payment: {activeItem.delivery_mode === "collect_onchain" ? "Onchain (Base Sepolia)" : "Offchain (Checkout)"}
                   </div>
 
                   <button
                     type="button"
                     onClick={() => navigate(`/artists/${activeItem.creator_id}`)}
-                    className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800 transition hover:border-slate-900 hover:text-slate-950"
+                    className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 transition hover:border-slate-900 hover:text-slate-950 md:px-4 md:py-2 md:text-sm"
                   >
-                    <User className="h-4 w-4" />
-                    {activeItem.creator_name || "Open creator"}
+                    <User className="h-3 w-3 md:h-4 md:w-4" />
+                    <span className="truncate">{activeItem.creator_name || "Creator"}</span>
                   </button>
 
                   <div className="flex flex-wrap gap-2 pt-1">
@@ -206,35 +206,37 @@ export default function RebootHomePage() {
                       type="button"
                       onClick={() => openPrimaryAction(activeItem)}
                       disabled={busyId === activeItem.id || isMintConfirming || isSwitchingNetwork}
-                      className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-70"
+                      className="inline-flex items-center gap-1.5 rounded-full bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-800 disabled:opacity-70 md:gap-2 md:px-4 md:py-2 md:text-sm"
                     >
-                      {activeItem.in_app_action === "view_in_app" ? <Eye className="h-4 w-4" /> : <Gift className="h-4 w-4" />}
-                      {activeItem.delivery_mode === "collect_onchain"
-                        ? busyId === activeItem.id
-                          ? "Collecting..."
-                          : "Collect onchain"
-                        : activeItem.in_app_action_label || (activeItem.in_app_action === "view_in_app" ? "View in app" : "Collect in app")}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => navigate("/profile")}
-                      className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800 transition hover:border-slate-900 hover:text-slate-950"
-                    >
-                      <User className="h-4 w-4" />
-                      Profile
+                      {activeItem.in_app_action === "view_in_app" ? <Eye className="h-3 w-3 md:h-4 md:w-4" /> : <Gift className="h-3 w-3 md:h-4 md:w-4" />}
+                      <span className="hidden sm:inline">
+                        {activeItem.delivery_mode === "collect_onchain"
+                          ? busyId === activeItem.id
+                            ? "Collecting..."
+                            : "Collect onchain"
+                          : activeItem.in_app_action_label || (activeItem.in_app_action === "view_in_app" ? "View in app" : "Collect in app")}
+                      </span>
+                      <span className="sm:hidden">
+                        {activeItem.delivery_mode === "collect_onchain"
+                          ? busyId === activeItem.id
+                            ? "..."
+                            : "Collect"
+                          : activeItem.in_app_action === "view_in_app" ? "View" : "Get"}
+                      </span>
                     </button>
                     <button
                       type="button"
                       onClick={() => void handleLike(activeItem)}
                       disabled={busyId === activeItem.id}
-                      className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition ${
+                      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition md:gap-2 md:px-4 md:py-2 md:text-sm ${
                         activeItem.liked
                           ? "border-rose-300 bg-rose-50 text-rose-700"
                           : "border-slate-300 bg-white text-slate-700 hover:border-slate-900"
                       }`}
                     >
-                      {busyId === activeItem.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Heart className="h-4 w-4" />}
-                      Like {activeItem.like_count > 0 ? `(${activeItem.like_count})` : ""}
+                      {busyId === activeItem.id ? <Loader2 className="h-3 w-3 animate-spin md:h-4 md:w-4" /> : <Heart className="h-3 w-3 md:h-4 md:w-4" />}
+                      <span className="hidden sm:inline">Like {activeItem.like_count > 0 ? `(${activeItem.like_count})` : ""}</span>
+                      <span className="sm:hidden">{activeItem.like_count > 0 ? activeItem.like_count : ""}</span>
                     </button>
                   </div>
                 </div>
@@ -247,11 +249,11 @@ export default function RebootHomePage() {
                   key={item.id}
                   type="button"
                   onClick={() => setActiveIndex(index)}
-                  className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
+                  className={`rounded-full px-2.5 py-1 text-xs font-semibold transition md:px-3 ${
                     index === activeIndex ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                   }`}
                 >
-                  {item.title.slice(0, 24)}
+                  {item.title.slice(0, 20)}
                 </button>
               ))}
             </div>

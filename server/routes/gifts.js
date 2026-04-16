@@ -1,74 +1,53 @@
 /**
  * Gift Routes - NFT gifting endpoints
+ * Location: server/routes/gifts.js
  * Handles gift creation, claiming, and management
  */
 
-const express = require('express');
-const router = express.Router();
-const { z } = require('zod');
-const crypto = require('crypto');
-const ethers = require('ethers');
-const supabase = require('../integrations/supabase');
-const { contracts, waitForTransaction } = require('../api/web3-contracts');
-const { requireAuth } = require('../middleware/auth');
-const { sendEmail } = require('../services/email');
+import express from 'express';
+import { z } from 'zod';
+import crypto from 'crypto';
+import { errorHandler, requireAuth } from '../middleware/errors.js';
+import {
+  createGift,
+  claimGift,
+} from '../api/contracts.js';
+import { supabase } from '../config/supabase.js';
 
-// Validation schemas
+const router = express.Router();
+
+/**
+ * Validation schemas
+ */
 const createGiftSchema = z.object({
   productId: z.number().positive(),
   recipientEmail: z.string().email(),
-  recipientMessage: z.string().max(500).optional(),
+  message: z.string().max(500).optional(),
+  quantity: z.number().int().positive().default(1),
 });
 
 const claimGiftSchema = z.object({
-  giftId: z.string(),
+  giftId: z.string().uuid(),
   claimToken: z.string(),
 });
 
 /**
- * Helper: Encrypt email for on-chain storage
+ * POST /api/gifts
+ * Create a gift NFT for a recipient
  */
-const encryptEmail = (email) => {
-  const cipher = crypto.createCipher('aes-256-cbc', process.env.ENCRYPTION_KEY || 'default-key');
-  let encrypted = cipher.update(email, 'utf8', 'hex');
-  encrypted += cipher.final('hex');
-  return encrypted;
-};
-
-/**
- * Helper: Decrypt email from on-chain storage
- */
-const decryptEmail = (encrypted) => {
-  const decipher = crypto.createDecipher('aes-256-cbc', process.env.ENCRYPTION_KEY || 'default-key');
-  let decrypted = decipher.update(encrypted, 'hex', 'utf8');
-  decrypted += decipher.final('utf8');
-  return decrypted;
-};
-
-/**
- * Helper: Generate secure claim token
- */
-const generateClaimToken = () => {
-  return crypto.randomBytes(32).toString('hex');
-};
-
-/**
- * POST /api/gifts/create
- * Create gift for recipient
- */
-router.post('/create', requireAuth, async (req, res) => {
-  try {
+router.post(
+  '/',
+  requireAuth,
+  errorHandler(async (req, res) => {
     const validation = createGiftSchema.safeParse(req.body);
     if (!validation.success) {
-      return res.status(400).json({
-        error: 'Validation failed',
-        details: validation.error.errors,
-      });
+      return res.status(400).json({ error: validation.error.errors });
     }
 
-    const { productId, recipientEmail, recipientMessage } = validation.data;
+    const { productId, recipientEmail, message, quantity } = validation.data;
+    const senderAddress = req.user.address;
 
-    // Get product details
+    // Verify product exists
     const { data: product } = await supabase
       .from('products')
       .select('*')
@@ -79,108 +58,143 @@ router.post('/create', requireAuth, async (req, res) => {
       return res.status(404).json({ error: 'Product not found' });
     }
 
-    // Encrypt recipient email
-    const encryptedEmail = encryptEmail(recipientEmail);
-    
-    // Generate claim token
-    const claimToken = generateClaimToken();
-    const tokenHash = crypto
-      .createHash('sha256')
-      .update(claimToken)
-      .digest('hex');
-
-    // Create gift on smart contract
-    const tx = await contracts.productStoreAdmin.createGift(
+    // Create gift on blockchain
+    const { txHash, giftTokenId } = await createGift({
       productId,
-      encryptedEmail,
-      recipientMessage || ''
-    );
+      recipientEmail,
+      senderAddress,
+      message,
+      quantity,
+    });
 
-    const receipt = await waitForTransaction(tx, 'GiftCreated');
-
-    // Extract gift ID
-    let giftId = null;
-    if (receipt.event && receipt.event.args) {
-      giftId = receipt.event.args.giftId?.toString() || receipt.event.args[1]?.toString();
-    }
-
-    // Store gift in Supabase
-    const { data: gift } = await supabase
+    // Store gift in database
+    const { data: gift, error } = await supabase
       .from('gifts')
-      .insert({
-        id: giftId,
-        from_user_id: req.user.id,
-        product_id: productId,
-        recipient_email: recipientEmail, // Store plain for email matching
-        recipient_email_encrypted: encryptedEmail,
-        message: recipientMessage,
-        claim_token_hash: tokenHash,
-        status: 'pending',
-        created_at: new Date(),
-      });
-
-    // Generate claim URL
-    const claimUrl = `${process.env.FRONTEND_URL}/gifts/${giftId}/claim?token=${claimToken}`;
-
-    // Send email to recipient
-    try {
-      await sendEmail({
-        to: recipientEmail,
-        subject: `You've received a gift from ${req.user.name || 'Someone'}!`,
-        template: 'gift-received',
-        data: {
-          senderName: req.user.name,
-          productName: product.name,
-          message: recipientMessage,
-          claimUrl,
-          expiresIn: '90 days',
+      .insert([
+        {
+          product_id: productId,
+          sender_address: senderAddress,
+          recipient_email: recipientEmail,
+          message,
+          quantity,
+          tx_hash: txHash,
+          token_id: giftTokenId,
+          status: 'pending',
+          created_at: new Date().toISOString(),
         },
-      });
-    } catch (emailError) {
-      console.error('Email send failed:', emailError);
-      // Don't fail if email fails - gift still created
-    }
-
-    return res.json({
-      success: true,
-      gift: {
-        giftId,
-        productId,
-        recipientEmail,
-        claimUrl,
-      },
-      transactionHash: receipt.transactionHash,
-      message: 'Gift created! Email sent to recipient with claim link.',
-    });
-  } catch (error) {
-    console.error('Gift creation error:', error);
-    return res.status(500).json({
-      error: 'Gift creation failed',
-      message: error.message,
-    });
-  }
-});
-
-/**
- * GET /api/gifts/:id/claim-link
- * Verify and generate authenticated claim link
- */
-router.get('/:id/claim-link', async (req, res) => {
-  try {
-    const { token } = req.query;
-
-    if (!token) {
-      return res.status(400).json({ error: 'Claim token required' });
-    }
-
-    // Verify token
-    const { data: gift } = await supabase
-      .from('gifts')
-      .select('*')
-      .eq('id', req.params.id)
+      ])
+      .select()
       .single();
 
-    if (!gift) {
+    if (error) throw error;
+
+    // Send claim email to recipient (fire and forget)
+    fetch('/api/internal/email/send-gift', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        recipientEmail,
+        giftId: gift.id,
+        senderName: req.user.displayName || 'A creator',
+        productName: product.name,
+        message,
+        claimUrl: `${process.env.FRONTEND_URL}/gifts/claim/${gift.id}`,
+      }),
+    }).catch((err) => console.error('Email send failed:', err));
+
+    res.json({
+      success: true,
+      gift: {
+        id: gift.id,
+        tokenId: giftTokenId,
+        txHash,
+        status: 'pending',
+        createdAt: gift.created_at,
+      },
+    });
+  })
+);
+
+/**
+ * GET /api/gifts/pending
+ * Get all pending gifts for authenticated user
+ */
+router.get(
+  '/pending',
+  requireAuth,
+  errorHandler(async (req, res) => {
+    const userEmail = req.user.email;
+
+    const { data: gifts, error } = await supabase
+      .from('gifts')
+      .select('*, products(*)')
+      .eq('recipient_email', userEmail)
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    res.json({
+      success: true,
+      gifts: gifts || [],
+      count: (gifts || []).length,
+    });
+  })
+);
+
+/**
+ * GET /api/gifts/sent
+ * Get all gifts sent by authenticated creator
+ */
+router.get(
+  '/sent',
+  requireAuth,
+  errorHandler(async (req, res) => {
+    const creatorAddress = req.user.address;
+
+    const { data: gifts, error } = await supabase
+      .from('gifts')
+      .select('*, products(*)')
+      .eq('sender_address', creatorAddress)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    res.json({
+      success: true,
+      gifts: gifts || [],
+      count: (gifts || []).length,
+    });
+  })
+);
+
+/**
+ * POST /api/gifts/:giftId/claim
+ * Claim a gift NFT
+ */
+router.post(
+  '/:giftId/claim',
+  errorHandler(async (req, res) => {
+    const validation = claimGiftSchema.safeParse(req.body);
+    if (!validation.success) {
+      return res.status(400).json({ error: validation.error.errors });
+    }
+
+    const { giftId, claimToken } = validation.data;
+    const userAddress = req.user?.address;
+
+    if (!userAddress) {
+      return res.status(401).json({ error: 'Must connect wallet to claim' });
+    }
+
+    // Get gift from database
+    const { data: gift, error: getError } = await supabase
+      .from('gifts')
+      .select('*')
+      .eq('id', giftId)
+      .single();
+
+    if (getError) {
       return res.status(404).json({ error: 'Gift not found' });
     }
 
@@ -188,65 +202,124 @@ router.get('/:id/claim-link', async (req, res) => {
       return res.status(400).json({ error: 'Gift already claimed' });
     }
 
-    const tokenHash = crypto
-      .createHash('sha256')
-      .update(token)
-      .digest('hex');
-
-    if (tokenHash !== gift.claim_token_hash) {
-      return res.status(401).json({ error: 'Invalid claim token' });
+    // Validate claim token
+    const isValidToken = gift.token_id === claimToken;
+    if (!isValidToken) {
+      return res.status(403).json({ error: 'Invalid claim token' });
     }
 
-    // Token valid - return gift details
-    const { data: product } = await supabase
-      .from('products')
-      .select('*')
-      .eq('id', gift.product_id)
+    // Process claim on blockchain
+    const { txHash } = await claimGift({
+      giftId: gift.token_id,
+      claimerAddress: userAddress,
+    });
+
+    // Update gift status in database
+    const { data: updated, error: updateError } = await supabase
+      .from('gifts')
+      .update({
+        status: 'claimed',
+        claimed_by: userAddress,
+        claimed_at: new Date().toISOString(),
+        claim_tx_hash: txHash,
+      })
+      .eq('id', giftId)
+      .select()
       .single();
 
-    return res.json({
-      valid: true,
+    if (updateError) throw updateError;
+
+    res.json({
+      success: true,
       gift: {
-        giftId: gift.id,
-        productId: gift.product_id,
-        productName: product.name,
-        productDescription: product.description,
-        message: gift.message,
-        senderName: gift.from_user?.name || 'Anonymous',
+        id: updated.id,
+        status: 'claimed',
+        claimedAt: updated.claimed_at,
+        claimTxHash: txHash,
       },
-      token, // Return for next claim step
     });
-  } catch (error) {
-    console.error('Claim link error:', error);
-    return res.status(500).json({
-      error: 'Verification failed',
-      message: error.message,
-    });
-  }
-});
+  })
+);
 
 /**
- * POST /api/gifts/:id/claim
- * Claim gift and transfer NFT to recipient
+ * GET /api/gifts/:giftId/claim-details
+ * Get gift details for claiming (public endpoint)
  */
-router.post('/:id/claim', requireAuth, async (req, res) => {
-  try {
-    const validation = claimGiftSchema.safeParse(req.body);
-    if (!validation.success) {
-      return res.status(400).json({
-        error: 'Validation failed',
-        details: validation.error.errors,
-      });
+router.get(
+  '/:giftId/claim-details',
+  errorHandler(async (req, res) => {
+    const { giftId } = req.params;
+
+    const { data: gift, error } = await supabase
+      .from('gifts')
+      .select('*, products(name, description, image)')
+      .eq('id', giftId)
+      .single();
+
+    if (error || !gift) {
+      return res.status(404).json({ error: 'Gift not found' });
     }
 
-    const { giftId, claimToken } = validation.data;
-    const giftId2 = req.params.id;
+    // Don't expose sensitive info
+    const safeGift = {
+      id: gift.id,
+      productName: gift.products.name,
+      productDescription: gift.products.description,
+      productImage: gift.products.image,
+      message: gift.message,
+      senderDisplayName: gift.sender_display_name || 'A creator',
+      status: gift.status,
+    };
 
-    if (giftId !== giftId2) {
-      return res.status(400).json({ error: 'Gift ID mismatch' });
+    res.json({ success: true, gift: safeGift });
+  })
+);
+
+/**
+ * GET /api/gifts/:giftId
+ * Get full gift details (authenticated only)
+ */
+router.get(
+  '/:giftId',
+  requireAuth,
+  errorHandler(async (req, res) => {
+    const { giftId } = req.params;
+    const userAddress = req.user.address;
+    const userEmail = req.user.email;
+
+    const { data: gift, error } = await supabase
+      .from('gifts')
+      .select('*')
+      .eq('id', giftId)
+      .single();
+
+    if (error || !gift) {
+      return res.status(404).json({ error: 'Gift not found' });
     }
 
-    // Get gift
+    // Check authorization
+    const isRecipient = gift.recipient_email === userEmail;
+    const isSender = gift.sender_address === userAddress;
+
+    if (!isRecipient && !isSender) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+
+    res.json({ success: true, gift });
+  })
+);
+
+/**
+ * DELETE /api/gifts/:giftId
+ * Delete a pending gift (sender only)
+ */
+router.delete(
+  '/:giftId',
+  requireAuth,
+  errorHandler(async (req, res) => {
+    const { giftId } = req.params;
+    const senderAddress = req.user.address;
+
     const { data: gift } = await supabase
       .from('gifts')
       .select('*')
@@ -257,149 +330,24 @@ router.post('/:id/claim', requireAuth, async (req, res) => {
       return res.status(404).json({ error: 'Gift not found' });
     }
 
+    if (gift.sender_address !== senderAddress) {
+      return res.status(403).json({ error: 'Only sender can delete gift' });
+    }
+
     if (gift.status === 'claimed') {
-      return res.status(400).json({ error: 'Gift already claimed' });
+      return res.status(400).json({ error: 'Cannot delete claimed gift' });
     }
 
-    // Verify claim token
-    const tokenHash = crypto
-      .createHash('sha256')
-      .update(claimToken)
-      .digest('hex');
-
-    if (tokenHash !== gift.claim_token_hash) {
-      return res.status(401).json({ error: 'Invalid claim token' });
-    }
-
-    // Verify recipient email matches user email
-    if (gift.recipient_email.toLowerCase() !== req.user.email.toLowerCase()) {
-      return res.status(403).json({
-        error: 'This gift is not for you',
-        recipientEmail: gift.recipient_email,
-      });
-    }
-
-    // Claim on smart contract
-    const tx = await contracts.productStore.connect(
-      new ethers.Wallet(req.user.privateKey, require('../api/web3-contracts').getProvider())
-    ).claimGift(giftId);
-
-    const receipt = await waitForTransaction(tx, 'GiftClaimed');
-
-    // Extract NFT ID
-    let nftId = null;
-    if (receipt.event && receipt.event.args) {
-      nftId = receipt.event.args.tokenId?.toString() || receipt.event.args[2]?.toString();
-    }
-
-    // Update gift status
-    await supabase
+    const { error } = await supabase
       .from('gifts')
-      .update({
-        status: 'claimed',
-        claimed_by: req.user.wallet,
-        claimed_at: new Date(),
-        transaction_hash: receipt.transactionHash,
-      })
+      .delete()
       .eq('id', giftId);
 
-    // Send confirmation email to sender
-    const { data: sender } = await supabase
-      .from('users')
-      .select('email, name')
-      .eq('id', gift.from_user_id)
-      .single();
+    if (error) throw error;
 
-    try {
-      await sendEmail({
-        to: sender.email,
-        subject: 'Your gift has been claimed!',
-        template: 'gift-claimed',
-        data: {
-          recipientEmail: gift.recipient_email,
-          claimedAt: new Date(),
-        },
-      });
-    } catch (emailError) {
-      console.error('Confirmation email failed:', emailError);
-    }
+    res.json({ success: true, message: 'Gift deleted' });
+  })
+);
 
-    return res.json({
-      success: true,
-      claim: {
-        giftId,
-        nftId,
-        claimedBy: req.user.wallet,
-        claimedAt: new Date(),
-      },
-      transactionHash: receipt.transactionHash,
-      message: 'Gift claimed! NFT transferred to your wallet.',
-    });
-  } catch (error) {
-    console.error('Claim error:', error);
-    return res.status(500).json({
-      error: 'Gift claim failed',
-      message: error.message,
-    });
-  }
-});
 
-/**
- * GET /api/gifts/pending
- * Get pending gifts received by user
- */
-router.get('/pending', requireAuth, async (req, res) => {
-  try {
-    const { data: gifts } = await supabase
-      .from('gifts')
-      .select(`
-        *,
-        product:product_id(name, description),
-        sender:from_user_id(name, avatar)
-      `)
-      .eq('recipient_email', req.user.email)
-      .eq('status', 'pending')
-      .order('created_at', { ascending: false });
-
-    return res.json({
-      gifts: gifts || [],
-      count: gifts?.length || 0,
-    });
-  } catch (error) {
-    console.error('Pending gifts error:', error);
-    return res.status(500).json({
-      error: 'Fetch failed',
-      message: error.message,
-    });
-  }
-});
-
-/**
- * GET /api/gifts/sent
- * Get gifts sent by user
- */
-router.get('/sent', requireAuth, async (req, res) => {
-  try {
-    const { data: gifts } = await supabase
-      .from('gifts')
-      .select(`
-        *,
-        product:product_id(name, description)
-      `)
-      .eq('from_user_id', req.user.id)
-      .order('created_at', { ascending: false });
-
-    return res.json({
-      gifts: gifts || [],
-      count: gifts?.length || 0,
-    });
-  } catch (error) {
-    console.error('Sent gifts error:', error);
-    return res.status(500).json({
-      error: 'Fetch failed',
-      message: error.message,
-    });
-  }
-});
-
-module.exports = router;
+export default router;

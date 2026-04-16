@@ -150,6 +150,72 @@ export function getPushPermissionStatus(): NotificationPermission {
 }
 
 /**
+ * Auto-subscribe to push notifications (called on app install)
+ * Attempts to request permission and subscribe automatically
+ */
+export async function autoSubscribeToPushNotifications() {
+  try {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      return null;
+    }
+
+    const permission = await requestNotificationPermission();
+    if (!permission) {
+      console.log('⏭️  User denied notification permission');
+      return null;
+    }
+
+    // Wait for service worker to be ready
+    const registration = await navigator.serviceWorker.ready;
+    const existing = await registration.pushManager.getSubscription();
+    
+    if (existing) {
+      console.log('✅ Already subscribed to push notifications');
+      return existing;
+    }
+
+    // Get auth token if user is logged in
+    const token = localStorage.getItem('auth_token');
+    if (!token) {
+      console.log('⏭️  No auth token available yet - will subscribe after login');
+      return null;
+    }
+
+    const subscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(
+        process.env.REACT_APP_VAPID_PUBLIC_KEY || ''
+      ) as BufferSource
+    });
+
+    console.log('✅ Auto-subscribed to push notifications');
+
+    // Register with backend
+    const response = await fetch('/api/notifications/push-subscription', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        subscription: subscription.toJSON()
+      })
+    });
+
+    if (!response.ok) {
+      console.warn('⚠️  Failed to register subscription with backend');
+      return subscription;
+    }
+
+    console.log('✅ Push subscription registered with backend');
+    return subscription;
+  } catch (error) {
+    console.warn('⏭️  Auto-subscription failed (non-critical):', error);
+    return null;
+  }
+}
+
+/**
  * Convert VAPID key from base64 to Uint8Array
  */
 function urlBase64ToUint8Array(base64String: string): Uint8Array {

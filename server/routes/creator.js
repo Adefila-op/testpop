@@ -1,447 +1,347 @@
 /**
  * Creator Routes - Creator dashboard and payout endpoints
+ * Location: server/routes/creator.js
  * Handles earnings tracking, payout settings, and claims
  */
 
-const express = require('express');
-const router = express.Router();
-const { z } = require('zod');
-const ethers = require('ethers');
-const supabase = require('../integrations/supabase');
-const { contracts, waitForTransaction } = require('../api/web3-contracts');
-const { requireAuth } = require('../middleware/auth');
+import express from 'express';
+import { z } from 'zod';
+import { formatEther, isAddress } from 'ethers';
+import { errorHandler, requireAuth } from '../middleware/errors.js';
+import {
+  setPayoutMethod,
+  claimCreatorPayout,
+  getCreatorEarnings,
+} from '../api/contracts.js';
+import { supabase } from '../config/supabase.js';
 
-// Validation schemas
+const router = express.Router();
+
+/**
+ * Validation schemas
+ */
 const setPayoutMethodSchema = z.object({
-  method: z.enum(['ETH', 'USDC', 'USDT', 'ESCROW']),
+  method: z.enum(['bank', 'crypto', 'stripe']),
   payoutAddress: z.string().optional(),
+  bankAccount: z.object({
+    accountHolder: z.string().optional(),
+    iban: z.string().optional(),
+  }).optional(),
+});
+
+const claimPayoutSchema = z.object({
+  method: z.enum(['bank', 'crypto', 'stripe']),
 });
 
 /**
  * GET /api/creator/earnings
  * Get creator's total and pending earnings
  */
-router.get('/earnings', requireAuth, async (req, res) => {
-  try {
-    // Get pending escrow amount from contract
-    let pendingAmount = '0';
-    try {
-      pendingAmount = await contracts.payoutDistributor.getCreatorEscrow(req.user.wallet);
-    } catch (error) {
-      console.warn('Could not fetch escrow balance:', error.message);
-    }
+router.get(
+  '/earnings',
+  requireAuth,
+  errorHandler(async (req, res) => {
+    const creatorAddress = req.user.address;
+
+    // Get earnings data from contract and database
+    const earnings = await getCreatorEarnings(creatorAddress);
 
     // Get all payouts from Supabase
-    const { data: payoutRecords } = await supabase
+    const { data: payoutRecords, error } = await supabase
       .from('payout_records')
       .select('*')
-      .eq('creator_id', req.user.id)
+      .eq('creator_address', creatorAddress)
       .order('created_at', { ascending: false });
 
+    if (error) throw error;
+
     // Calculate totals
-    const totalPayouts = payoutRecords?.reduce((sum, record) => {
-      return sum + BigInt(record.amount || 0);
-    }, BigInt(0)) || BigInt(0);
+    const totalPayouts = (payoutRecords || []).reduce((sum, record) => {
+      return sum + parseFloat(record.amount || 0);
+    }, 0);
 
     // Get creator payout settings
     const { data: payoutSettings } = await supabase
       .from('creator_payout_settings')
       .select('*')
-      .eq('creator_id', req.user.id)
+      .eq('creator_address', creatorAddress)
       .single();
 
     // Get last payment date
     const lastPayout = payoutRecords?.[0];
 
-    return res.json({
+    res.json({
+      success: true,
       earnings: {
-        pending: {
-          amount: pendingAmount.toString ? pendingAmount.toString() : pendingAmount,
-          amountEth: ethers.utils.formatEther(
-            ethers.BigNumber.from(pendingAmount.toString ? pendingAmount.toString() : pendingAmount)
-          ),
-        },
-        totalEarned: {
-          amount: totalPayouts.toString(),
-          amountEth: ethers.utils.formatEther(totalPayouts.toString()),
-        },
-        lastPayout: lastPayout ? {
-          amount: lastPayout.amount,
-          date: lastPayout.completed_at,
-          method: lastPayout.payout_method,
-        } : null,
+        pending: earnings.pending,
+        totalEarned: totalPayouts.toString(),
+        lastPayout: lastPayout
+          ? {
+              amount: lastPayout.amount,
+              date: lastPayout.completed_at,
+              method: lastPayout.payout_method,
+            }
+          : null,
       },
       settings: payoutSettings || {
-        method: 'ESCROW',
+        method: 'crypto',
         payoutAddress: null,
         bankingVerified: false,
       },
     });
-  } catch (error) {
-    console.error('Earnings fetch error:', error);
-    return res.status(500).json({
-      error: 'Fetch failed',
-      message: error.message,
-    });
-  }
-});
+  })
+);
 
 /**
  * POST /api/creator/payout-method
  * Set creator's payout method and address
  */
-router.post('/payout-method', requireAuth, async (req, res) => {
-  try {
+router.post(
+  '/payout-method',
+  requireAuth,
+  errorHandler(async (req, res) => {
     const validation = setPayoutMethodSchema.safeParse(req.body);
     if (!validation.success) {
-      return res.status(400).json({
-        error: 'Validation failed',
-        details: validation.error.errors,
-      });
+      return res.status(400).json({ error: validation.error.errors });
     }
 
-    const { method, payoutAddress } = validation.data;
+    const { method, payoutAddress, bankAccount } = validation.data;
+    const creatorAddress = req.user.address;
 
     // Validate payout address if provided
-    if (payoutAddress && !ethers.utils.isAddress(payoutAddress)) {
+    if (payoutAddress && !isAddress(payoutAddress)) {
       return res.status(400).json({ error: 'Invalid Ethereum address' });
     }
 
     // Update on smart contract
-    const payoutMethodMap = { ETH: 0, USDC: 1, USDT: 2, ESCROW: 3 };
-    const methodEnum = payoutMethodMap[method];
-
-    const tx = await contracts.payoutDistributorAdmin.setPayoutMethod(
-      methodEnum,
-      payoutAddress || ethers.constants.AddressZero
-    );
-
-    const receipt = await waitForTransaction(tx);
+    const { txHash } = await setPayoutMethod(creatorAddress, method, payoutAddress);
 
     // Store in Supabase
-    const { data, error: dbError } = await supabase
+    const { error: dbError } = await supabase
       .from('creator_payout_settings')
-      .upsert(
+      .upsert([
         {
-          creator_id: req.user.id,
-          creator_wallet: req.user.wallet,
+          creator_address: creatorAddress,
           payout_method: method,
           payout_address: payoutAddress || null,
-          updated_at: new Date(),
+          bank_account: bankAccount || null,
+          updated_at: new Date().toISOString(),
         },
-        { onConflict: 'creator_id' }
-      );
+      ]);
 
-    if (dbError) {
-      console.error('Database error:', dbError);
-    }
+    if (dbError) throw dbError;
 
-    return res.json({
+    res.json({
       success: true,
       settings: {
         method,
-        payoutAddress: payoutAddress || req.user.wallet,
+        payoutAddress: payoutAddress || creatorAddress,
       },
-      transactionHash: receipt.transactionHash,
+      txHash,
       message: `Payout method set to ${method}`,
     });
-  } catch (error) {
-    console.error('Payout method error:', error);
-    return res.status(500).json({
-      error: 'Settings update failed',
-      message: error.message,
-    });
-  }
-});
+  })
+);
 
 /**
  * POST /api/creator/payouts/claim
  * Creator claims pending payouts
  */
-router.post('/payouts/claim', requireAuth, async (req, res) => {
-  try {
-    const { method } = req.body;
-
-    if (!method || !['ETH', 'USDC', 'USDT'].includes(method)) {
-      return res.status(400).json({
-        error: 'Invalid payment method',
-        allowed: ['ETH', 'USDC', 'USDT'],
-      });
+router.post(
+  '/payouts/claim',
+  requireAuth,
+  errorHandler(async (req, res) => {
+    const validation = claimPayoutSchema.safeParse(req.body);
+    if (!validation.success) {
+      return res.status(400).json({ error: validation.error.errors });
     }
 
-    // Get pending amount
-    const pendingAmount = await contracts.payoutDistributor.getCreatorEscrow(
-      req.user.wallet
-    );
+    const { method } = validation.data;
+    const creatorAddress = req.user.address;
 
-    if (pendingAmount.eq(0)) {
+    // Get pending amount
+    const earnings = await getCreatorEarnings(creatorAddress);
+    const pendingAmount = parseFloat(earnings.pending || '0');
+
+    if (pendingAmount === 0) {
       return res.status(400).json({
         error: 'No pending payouts',
         amount: '0',
       });
     }
 
-    // Map payment method to enum (0=ETH, 1=USDC, 2=USDT)
-    const paymentTokenMap = { ETH: 0, USDC: 1, USDT: 2 };
-    const token = paymentTokenMap[method];
-
     // Claim from contract
-    const tx = await contracts.payoutDistributor.connect(
-      new ethers.Wallet(req.user.privateKey, require('../api/web3-contracts').getProvider())
-    ).retrieveEscrowPayout(token);
-
-    const receipt = await waitForTransaction(tx, 'EscrowReleased');
+    const { txHash } = await claimCreatorPayout(method);
 
     // Record payout
-    const { data: record } = await supabase
+    const { error: dbError } = await supabase
       .from('payout_records')
-      .insert({
-        creator_id: req.user.id,
-        creator_wallet: req.user.wallet,
-        amount: pendingAmount.toString(),
-        payout_method: method,
-        transaction_hash: receipt.transactionHash,
-        completed_at: new Date(),
-        status: 'completed',
-      });
-
-    // Send confirmation email
-    try {
-      const { sendEmail } = require('../services/email');
-      await sendEmail({
-        to: req.user.email,
-        subject: 'Your payout has been processed',
-        template: 'payout-confirmed',
-        data: {
-          amount: ethers.utils.formatEther(pendingAmount),
-          method,
-          hash: receipt.transactionHash,
+      .insert([
+        {
+          creator_address: creatorAddress,
+          amount: pendingAmount.toString(),
+          payout_method: method,
+          tx_hash: txHash,
+          completed_at: new Date().toISOString(),
+          status: 'pending',
         },
-      });
-    } catch (emailError) {
-      console.error('Email failed:', emailError);
-    }
+      ]);
 
-    return res.json({
+    if (dbError) throw dbError;
+
+    // Send confirmation email (fire and forget)
+    fetch('/api/internal/email/payout-confirmed', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: req.user.email,
+        amount: pendingAmount,
+        method,
+        txHash,
+      }),
+    }).catch((err) => console.error('Email send failed:', err));
+
+    res.json({
       success: true,
       payout: {
         amount: pendingAmount.toString(),
-        amountFormatted: ethers.utils.formatEther(pendingAmount),
         method,
-        receiver: req.user.wallet,
+        receiver: creatorAddress,
       },
-      transactionHash: receipt.transactionHash,
-      message: `${ethers.utils.formatEther(pendingAmount)} ${method} claimed!`,
+      txHash,
+      message: `${pendingAmount.toFixed(4)} ETH claimed via ${method}!`,
     });
-  } catch (error) {
-    console.error('Claim error:', error);
-    return res.status(500).json({
-      error: 'Payout claim failed',
-      message: error.message,
-    });
-  }
-});
+  })
+);
 
 /**
  * GET /api/creator/payouts/history
  * Get creator's payout history
  */
-router.get('/payouts/history', requireAuth, async (req, res) => {
-  try {
+router.get(
+  '/payouts/history',
+  requireAuth,
+  errorHandler(async (req, res) => {
     const { page = 1, limit = 20 } = req.query;
+    const creatorAddress = req.user.address;
 
-    const { data: payouts, count } = await supabase
+    const { data: payouts, count, error } = await supabase
       .from('payout_records')
       .select('*', { count: 'exact' })
-      .eq('creator_id', req.user.id)
+      .eq('creator_address', creatorAddress)
       .order('completed_at', { ascending: false })
       .range((page - 1) * limit, page * limit - 1);
 
-    return res.json({
+    if (error) throw error;
+
+    res.json({
+      success: true,
       payouts: payouts || [],
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),
         total: count,
-        totalPages: Math.ceil(count / limit),
+        totalPages: Math.ceil((count || 0) / limit),
       },
     });
-  } catch (error) {
-    console.error('History error:', error);
-    return res.status(500).json({
-      error: 'History fetch failed',
-      message: error.message,
-    });
-  }
-});
-
-/**
- * GET /api/creator/collaborators
- * Get collaborators set up for revenue splits
- */
-router.get('/collaborators', requireAuth, async (req, res) => {
-  try {
-    const collaborators = await contracts.payoutDistributor.getCollaborators(
-      req.user.wallet
-    );
-
-    // Get shares for each collaborator
-    const collaboratorDetails = await Promise.all(
-      collaborators.map(async (collab) => {
-        const share = await contracts.payoutDistributor.collaboratorShares(
-          req.user.wallet,
-          collab
-        );
-        return {
-          address: collab,
-          shareBps: share.toString(),
-          sharePercent: (parseInt(share) / 100).toFixed(2),
-        };
-      })
-    );
-
-    return res.json({
-      collaborators: collaboratorDetails,
-      totalShares: collaboratorDetails.reduce((sum, c) => sum + parseInt(c.shareBps), 0),
-    });
-  } catch (error) {
-    console.error('Collaborators error:', error);
-    return res.status(500).json({
-      error: 'Fetch failed',
-      message: error.message,
-    });
-  }
-});
-
-/**
- * POST /api/creator/collaborators
- * Add collaborator for revenue split
- */
-router.post('/collaborators', requireAuth, async (req, res) => {
-  try {
-    const { collaborator, shareBps } = req.body;
-
-    // Validate inputs
-    if (!ethers.utils.isAddress(collaborator)) {
-      return res.status(400).json({ error: 'Invalid collaborator address' });
-    }
-
-    if (!Number.isInteger(shareBps) || shareBps <= 0 || shareBps > 10000) {
-      return res.status(400).json({
-        error: 'Share must be between 1 and 10000 basis points',
-      });
-    }
-
-    // Add collaborator on contract
-    const tx = await contracts.payoutDistributorAdmin.addCollaborator(
-      collaborator,
-      shareBps
-    );
-
-    const receipt = await waitForTransaction(tx, 'CollaboratorAdded');
-
-    return res.json({
-      success: true,
-      collaborator: {
-        address: collaborator,
-        shareBps,
-        sharePercent: (shareBps / 100).toFixed(2),
-      },
-      transactionHash: receipt.transactionHash,
-    });
-  } catch (error) {
-    console.error('Add collaborator error:', error);
-    return res.status(500).json({
-      error: 'Add collaborator failed',
-      message: error.message,
-    });
-  }
-});
-
-/**
- * DELETE /api/creator/collaborators/:address
- * Remove collaborator
- */
-router.delete('/collaborators/:address', requireAuth, async (req, res) => {
-  try {
-    const { address } = req.params;
-
-    if (!ethers.utils.isAddress(address)) {
-      return res.status(400).json({ error: 'Invalid address' });
-    }
-
-    // Remove on contract
-    const tx = await contracts.payoutDistributorAdmin.removeCollaborator(address);
-    const receipt = await waitForTransaction(tx, 'CollaboratorRemoved');
-
-    return res.json({
-      success: true,
-      removed: address,
-      transactionHash: receipt.transactionHash,
-    });
-  } catch (error) {
-    console.error('Remove collaborator error:', error);
-    return res.status(500).json({
-      error: 'Remove collaborator failed',
-      message: error.message,
-    });
-  }
-});
+  })
+);
 
 /**
  * GET /api/creator/dashboard
  * Complete creator dashboard overview
  */
-router.get('/dashboard', requireAuth, async (req, res) => {
-  try {
+router.get(
+  '/dashboard',
+  requireAuth,
+  errorHandler(async (req, res) => {
+    const creatorAddress = req.user.address;
+
     // Get earnings
-    const earningsResponse = await new Promise((resolve) => {
-      router.get.call(
-        { user: req.user, query: {} },
-        '/earnings',
-        (data) => resolve(data)
-      );
-    }).catch(() => ({
-      earnings: {
-        pending: { amount: '0' },
-        totalEarned: { amount: '0' },
-      },
-    }));
+    const earnings = await getCreatorEarnings(creatorAddress);
 
     // Get products created
-    const { data: products } = await supabase
+    const { data: products, error: prodError } = await supabase
       .from('products')
       .select('id, name, status')
-      .eq('creator_id', req.user.id);
+      .eq('creator_address', creatorAddress);
+
+    if (prodError) throw prodError;
 
     // Get recent sales
-    const { data: recentSales } = await supabase
+    const { data: recentSales, error: salesError } = await supabase
       .from('purchases')
-      .select('*, product:product_id(name)')
-      .eq('product_id', products?.map(p => p.id))
+      .select('*, products(name)')
+      .in('product_id', products?.map((p) => p.id) || [])
       .order('created_at', { ascending: false })
       .limit(10);
 
-    return res.json({
+    if (salesError) throw salesError;
+
+    // Get total revenue
+    const totalRevenue = (recentSales || []).reduce((sum, sale) => {
+      return sum + parseFloat(sale.amount || 0);
+    }, 0);
+
+    res.json({
+      success: true,
       creator: {
+        address: creatorAddress,
         name: req.user.name,
-        wallet: req.user.wallet,
         avatar: req.user.avatar,
       },
-      earnings: earningsResponse.earnings,
+      earnings,
       stats: {
         productsCreated: products?.length || 0,
-        recentSales: recentSales?.length || 0,
+        recentSalesCount: recentSales?.length || 0,
+        totalRevenue: totalRevenue.toString(),
       },
       recentActivity: recentSales || [],
     });
-  } catch (error) {
-    console.error('Dashboard error:', error);
-    return res.status(500).json({
-      error: 'Dashboard fetch failed',
-      message: error.message,
-    });
-  }
-});
+  })
+);
 
-module.exports = router;
+/**
+ * GET /api/creator/stats
+ * Creator statistics
+ */
+router.get(
+  '/stats',
+  requireAuth,
+  errorHandler(async (req, res) => {
+    const creatorAddress = req.user.address;
+
+    // Products
+    const { data: products = [] } = await supabase
+      .from('products')
+      .select('id')
+      .eq('creator_address', creatorAddress);
+
+    // Total sales
+    const { data: sales = [], count: totalSales } = await supabase
+      .from('purchases')
+      .select('*', { count: 'exact' })
+      .in('product_id', products.map((p) => p.id));
+
+    // Total auctions
+    const { data: auctions = [], count: totalAuctions } = await supabase
+      .from('auctions')
+      .select('*', { count: 'exact' })
+      .eq('creator_address', creatorAddress);
+
+    res.json({
+      success: true,
+      stats: {
+        productsCount: products.length,
+        totalSales: totalSales || 0,
+        totalAuctions: totalAuctions || 0,
+        totalEarnings: (sales || [])
+          .reduce((sum, s) => sum + parseFloat(s.amount || 0), 0)
+          .toString(),
+      },
+    });
+  })
+);
+
+
+export default router;

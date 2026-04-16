@@ -4,6 +4,7 @@ import { useGuestCollector } from "@/hooks/useGuestCollector";
 import { appShellNavItems, isAppShellNavActive } from "./appShellNav";
 import { NavLink } from "./NavLink";
 import ThemeToggle from "./ThemeToggle";
+import TopBarWalletControls from "@/components/wallet/TopBarWalletControls";
 
 function shortCollector(value: string) {
   if (value.length <= 16) return value;
@@ -44,7 +45,10 @@ const TopBar = () => {
           })}
         </nav>
 
-        <ThemeToggle />
+        <div className="flex items-center gap-2">
+          <TopBarWalletControls />
+          <ThemeToggle />
+        </div>
       </div>
     </header>
   );

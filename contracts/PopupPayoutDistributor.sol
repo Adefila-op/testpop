@@ -219,11 +219,22 @@ contract PopupPayoutDistributor is Ownable, ReentrancyGuard {
             require(received, "Token funding failed");
         }
 
+        // Calculate fees with precision handling
+        // Use truncation to ensure no overflows, then assign remainder to creator
         uint256 platformFeeAmount = (grossAmount * platformCommission) / BPS_DIVISOR;
         uint256 affiliateFeeAmount = affiliate == address(0)
             ? 0
             : (grossAmount * AFFILIATE_COMMISSION_BPS) / BPS_DIVISOR;
+        
+        // Creator gets exactly: gross - platform - affiliate
+        // This ensures no dust/remainder is left behind and handles precision correctly
         uint256 creatorNetAmount = grossAmount - platformFeeAmount - affiliateFeeAmount;
+        
+        // Verify calculation integrity (fail-safe, should never trigger)
+        require(
+            platformFeeAmount + affiliateFeeAmount + creatorNetAmount == grossAmount,
+            "Payout calculation error"
+        );
 
         if (platformFeeAmount > 0 && platformFeeRecipient != address(0)) {
             _sendSalePayout(platformFeeRecipient, platformFeeAmount, saleMethod);

@@ -108,6 +108,12 @@ contract PopupAuctionManager is Ownable, ReentrancyGuard {
         uint256 minIncrement
     );
 
+    event AuctionBidsArchived(
+        uint256 indexed auctionId,
+        uint256 deletedCount,
+        uint256 remainingCount
+    );
+
     // ═══════════════════════════════════════════════════════════════════════════
     // CONSTRUCTOR
     // ═══════════════════════════════════════════════════════════════════════════
@@ -237,6 +243,8 @@ contract PopupAuctionManager is Ownable, ReentrancyGuard {
      * @param auctionId Auction ID
      * @param winner Winning bidder
      * @param finalPrice Final sale price
+     * @dev Does not clear bid history to avoid unbounded loop gas costs
+     *      Bid history remains queryable for transparency and auditing
      */
     function settleAuction(
         uint256 auctionId,
@@ -248,6 +256,34 @@ contract PopupAuctionManager is Ownable, ReentrancyGuard {
 
         auctionStatus[auctionId] = AuctionStatus.Settled;
         emit AuctionSettled(auctionId, winner, finalPrice);
+    }
+
+    /**
+     * @notice Archive auction bid history (optional, for gas-constrained cleanup)
+     * @param auctionId Auction ID
+     * @param batchSize Number of bids to clear per call (prevents unbounded loop)
+     * @dev Call multiple times if bid count exceeds batchSize
+     *      Emits snapshot of full history before clearing
+     */
+    function archiveAuctionBids(
+        uint256 auctionId,
+        uint256 batchSize
+    ) external {
+        require(msg.sender == owner(), "Only owner can archive");
+        require(auctionStatus[auctionId] == AuctionStatus.Settled, "Auction not settled");
+        require(batchSize > 0 && batchSize <= 100, "Invalid batch size");
+
+        uint256 bidCount = bidHistory[auctionId].length;
+        uint256 toDelete = batchSize > bidCount ? bidCount : batchSize;
+
+        // Clear specified number of bids from the end (most efficient deletion)
+        for (uint256 i = 0; i < toDelete; i++) {
+            bidHistory[auctionId].pop();
+        }
+
+        // Emit event to indicate partial/full archive
+        uint256 remaining = bidHistory[auctionId].length;
+        emit AuctionBidsArchived(auctionId, toDelete, remaining);
     }
 
     /**

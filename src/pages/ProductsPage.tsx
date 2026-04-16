@@ -65,13 +65,24 @@ export function ProductsPage() {
 
     getIPCampaigns()
       .then((data) => {
-        if (isMounted) setCampaigns(data || []);
+        console.log('📦 Loaded campaigns:', {
+          total: data?.length || 0,
+          campaigns: data?.map(c => ({ id: c.id, title: c.title, status: c.status })) || []
+        });
+        if (isMounted) {
+          setCampaigns(data || []);
+          if (!data || data.length === 0) {
+            setMarketplaceError("No creator investment cards available yet. Check back soon!");
+          }
+        }
       })
       .catch((error) => {
-        console.error("Failed to load marketplace campaigns:", error);
+        console.error("❌ Failed to load marketplace campaigns:", error);
         if (isMounted) {
           setCampaigns([]);
-          setMarketplaceError(error instanceof Error ? error.message : "Failed to load creator investment cards.");
+          const errorMessage = error instanceof Error ? error.message : "Failed to load creator investment cards.";
+          setMarketplaceError(errorMessage);
+          console.error("Marketplace error details:", { errorMessage, originalError: error });
         }
       })
       .finally(() => {

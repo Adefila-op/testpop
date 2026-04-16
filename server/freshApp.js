@@ -1,6 +1,7 @@
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import express from "express";
+import { createClient } from "@supabase/supabase-js";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -14,8 +15,31 @@ const PINATA_JWT = process.env.PINATA_JWT || "";
 const PINATA_GATEWAY = process.env.PINATA_GATEWAY || "https://gateway.pinata.cloud/ipfs";
 const PINATA_ENDPOINT = process.env.PINATA_ENDPOINT || "https://api.pinata.cloud/pinning/pinJSONToIPFS";
 const READ_ONLY_FS_ERROR_CODES = new Set(["EROFS", "EACCES", "EPERM"]);
+const PUBLIC_PRODUCT_STATUSES = ["published", "active"];
+const LIVE_CATALOG_CACHE_MS = 30_000;
+const SUPABASE_URL =
+  process.env.SUPABASE_URL ||
+  process.env.VITE_SUPABASE_URL ||
+  "";
+const SUPABASE_SERVER_KEY =
+  process.env.SUPABASE_SECRET_KEY ||
+  process.env.SUPABASE_SERVICE_ROLE_KEY ||
+  process.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+  process.env.VITE_SUPABASE_ANON_KEY ||
+  "";
 let useInMemoryDb = false;
 let inMemoryDb = null;
+let liveCatalogCache = {
+  expiresAt: 0,
+  data: null,
+};
+
+const supabase =
+  SUPABASE_URL && SUPABASE_SERVER_KEY
+    ? createClient(SUPABASE_URL, SUPABASE_SERVER_KEY, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      })
+    : null;
 
 const app = express();
 
@@ -388,6 +412,11 @@ function normalizeCollectorId(value) {
   return normalized.replace(/[^a-z0-9-_]/g, "").slice(0, 64);
 }
 
+function normalizeWalletAddress(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  return normalized.startsWith("0x") ? normalized : "";
+}
+
 function resolveCollectorId(req) {
   const bodyValue =
     req.body && typeof req.body === "object" && !Array.isArray(req.body)
@@ -402,6 +431,279 @@ function resolveCollectorId(req) {
 
 function firstById(list, id) {
   return list.find((entry) => entry.id === id) || null;
+}
+
+function toRecord(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+
+function toNumber(value, fallback = 0) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function resolveLiveProductDeliveryMode(product) {
+  const metadata = toRecord(product?.metadata);
+  const explicit = String(metadata.delivery_mode || product?.delivery_mode || "").trim();
+  if (explicit) return explicit;
+
+  const contractKind = String(product?.contract_kind || "").trim().toLowerCase();
+  if (
+    contractKind === "productstore" ||
+    product?.contract_product_id !== null ||
+    product?.contract_product_id !== undefined ||
+    product?.contract_listing_id !== null ||
+    product?.contract_listing_id !== undefined ||
+    metadata.contract_product_id !== undefined ||
+    metadata.contract_listing_id !== undefined
+  ) {
+    return "collect_onchain";
+  }
+
+  const productType = String(product?.product_type || "").trim().toLowerCase();
+  const assetType = String(product?.asset_type || "").trim().toLowerCase();
+
+  if (productType === "physical") return "deliver_physical";
+  if (assetType === "pdf" || assetType === "epub" || assetType === "video" || assetType === "image") {
+    return "render_online";
+  }
+  if (String(product?.delivery_uri || "").trim()) {
+    return "download_mobile";
+  }
+
+  return "render_online";
+}
+
+function resolveLiveFreshProductType(product) {
+  const deliveryMode = resolveLiveProductDeliveryMode(product);
+  const productType = String(product?.product_type || "").trim().toLowerCase();
+  const assetType = String(product?.asset_type || "").trim().toLowerCase();
+
+  if (productType === "physical" || deliveryMode === "deliver_physical") return "physical";
+  if (assetType === "epub") return "ebook";
+  if (assetType === "pdf") return "pdf";
+  if (assetType === "video") return "video";
+  if (assetType === "image") return "art";
+  if (deliveryMode === "download_mobile") return "downloadable";
+
+  return "file";
+}
+
+function mapArtistPortfolioItem(item, fallbackIdPrefix = "portfolio") {
+  const record = toRecord(item);
+  return {
+    id: String(record.id || `${fallbackIdPrefix}-${randomUUID().slice(0, 10)}`),
+    title: String(record.title || record.name || "Portfolio Piece"),
+    asset_url: String(record.asset_url || record.image_url || record.url || ""),
+    asset_type: String(record.asset_type || record.type || "image"),
+    created_at: String(record.created_at || nowIso()),
+    ipfs: record.ipfs && typeof record.ipfs === "object" ? record.ipfs : null,
+  };
+}
+
+async function fetchLiveCatalogData() {
+  if (!supabase) {
+    return null;
+  }
+
+  if (liveCatalogCache.data && liveCatalogCache.expiresAt > Date.now()) {
+    return liveCatalogCache.data;
+  }
+
+  const { data: products, error: productsError } = await supabase
+    .from("products")
+    .select("id, artist_id, creator_wallet, name, description, price_eth, product_type, asset_type, preview_uri, delivery_uri, image_url, image_ipfs_uri, is_gated, metadata, created_at, updated_at, status, contract_kind, contract_listing_id, contract_product_id")
+    .in("status", PUBLIC_PRODUCT_STATUSES)
+    .order("created_at", { ascending: false });
+
+  if (productsError) {
+    console.warn("Fresh live catalog product fetch failed:", productsError.message);
+    return null;
+  }
+
+  if (!Array.isArray(products) || products.length === 0) {
+    liveCatalogCache = {
+      expiresAt: Date.now() + LIVE_CATALOG_CACHE_MS,
+      data: null,
+    };
+    return null;
+  }
+
+  const artistIds = Array.from(
+    new Set(
+      products
+        .map((product) => String(product.artist_id || "").trim())
+        .filter(Boolean),
+    ),
+  );
+  const creatorWallets = Array.from(
+    new Set(
+      products
+        .map((product) => normalizeWalletAddress(product.creator_wallet))
+        .filter(Boolean),
+    ),
+  );
+
+  const artistRows = [];
+
+  if (artistIds.length > 0) {
+    const { data, error } = await supabase
+      .from("artists")
+      .select("id, wallet, name, handle, bio, avatar_url, banner_url, portfolio")
+      .in("id", artistIds);
+
+    if (!error && Array.isArray(data)) {
+      artistRows.push(...data);
+    }
+  }
+
+  if (creatorWallets.length > 0) {
+    const { data, error } = await supabase
+      .from("artists")
+      .select("id, wallet, name, handle, bio, avatar_url, banner_url, portfolio")
+      .in("wallet", creatorWallets);
+
+    if (!error && Array.isArray(data)) {
+      artistRows.push(...data);
+    }
+  }
+
+  const uniqueArtists = Array.from(
+    artistRows.reduce((map, artist) => {
+      const key = String(artist.id || normalizeWalletAddress(artist.wallet) || randomUUID());
+      if (!map.has(key)) {
+        map.set(key, artist);
+      }
+      return map;
+    }, new Map()).values(),
+  );
+
+  const artistById = new Map(uniqueArtists.map((artist) => [String(artist.id), artist]));
+  const artistByWallet = new Map(
+    uniqueArtists
+      .map((artist) => [normalizeWalletAddress(artist.wallet), artist])
+      .filter(([wallet]) => Boolean(wallet)),
+  );
+
+  const creators = [];
+  const creatorIds = new Set();
+
+  for (const artist of uniqueArtists) {
+    const creatorId = String(artist.id || "");
+    if (!creatorId || creatorIds.has(creatorId)) continue;
+    creatorIds.add(creatorId);
+    creators.push({
+      id: creatorId,
+      name: String(artist.name || artist.handle || creatorId),
+      handle: String(artist.handle || artist.wallet || creatorId),
+      wallet: normalizeWalletAddress(artist.wallet) || String(artist.wallet || ""),
+      bio: String(artist.bio || ""),
+      profile_image: String(artist.avatar_url || ""),
+      banner_image: String(artist.banner_url || ""),
+      featured_portfolio: Array.isArray(artist.portfolio)
+        ? artist.portfolio.map((item) => mapArtistPortfolioItem(item, creatorId))
+        : [],
+    });
+  }
+
+  const mappedProducts = products.map((product) => {
+    const metadata = toRecord(product.metadata);
+    const creatorWallet = normalizeWalletAddress(product.creator_wallet);
+    const matchedArtist =
+      artistById.get(String(product.artist_id || "")) ||
+      artistByWallet.get(creatorWallet) ||
+      null;
+    const creatorId =
+      String(product.artist_id || matchedArtist?.id || `creator-${(creatorWallet || product.id).replace(/[^a-z0-9]/gi, "").slice(0, 12)}`);
+
+    if (!creatorIds.has(creatorId)) {
+      creatorIds.add(creatorId);
+      creators.push({
+        id: creatorId,
+        name: String(matchedArtist?.name || matchedArtist?.handle || creatorWallet || "Creator"),
+        handle: String(matchedArtist?.handle || creatorWallet || creatorId),
+        wallet: creatorWallet,
+        bio: String(matchedArtist?.bio || ""),
+        profile_image: String(matchedArtist?.avatar_url || ""),
+        banner_image: String(matchedArtist?.banner_url || ""),
+        featured_portfolio: Array.isArray(matchedArtist?.portfolio)
+          ? matchedArtist.portfolio.map((item) => mapArtistPortfolioItem(item, creatorId))
+          : [],
+      });
+    }
+
+    const deliveryMode = resolveLiveProductDeliveryMode(product);
+    const contractAddress = String(metadata.contract_address || metadata.contractAddress || "");
+    const contractDropId = toNumber(
+      metadata.contract_drop_id ??
+        metadata.contractDropId ??
+        metadata.contract_product_id ??
+        metadata.contractProductId ??
+        product.contract_product_id ??
+        product.contract_listing_id,
+      0,
+    );
+
+    return {
+      id: String(product.id),
+      creator_id: creatorId,
+      title: String(product.name || "Untitled Product"),
+      description: String(product.description || ""),
+      image_url: String(product.image_url || product.image_ipfs_uri || product.preview_uri || ""),
+      preview_url: String(product.preview_uri || product.image_url || product.image_ipfs_uri || ""),
+      delivery_url: String(product.delivery_uri || product.preview_uri || product.image_url || product.image_ipfs_uri || ""),
+      price_eth: toNumber(product.price_eth, 0),
+      product_type: resolveLiveFreshProductType(product),
+      delivery_mode: deliveryMode,
+      is_gated: Boolean(product.is_gated) || deliveryMode === "collect_onchain",
+      onchain:
+        deliveryMode === "collect_onchain"
+          ? {
+              chain: "base-sepolia",
+              contract_address: contractAddress || undefined,
+              drop_id: contractDropId || null,
+            }
+          : null,
+      created_at: String(product.created_at || product.updated_at || nowIso()),
+      metadata,
+    };
+  });
+
+  const posts = mappedProducts.map((product, index) => ({
+    id: `post-${product.id}`,
+    product_id: product.id,
+    creator_id: product.creator_id,
+    caption: product.description,
+    featured: index < 6,
+    created_at: product.created_at || nowIso(),
+  }));
+
+  const liveData = {
+    creators,
+    products: mappedProducts,
+    posts,
+  };
+
+  liveCatalogCache = {
+    expiresAt: Date.now() + LIVE_CATALOG_CACHE_MS,
+    data: liveData,
+  };
+
+  return liveData;
+}
+
+async function buildRuntimeDb(baseDb) {
+  const liveData = await fetchLiveCatalogData();
+  if (!liveData?.products?.length) {
+    return baseDb;
+  }
+
+  return {
+    ...baseDb,
+    creators: liveData.creators,
+    products: liveData.products,
+    posts: liveData.posts,
+  };
 }
 
 function normalizeProductType(value) {
@@ -876,9 +1178,9 @@ app.get("/health", (_req, res) => {
   res.json({ ok: true, service: "popup-fresh-api" });
 });
 
-app.get("/fresh/bootstrap", (req, res) => {
+app.get("/fresh/bootstrap", async (req, res) => {
   const collectorId = resolveCollectorId(req);
-  const db = readDb();
+  const db = await buildRuntimeDb(readDb());
   const profile = buildProfile(db, collectorId);
   res.json({
     collector_id: collectorId,
@@ -914,17 +1216,17 @@ app.post("/fresh/pinata/metadata", requireAuthenticatedRequest, async (req, res,
   }
 });
 
-app.get("/fresh/creator/:creatorId", (req, res) => {
+app.get("/fresh/creator/:creatorId", async (req, res) => {
   const creatorId = String(req.params.creatorId || "").trim();
-  const db = readDb();
+  const db = await buildRuntimeDb(readDb());
   const creator = firstById(db.creators, creatorId);
   if (!creator) return res.status(404).json({ error: "Creator not found" });
   return res.json(buildCreatorProfile(db, creator));
 });
 
-app.get("/fresh/creator/:creatorId/portfolio", (req, res) => {
+app.get("/fresh/creator/:creatorId/portfolio", async (req, res) => {
   const creatorId = String(req.params.creatorId || "").trim();
-  const db = readDb();
+  const db = await buildRuntimeDb(readDb());
   const creator = firstById(db.creators, creatorId);
   if (!creator) return res.status(404).json({ error: "Creator not found" });
   const portfolio = Array.isArray(creator.featured_portfolio) ? creator.featured_portfolio : [];
@@ -980,8 +1282,8 @@ app.post("/fresh/creator/:creatorId/portfolio", requireAuthenticatedRequest, asy
   }
 });
 
-app.get("/fresh/admin/overview", requireAdminRequest, (req, res) => {
-  const db = readDb();
+app.get("/fresh/admin/overview", requireAdminRequest, async (req, res) => {
+  const db = await buildRuntimeDb(readDb());
   res.json({
     creators: db.creators.length,
     products: db.products.length,
@@ -992,8 +1294,8 @@ app.get("/fresh/admin/overview", requireAdminRequest, (req, res) => {
   });
 });
 
-app.get("/fresh/admin/creators", requireAdminRequest, (req, res) => {
-  const db = readDb();
+app.get("/fresh/admin/creators", requireAdminRequest, async (req, res) => {
+  const db = await buildRuntimeDb(readDb());
   const creators = db.creators.map((creator) => buildCreatorProfile(db, creator));
   res.json({ creators });
 });
@@ -1014,9 +1316,9 @@ app.get("/fresh/admin/gifts", requireAdminRequest, (req, res) => {
   res.json({ gifts });
 });
 
-app.get("/fresh/home", (req, res) => {
+app.get("/fresh/home", async (req, res) => {
   const collectorId = resolveCollectorId(req);
-  const db = readDb();
+  const db = await buildRuntimeDb(readDb());
   const featured = db.posts
     .filter((post) => Boolean(post.featured))
     .map((post) => buildFeedItem(db, collectorId, post))
@@ -1024,9 +1326,9 @@ app.get("/fresh/home", (req, res) => {
   res.json({ collector_id: collectorId, featured });
 });
 
-app.get("/fresh/discover", (req, res) => {
+app.get("/fresh/discover", async (req, res) => {
   const collectorId = resolveCollectorId(req);
-  const db = readDb();
+  const db = await buildRuntimeDb(readDb());
   const feed = db.posts
     .map((post) => buildFeedItem(db, collectorId, post))
     .filter(Boolean)
@@ -1034,14 +1336,15 @@ app.get("/fresh/discover", (req, res) => {
   res.json({ collector_id: collectorId, feed });
 });
 
-app.post("/fresh/discover/:postId/like", (req, res) => {
+app.post("/fresh/discover/:postId/like", async (req, res) => {
   const collectorId = resolveCollectorId(req);
   const postId = String(req.params.postId || "").trim();
   if (!postId) {
     return res.status(400).json({ error: "postId is required" });
   }
 
-  const db = readDb();
+  const persistedDb = readDb();
+  const db = await buildRuntimeDb(persistedDb);
   const post = firstById(db.posts, postId);
   if (!post) {
     return res.status(404).json({ error: "Post not found" });
@@ -1061,22 +1364,22 @@ app.post("/fresh/discover/:postId/like", (req, res) => {
     });
   }
 
-  writeDb(db);
+  writeDb(persistedDb);
   const liked = db.likes.some((entry) => entry.post_id === postId && entry.collector_id === collectorId);
   const likeCount = db.likes.filter((entry) => entry.post_id === postId).length;
   return res.json({ post_id: postId, liked, like_count: likeCount });
 });
 
-app.get("/fresh/discover/:postId/comments", (req, res) => {
+app.get("/fresh/discover/:postId/comments", async (req, res) => {
   const postId = String(req.params.postId || "").trim();
-  const db = readDb();
+  const db = await buildRuntimeDb(readDb());
   const comments = db.comments
     .filter((entry) => entry.post_id === postId)
     .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
   res.json({ post_id: postId, comments });
 });
 
-app.post("/fresh/discover/:postId/comments", (req, res) => {
+app.post("/fresh/discover/:postId/comments", async (req, res) => {
   const collectorId = resolveCollectorId(req);
   const postId = String(req.params.postId || "").trim();
   const body = String(req.body?.body || "").trim();
@@ -1084,7 +1387,8 @@ app.post("/fresh/discover/:postId/comments", (req, res) => {
   if (!postId) return res.status(400).json({ error: "postId is required" });
   if (!body) return res.status(400).json({ error: "Comment body is required" });
 
-  const db = readDb();
+  const persistedDb = readDb();
+  const db = await buildRuntimeDb(persistedDb);
   const post = firstById(db.posts, postId);
   if (!post) {
     return res.status(404).json({ error: "Post not found" });
@@ -1098,19 +1402,19 @@ app.post("/fresh/discover/:postId/comments", (req, res) => {
     created_at: nowIso(),
   };
   db.comments.push(comment);
-  writeDb(db);
+  writeDb(persistedDb);
   return res.status(201).json({ comment });
 });
 
-app.get("/fresh/products/:id", (req, res) => {
-  const db = readDb();
+app.get("/fresh/products/:id", async (req, res) => {
+  const db = await buildRuntimeDb(readDb());
   const product = firstById(db.products, String(req.params.id || "").trim());
   if (!product) return res.status(404).json({ error: "Product not found" });
   const collectorId = normalizeCollectorId(req.query?.collector_id || req.get("x-collector-id") || "");
   return res.json(buildProductResponse(db, product, collectorId));
 });
 
-app.post("/fresh/collect-onchain", (req, res) => {
+app.post("/fresh/collect-onchain", async (req, res) => {
   const collectorId = resolveCollectorId(req);
   const productId = String(req.body?.product_id || "").trim();
   const txHash = String(req.body?.tx_hash || "").trim();
@@ -1120,9 +1424,10 @@ app.post("/fresh/collect-onchain", (req, res) => {
   }
 
   try {
-    const db = readDb();
+    const persistedDb = readDb();
+    const db = await buildRuntimeDb(persistedDb);
     const collectionEntry = grantOnchainCollection(db, collectorId, productId, txHash);
-    writeDb(db);
+    writeDb(persistedDb);
 
     return res.status(201).json({
       success: true,
@@ -1139,20 +1444,21 @@ app.post("/fresh/collect-onchain", (req, res) => {
 });
 
 
-app.get("/fresh/cart/:collectorId", (req, res) => {
+app.get("/fresh/cart/:collectorId", async (req, res) => {
   const collectorId = normalizeCollectorId(req.params.collectorId);
   if (!collectorId) return res.status(400).json({ error: "collectorId is required" });
-  const db = readDb();
+  const db = await buildRuntimeDb(readDb());
   return res.json(summarizeCart(db, collectorId));
 });
 
-app.post("/fresh/cart/add", (req, res) => {
+app.post("/fresh/cart/add", async (req, res) => {
   const collectorId = resolveCollectorId(req);
   const productId = String(req.body?.product_id || "").trim();
   const quantity = Math.max(1, Number(req.body?.quantity) || 1);
   if (!productId) return res.status(400).json({ error: "product_id is required" });
 
-  const db = readDb();
+  const persistedDb = readDb();
+  const db = await buildRuntimeDb(persistedDb);
   const product = firstById(db.products, productId);
   if (!product) return res.status(404).json({ error: "Product not found" });
   const inAppAction = resolveInAppAction(product, resolveProductRender(product));
@@ -1171,11 +1477,11 @@ app.post("/fresh/cart/add", (req, res) => {
     existing.push({ product_id: productId, quantity });
   }
   db.carts[collectorId] = existing;
-  writeDb(db);
+  writeDb(persistedDb);
   return res.json(summarizeCart(db, collectorId));
 });
 
-app.patch("/fresh/cart/:collectorId/items/:productId", (req, res) => {
+app.patch("/fresh/cart/:collectorId/items/:productId", async (req, res) => {
   const collectorId = normalizeCollectorId(req.params.collectorId);
   const productId = String(req.params.productId || "").trim();
   const quantity = Math.max(1, Number(req.body?.quantity) || 1);
@@ -1183,31 +1489,33 @@ app.patch("/fresh/cart/:collectorId/items/:productId", (req, res) => {
     return res.status(400).json({ error: "collectorId and productId are required" });
   }
 
-  const db = readDb();
+  const persistedDb = readDb();
+  const db = await buildRuntimeDb(persistedDb);
   const items = Array.isArray(db.carts[collectorId]) ? db.carts[collectorId] : [];
   const target = items.find((entry) => entry.product_id === productId);
   if (!target) return res.status(404).json({ error: "Cart item not found" });
   target.quantity = quantity;
   db.carts[collectorId] = items;
-  writeDb(db);
+  writeDb(persistedDb);
   return res.json(summarizeCart(db, collectorId));
 });
 
-app.delete("/fresh/cart/:collectorId/items/:productId", (req, res) => {
+app.delete("/fresh/cart/:collectorId/items/:productId", async (req, res) => {
   const collectorId = normalizeCollectorId(req.params.collectorId);
   const productId = String(req.params.productId || "").trim();
   if (!collectorId || !productId) {
     return res.status(400).json({ error: "collectorId and productId are required" });
   }
 
-  const db = readDb();
+  const persistedDb = readDb();
+  const db = await buildRuntimeDb(persistedDb);
   const items = Array.isArray(db.carts[collectorId]) ? db.carts[collectorId] : [];
   db.carts[collectorId] = items.filter((entry) => entry.product_id !== productId);
-  writeDb(db);
+  writeDb(persistedDb);
   return res.json(summarizeCart(db, collectorId));
 });
 
-app.post("/fresh/checkout", (req, res) => {
+app.post("/fresh/checkout", async (req, res) => {
   const collectorId = resolveCollectorId(req);
   const paymentMethodCandidate = String(req.body?.payment_method || "offramp_partner")
     .trim()
@@ -1215,7 +1523,8 @@ app.post("/fresh/checkout", (req, res) => {
   const paymentMethod =
     paymentMethodCandidate === "onchain" ? "onchain" : "offramp_partner";
   const directItems = Array.isArray(req.body?.items) ? req.body.items : [];
-  const db = readDb();
+  const persistedDb = readDb();
+  const db = await buildRuntimeDb(persistedDb);
 
   const cartItems = summarizeCart(db, collectorId).items;
   const itemsToCheckout = directItems.length > 0
@@ -1343,7 +1652,7 @@ app.post("/fresh/checkout", (req, res) => {
 
   db.orders.push(order);
   db.carts[collectorId] = [];
-  writeDb(db);
+  writeDb(persistedDb);
 
   return res.status(201).json({
     order,
@@ -1358,9 +1667,9 @@ app.post("/fresh/checkout", (req, res) => {
   });
 });
 
-app.get("/fresh/gifts/:token", (req, res) => {
+app.get("/fresh/gifts/:token", async (req, res) => {
   const token = String(req.params.token || "").trim();
-  const db = readDb();
+  const db = await buildRuntimeDb(readDb());
   const gift = db.gifts.find((entry) => entry.token === token);
   if (!gift) return res.status(404).json({ error: "Gift not found" });
 
@@ -1377,10 +1686,11 @@ app.get("/fresh/gifts/:token", (req, res) => {
   });
 });
 
-app.post("/fresh/gifts/:token/accept", (req, res) => {
+app.post("/fresh/gifts/:token/accept", async (req, res) => {
   const collectorId = resolveCollectorId(req);
   const token = String(req.params.token || "").trim();
-  const db = readDb();
+  const persistedDb = readDb();
+  const db = await buildRuntimeDb(persistedDb);
   const gift = db.gifts.find((entry) => entry.token === token);
   if (!gift) return res.status(404).json({ error: "Gift not found" });
   if (gift.status !== "pending") {
@@ -1391,14 +1701,15 @@ app.post("/fresh/gifts/:token/accept", (req, res) => {
   gift.responded_at = nowIso();
   gift.recipient_collector_id = collectorId;
   grantCollection(db, collectorId, gift.order_id, gift.items || []);
-  writeDb(db);
+  writeDb(persistedDb);
 
   return res.json({ success: true, token: gift.token, status: gift.status });
 });
 
-app.post("/fresh/gifts/:token/reject", (_req, res) => {
+app.post("/fresh/gifts/:token/reject", async (_req, res) => {
   const token = String(_req.params.token || "").trim();
-  const db = readDb();
+  const persistedDb = readDb();
+  const db = await buildRuntimeDb(persistedDb);
   const gift = db.gifts.find((entry) => entry.token === token);
   if (!gift) return res.status(404).json({ error: "Gift not found" });
   if (gift.status !== "pending") {
@@ -1406,20 +1717,23 @@ app.post("/fresh/gifts/:token/reject", (_req, res) => {
   }
   gift.status = "rejected";
   gift.responded_at = nowIso();
-  writeDb(db);
+  writeDb(persistedDb);
   return res.json({ success: true, token: gift.token, status: gift.status });
 });
 
-app.get("/fresh/profile/:collectorId", (req, res) => {
+app.get("/fresh/profile/:collectorId", async (req, res) => {
   const collectorId = normalizeCollectorId(req.params.collectorId);
   if (!collectorId) return res.status(400).json({ error: "collectorId is required" });
-  const db = readDb();
+  const db = await buildRuntimeDb(readDb());
   return res.json(buildProfile(db, collectorId));
 });
 
-app.post("/fresh/share", (req, res) => {
+app.post("/fresh/share", async (req, res) => {
   const postId = String(req.body?.post_id || "").trim();
   if (!postId) return res.status(400).json({ error: "post_id is required" });
+  const db = await buildRuntimeDb(readDb());
+  const post = firstById(db.posts, postId);
+  if (!post) return res.status(404).json({ error: "Post not found" });
   const shareUrl = `${req.protocol}://${req.get("host")}/share/${encodeURIComponent(postId)}`;
   return res.json({
     share_url: shareUrl,
@@ -1432,13 +1746,13 @@ app.post("/fresh/share", (req, res) => {
   });
 });
 
-app.get("/share/:postId", (req, res) => {
+app.get("/share/:postId", async (req, res) => {
   const postId = String(req.params.postId || "").trim();
   if (!postId) {
     return res.status(400).send("Invalid share link.");
   }
 
-  const db = readDb();
+  const db = await buildRuntimeDb(readDb());
   const post = firstById(db.posts, postId);
   if (!post) {
     return res.status(404).send("Share item not found.");
