@@ -17,8 +17,8 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { useGetProduct } = '@/hooks/useProductStore';
-import { usePurchaseProduct, useEstimatePurchaseGas } = '@/hooks/useProductStore';
+import { useGetProduct } from '@/hooks/useProductStore';
+import { usePurchaseProduct, useEstimatePurchaseGas } from '@/hooks/useProductStore';
 import {
   ShoppingCart,
   Gavel,

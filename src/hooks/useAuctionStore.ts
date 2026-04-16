@@ -5,7 +5,7 @@
  * Wagmi hooks for auction creation, bidding, and management
  */
 
-import { useContractWrite, useContractRead, useAccount } from 'wagmi';
+import { useReadContract, useWriteContract, useAccount } from 'wagmi';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { parseEther, formatEther } from 'ethers';
 import { PRODUCT_STORE_ADDRESS, AUCTION_MANAGER_ADDRESS } from '@/constants/addresses';
@@ -225,6 +225,25 @@ export function useSettleAuction(auctionId: number) {
     isError,
   };
 }
+
+/**
+ * Get user's NFTs (auction history/won items)
+ */
+export function useGetUserNFTs() {
+  const { address } = useAccount();
+
+  return useQuery({
+    queryKey: ['user-nfts', address],
+    queryFn: async () => {
+      const response = await fetch(`/api/user/${address}/nfts`);
+      if (!response.ok) throw new Error('Failed to fetch NFTs');
+      return response.json();
+    },
+    enabled: !!address,
+    staleTime: 60000,
+  });
+}
+
 
 export default {
   useCreateAuction,

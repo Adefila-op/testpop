@@ -5,7 +5,7 @@
  * Wagmi hooks for NFT gifting and claiming
  */
 
-import { useContractWrite, useAccount } from 'wagmi';
+import { useWriteContract, useAccount } from 'wagmi';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { parseEther } from 'ethers';
 import { PRODUCT_STORE_ADDRESS } from '@/constants/addresses';
@@ -19,7 +19,7 @@ import { ProductStoreABI } from '@/constants/abis';
 export function useCreateGift(productId: number) {
   const queryClient = useQueryClient();
 
-  const { write, isLoading, isError, error } = useContractWrite({
+  const { write, isLoading, isError, error } = useWriteContract({
     address: PRODUCT_STORE_ADDRESS,
     abi: ProductStoreABI,
     functionName: 'createGift',
@@ -65,7 +65,7 @@ export function useClaimGift() {
   const { address } = useAccount();
   const queryClient = useQueryClient();
 
-  const { write, isLoading, isError, error } = useContractWrite({
+  const { write, isLoading, isError, error } = useWriteContract({
     address: PRODUCT_STORE_ADDRESS,
     abi: ProductStoreABI,
     functionName: 'claimGift',

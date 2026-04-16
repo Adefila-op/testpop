@@ -5,7 +5,7 @@
  * Wagmi hooks for product creation, purchases, and management
  */
 
-import { useContractWrite, useContractRead, useAccount } from "wagmi";
+import { useReadContract, useWriteContract, useAccount } from "wagmi";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { parseEther, formatEther } from "ethers";
 import { PRODUCT_STORE_ADDRESS } from "@/constants/addresses";
@@ -113,6 +113,22 @@ export function useGetPurchaseEstimate(productId: number, quantity: number) {
   });
 }
 
+export function useGetProducts(category?: string, creatorId?: string) {
+  return useQuery({
+    queryKey: ["products", { category, creatorId }],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (category) params.append("category", category);
+      if (creatorId) params.append("creator_id", creatorId);
+
+      const response = await fetch(`/api/products?${params.toString()}`);
+      if (!response.ok) throw new Error("Failed to fetch products");
+      return response.json();
+    },
+    staleTime: 60000, // 1 minute
+  });
+}
+
 /**
  * Get product details with creator info
  * @param productId - Product ID
@@ -127,28 +143,6 @@ export function useGetProduct(productId: number) {
       return response.json();
     },
     enabled: !!productId,
-  });
-}
-
-/**
- * List all products with filtering
- * @param category - Optional category filter
- * @param creatorId - Optional creator filter
- * @returns Products list with pagination
- */
-export function useGetProducts(category?: string, creatorId?: string) {
-  return useQuery({
-    queryKey: ["products", { category, creatorId }],
-    queryFn: async () => {
-      const params = new URLSearchParams();
-      if (category) params.append("category", category);
-      if (creatorId) params.append("creator_id", creatorId);
-
-      const response = await fetch(`/api/products?${params.toString()}`);
-      if (!response.ok) throw new Error("Failed to fetch products");
-      return response.json();
-    },
-    staleTime: 60000, // 1 minute
   });
 }
 
@@ -188,6 +182,14 @@ export function useGetPurchaseHistory() {
     staleTime: 60000,
   });
 }
+
+/**
+ * Alias for useGetPurchaseEstimate
+ */
+export function useEstimatePurchaseGas(productId: number, quantity: number) {
+  return useGetPurchaseEstimate(productId, quantity);
+}
+
 
 export default {
   useCreateProduct,

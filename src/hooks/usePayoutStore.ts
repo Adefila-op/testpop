@@ -5,7 +5,7 @@
  * Wagmi hooks for creator earnings, payouts, and royalties
  */
 
-import { useContractWrite, useContractRead, useAccount } from 'wagmi';
+import { useReadContract, useWriteContract, useAccount } from 'wagmi';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { formatEther } from 'ethers';
 import {
@@ -259,6 +259,99 @@ export function useGetPayoutMethod(creatorAddress?: string) {
     isLoading,
     isError,
   };
+}
+
+/**
+ * Get creator's payout history (alias)
+ */
+export function useGetPayoutHistory(limit = 20) {
+  return usePayoutHistory(limit);
+}
+
+/**
+ * Get creator's collaborators
+ */
+export function useGetCollaborators() {
+  const { address } = useAccount();
+
+  return useQuery({
+    queryKey: ['creator-collaborators', address],
+    queryFn: async () => {
+      const response = await fetch('/api/creator/collaborators');
+      if (!response.ok) throw new Error('Failed to fetch collaborators');
+      return response.json();
+    },
+    enabled: !!address,
+  });
+}
+
+/**
+ * Add a collaborator
+ */
+export function useAddCollaborator() {
+  const { address } = useAccount();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: { collaborator: string; share: number }) => {
+      const response = await fetch('/api/creator/collaborators/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) throw new Error('Failed to add collaborator');
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['creator-collaborators', address] });
+    },
+  });
+}
+
+/**
+ * Remove a collaborator
+ */
+export function useRemoveCollaborator() {
+  const { address } = useAccount();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (collaborator: string) => {
+      const response = await fetch('/api/creator/collaborators/remove', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ collaborator }),
+      });
+      if (!response.ok) throw new Error('Failed to remove collaborator');
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['creator-collaborators', address] });
+    },
+  });
+}
+
+/**
+ * Update collaborator share
+ */
+export function useUpdateCollaboratorShare() {
+  const { address } = useAccount();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: { collaborator: string; share: number }) => {
+      const response = await fetch('/api/creator/collaborators/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) throw new Error('Failed to update share');
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['creator-collaborators', address] });
+    },
+  });
 }
 
 export default {

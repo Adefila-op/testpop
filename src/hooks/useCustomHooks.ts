@@ -7,7 +7,7 @@
 
 import { useCallback, useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useAccount, useNetwork } from 'wagmi';
+import { useAccount } from 'wagmi';
 import { ethers } from 'ethers';
 
 /**
@@ -47,8 +47,6 @@ export function useFormatNumber(value: string | number | undefined, decimals = 2
  * Hook to track transaction status in real-time
  */
 export function useTransactionStatus(txHash: string | undefined) {
-  const { chain } = useNetwork();
-
   return useQuery({
     queryKey: ['transaction-status', txHash],
     queryFn: async () => {
