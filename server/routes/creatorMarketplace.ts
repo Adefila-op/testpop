@@ -102,10 +102,12 @@ router.post('/buy', async (req: Request, res: Response) => {
     // 2. Process payment via Web3
     // 3. Update database
 
+    // In production, response should come from blockchain
+    // For now, return transaction record
     return res.json({
       success: true,
-      transactionHash: `0x${Math.random().toString(16).slice(2)}`, // Mock tx hash
       transaction,
+      // transactionHash will be set after blockchain confirmation
     });
   } catch (error) {
     console.error('Error in buy endpoint:', error);

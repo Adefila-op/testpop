@@ -41,9 +41,6 @@ const RoyaltyDashboardPage = lazy(() => import("./pages/creator/RoyaltyDashboard
 const PayoutHistoryPage = lazy(() => import("./pages/creator/PayoutHistoryPage"));
 const CreatorCollaboratorsPage = lazy(() => import("./pages/creator/CreatorCollaboratorsPage"));
 
-// Admin Pages
-const AdminDashboardPage = lazy(() => import("./pages/admin/AdminDashboardPage"));
-
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -89,7 +86,21 @@ const App = () => {
                       {/* Core Navigation */}
                       <Route path="/" element={<RebootHomePage />} />
                       <Route path="/discover" element={<RebootDiscoverFeedPage />} />
+                      
+                      {/* User Profile - Contains all user-related sections */}
                       <Route path="/profile" element={<RebootProfileDashboardPage />} />
+                      
+                      {/* Profile Nested Routes - Marketplace, Collection, Creator */}
+                      <Route path="/profile/marketplace" element={<MarketplaceGrid />} />
+                      <Route path="/profile/marketplace/auctions" element={<AuctionActivityPage />} />
+                      <Route path="/profile/marketplace/gifts" element={<GiftHistoryPage />} />
+                      <Route path="/profile/collection/nfts" element={<UserNFTsPage />} />
+                      <Route path="/profile/collection/purchases" element={<PurchaseHistoryPage />} />
+                      <Route path="/profile/creator/earnings" element={<EarningsPage />} />
+                      <Route path="/profile/creator/payout-settings" element={<PayoutSettingsPage />} />
+                      <Route path="/profile/creator/royalties" element={<RoyaltyDashboardPage />} />
+                      <Route path="/profile/creator/payout-history" element={<PayoutHistoryPage />} />
+                      <Route path="/profile/creator/collaborators" element={<CreatorCollaboratorsPage />} />
                       
                       {/* Legacy Routes - Keep for backward compatibility */}
                       <Route path="/products" element={<ProductsPage />} />
@@ -101,34 +112,15 @@ const App = () => {
                       <Route path="/studio" element={<WalletStudioRoute />} />
                       <Route path="/creator/analytics" element={<CreatorDashboard />} />
                       
-                      {/* Phase 3 Marketplace Routes */}
-                      <Route path="/marketplace/browse" element={<MarketplaceGrid />} />
-                      <Route path="/marketplace/auctions" element={<AuctionActivityPage />} />
-                      <Route path="/marketplace/gifts" element={<GiftHistoryPage />} />
-                      
-                      {/* Phase 3 Collection Routes */}
-                      <Route path="/collection/nfts" element={<UserNFTsPage />} />
-                      <Route path="/collection/purchases" element={<PurchaseHistoryPage />} />
-                      
-                      {/* Phase 3 Creator Routes */}
-                      <Route path="/creator/earnings" element={<EarningsPage />} />
-                      <Route path="/creator/payout-settings" element={<PayoutSettingsPage />} />
-                      <Route path="/creator/royalties" element={<RoyaltyDashboardPage />} />
-                      <Route path="/creator/payout-history" element={<PayoutHistoryPage />} />
-                      <Route path="/creator/collaborators" element={<CreatorCollaboratorsPage />} />
-                      
-                      {/* Admin Routes */}
-                      <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
-                      
-                      {/* Legacy Redirects */}
+                      {/* Legacy Redirects - Updated to new profile structure */}
                       <Route path="/cart" element={<Navigate to="/profile" replace />} />
-                      <Route path="/orders" element={<Navigate to="/profile" replace />} />
-                      <Route path="/collection" element={<Navigate to="/collection/nfts" replace />} />
-                      <Route path="/poaps" element={<Navigate to="/profile" replace />} />
+                      <Route path="/orders" element={<Navigate to="/profile/collection/purchases" replace />} />
+                      <Route path="/collection" element={<Navigate to="/profile/collection/nfts" replace />} />
+                      <Route path="/poaps" element={<Navigate to="/profile/collection/nfts" replace />} />
                       <Route path="/subscriptions" element={<Navigate to="/profile" replace />} />
                       <Route path="/feed" element={<Navigate to="/discover" replace />} />
                       <Route path="/catalog" element={<Navigate to="/discover" replace />} />
-                      <Route path="/marketplace" element={<Navigate to="/marketplace/browse" replace />} />
+                      <Route path="/marketplace" element={<Navigate to="/profile/marketplace" replace />} />
                       <Route path="/share/:postId" element={<Navigate to="/discover" replace />} />
                     </Route>
                     <Route path="*" element={<NotFound />} />
