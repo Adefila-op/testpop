@@ -1,2845 +1,1907 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Vault - Digital Collection</title>
+<title>Vault — Digital Collection</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Syne:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Syne:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
-  *, *::before, *::after { box-sizing: border-box; }
-  html, body { margin: 0; min-height: 100%; }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
   :root {
-    --bg: #0b0908;
-    --surface: #14110f;
-    --surface-2: #1d1917;
-    --surface-3: #2c2622;
-    --line: #3b332d;
-    --gold: #c88a2c;
-    --gold-2: #efb259;
-    --text: #f4efe7;
-    --text-2: #b6aa9c;
-    --text-3: #776b61;
-    --success: #3cc08b;
-    --danger: #d56a5a;
-    --art: #d15b45;
-    --ebook: #2f9c7f;
-    --tool: #4576bb;
-    --radius: 18px;
-    --radius-sm: 12px;
-    --shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+    --bg: #0A0907;
+    --surface: #131210;
+    --surface-2: #1C1A17;
+    --surface-3: #252219;
+    --gold: #C8861A;
+    --gold-light: #E8A030;
+    --gold-dim: #7A5010;
+    --text: #F2EDE4;
+    --text-2: #A09080;
+    --text-3: #5A5048;
+    --art: #C4523A;
+    --art-bg: #2A1510;
+    --ebook: #2A8C6E;
+    --ebook-bg: #0A1F18;
+    --tool: #3A6BAA;
+    --tool-bg: #0A1525;
+    --r: 14px;
+    --r-sm: 8px;
+    --feed-accent: #9B6FE8;
+    --feed-bg: #160F28;
   }
 
-  body {
-    background:
-      radial-gradient(circle at top, rgba(200, 138, 44, 0.12), transparent 26%),
-      linear-gradient(180deg, #0f0c09 0%, var(--bg) 34%);
-    color: var(--text);
-    font-family: "Syne", sans-serif;
-    display: flex;
-    justify-content: center;
-  }
-
-  button, input, textarea, select {
-    font: inherit;
-  }
-
-  button {
-    cursor: pointer;
-  }
-
-  button:focus-visible,
-  input:focus-visible,
-  textarea:focus-visible {
-    outline: 2px solid var(--gold-2);
-    outline-offset: 2px;
-  }
-
-  .app-shell {
-    width: 100%;
-    max-width: 430px;
+  html, body {
+    background: var(--bg);
     min-height: 100vh;
-    background: rgba(11, 9, 8, 0.96);
-    border-inline: 1px solid rgba(255, 255, 255, 0.05);
-    position: relative;
-    overflow: hidden;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    font-family: 'Syne', sans-serif;
+    color: var(--text);
   }
 
+  .phone {
+    width: 390px;
+    min-height: 100vh;
+    background: var(--bg);
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── HEADER ── */
   .header {
-    padding: 22px 20px 14px;
-    position: sticky;
-    top: 0;
-    z-index: 20;
-    backdrop-filter: blur(18px);
-    background: linear-gradient(180deg, rgba(11, 9, 8, 0.96), rgba(11, 9, 8, 0.78));
-    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-  }
-
-  .header-row {
+    padding: 54px 20px 0;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 16px;
+    flex-shrink: 0;
   }
-
-  .brand {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-
-  .brand-mark {
-    font-family: "Cormorant Garamond", serif;
-    font-size: 30px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-  }
-
-  .brand-mark span {
-    color: var(--gold);
-  }
-
-  .brand-copy {
-    font-size: 11px;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--text-3);
-  }
-
-  .header-actions,
-  .segmented-nav,
-  .icon-stack,
-  .stat-row,
-  .inline-actions,
-  .overlay-actions,
-  .checkout-summary,
-  .drawer-footer,
-  .compose-actions,
-  .feed-actions,
-  .meta-strip {
-    display: flex;
-  }
-
-  .header-actions {
-    gap: 10px;
-  }
-
-  .icon-button {
-    width: 42px;
-    height: 42px;
-    border-radius: 999px;
-    border: 1px solid var(--line);
-    background: var(--surface-2);
+  .logo {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 26px; font-weight: 600; letter-spacing: 0.08em;
     color: var(--text);
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
+  }
+  .logo span { color: var(--gold); }
+  .header-icons { display: flex; gap: 10px; }
+  .icon-btn {
+    width: 38px; height: 38px;
+    background: var(--surface-2);
+    border-radius: 50%; border: none; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    position: relative; transition: background 0.2s;
+  }
+  .icon-btn:hover { background: var(--surface-3); }
+  .icon-btn svg { width: 16px; height: 16px; stroke: var(--text-2); fill: none; stroke-width: 1.8; }
+  .cart-badge {
+    position: absolute; top: -2px; right: -2px;
+    width: 16px; height: 16px; background: var(--gold);
+    border-radius: 50%; font-size: 9px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--bg); transition: transform 0.2s;
+  }
+
+  /* ── TAB BAR ── */
+  .tab-bar {
+    display: flex; padding: 18px 20px 0; gap: 0;
+    border-bottom: 1px solid var(--surface-2);
+    flex-shrink: 0;
+  }
+  .tab {
+    flex: 1; padding-bottom: 12px;
+    font-size: 13px; font-weight: 500; color: var(--text-3);
+    text-align: center; cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s; letter-spacing: 0.04em;
     position: relative;
-    transition: border-color 0.2s, transform 0.2s, background 0.2s;
   }
-
-  .icon-button:hover {
-    transform: translateY(-1px);
-    border-color: var(--gold);
-    background: var(--surface-3);
-  }
-
-  .icon-button svg,
-  .nav-button svg,
-  .chip svg,
-  .overlay-button svg,
-  .feed-button svg,
-  .send-button svg {
-    width: 18px;
-    height: 18px;
-    stroke: currentColor;
-    fill: none;
-    stroke-width: 1.9;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-  }
-
-  .badge {
-    position: absolute;
-    top: -3px;
-    right: -1px;
-    min-width: 18px;
-    height: 18px;
-    border-radius: 999px;
-    background: var(--gold);
-    color: var(--bg);
-    font-size: 10px;
-    font-weight: 700;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding-inline: 4px;
-  }
-
-  .segmented-nav {
-    gap: 8px;
-    padding-top: 16px;
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-
-  .segmented-nav::-webkit-scrollbar,
-  .chips::-webkit-scrollbar,
-  .featured-row::-webkit-scrollbar {
-    display: none;
-  }
-
-  .nav-button {
-    border: 1px solid var(--line);
-    background: transparent;
-    color: var(--text-3);
-    border-radius: 999px;
-    padding: 10px 14px;
-    min-width: max-content;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    transition: border-color 0.2s, color 0.2s, background 0.2s;
-  }
-
-  .nav-button.active {
-    background: linear-gradient(180deg, rgba(200, 138, 44, 0.18), rgba(200, 138, 44, 0.08));
-    color: var(--text);
-    border-color: rgba(200, 138, 44, 0.5);
-  }
-
-  .nav-pill {
-    font-size: 11px;
-    background: rgba(200, 138, 44, 0.18);
-    color: var(--gold-2);
-    padding: 2px 7px;
-    border-radius: 999px;
-  }
-
-  .screen {
-    display: none;
-    padding: 14px 20px 114px;
-  }
-
-  .screen.active {
-    display: block;
-  }
-
-  .hero {
-    padding-top: 8px;
-  }
-
-  .eyebrow {
-    font-size: 11px;
-    color: var(--text-3);
-    letter-spacing: 0.13em;
-    text-transform: uppercase;
-    margin-bottom: 8px;
-  }
-
-  .hero h1,
-  .section-title,
-  .overlay-title,
-  .modal-title,
-  .vault-empty h2 {
-    font-family: "Cormorant Garamond", serif;
-    line-height: 1.05;
-  }
-
-  .hero h1 {
-    font-size: 40px;
-    font-weight: 600;
-    margin: 0 0 10px;
-  }
-
-  .hero h1 em,
-  .section-title em,
-  .vault-empty h2 em {
-    font-style: italic;
-    color: var(--gold);
-  }
-
-  .hero p,
-  .section-meta,
-  .muted,
-  .post-copy,
-  .drawer-note,
-  .modal-copy,
-  .detail-copy,
-  .reader-body {
-    color: var(--text-2);
-    line-height: 1.6;
-  }
-
-  .card,
-  .vault-card,
-  .featured-card,
-  .post-card,
-  .modal-card,
-  .drawer,
-  .stats-card,
-  .checkout-card {
-    background: linear-gradient(180deg, rgba(29, 25, 23, 0.96), rgba(18, 15, 13, 0.98));
-    border: 1px solid rgba(255, 255, 255, 0.07);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow);
-  }
-
-  .search-card,
-  .compose-card,
-  .reader-card,
-  .profile-card {
-    background: var(--surface);
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    border-radius: var(--radius);
-  }
-
-  .search-card {
-    margin-top: 20px;
-    padding: 14px;
-  }
-
-  .search-input-wrap,
-  .comment-entry,
-  .compose-input,
-  .checkout-input {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    border-radius: 999px;
-    border: 1px solid var(--line);
-    background: var(--surface-2);
-    padding: 12px 14px;
-  }
-
-  .search-input-wrap input,
-  .comment-entry input,
-  .checkout-input input,
-  .compose-textarea {
-    width: 100%;
-    border: 0;
-    background: transparent;
-    color: var(--text);
-    outline: 0;
-  }
-
-  .search-input-wrap input::placeholder,
-  .comment-entry input::placeholder,
-  .checkout-input input::placeholder,
-  .compose-textarea::placeholder {
-    color: var(--text-3);
-  }
-
-  .chips,
-  .featured-row {
-    display: flex;
-    gap: 10px;
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-
-  .chips {
-    margin-top: 14px;
-  }
-
-  .chip {
-    min-width: max-content;
-    border-radius: 999px;
-    border: 1px solid var(--line);
-    background: transparent;
-    color: var(--text-2);
-    padding: 9px 14px;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    transition: border-color 0.2s, color 0.2s, background 0.2s;
-  }
-
-  .chip.active {
-    background: rgba(200, 138, 44, 0.18);
-    color: var(--text);
-    border-color: rgba(200, 138, 44, 0.5);
-  }
-
-  .dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 999px;
-  }
-
-  .section {
-    margin-top: 28px;
-  }
-
-  .section-header {
-    display: flex;
-    align-items: end;
-    justify-content: space-between;
-    gap: 12px;
-    margin-bottom: 14px;
-  }
-
-  .section-title {
-    margin: 0;
-    font-size: 28px;
-    font-weight: 600;
-  }
-
-  .section-meta {
-    font-size: 12px;
-  }
-
-  .featured-card {
-    min-width: 286px;
-    overflow: hidden;
-  }
-
-  .featured-visual,
-  .product-visual,
-  .overlay-visual,
-  .vault-visual,
-  .feed-product-visual,
-  .reader-hero {
-    position: relative;
-    overflow: hidden;
-  }
-
-  .featured-visual {
-    height: 180px;
-  }
-
-  .featured-body,
-  .product-body,
-  .vault-body,
-  .post-body,
-  .overlay-body,
-  .profile-card,
-  .stats-card,
-  .checkout-card {
-    padding: 16px;
-  }
-
-  .product-grid,
-  .vault-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 12px;
-  }
-
-  .product-card,
-  .vault-card {
-    overflow: hidden;
-  }
-
-  .product-card {
-    border: 1px solid rgba(255, 255, 255, 0.07);
-    border-radius: var(--radius);
-    background: var(--surface);
-  }
-
-  .product-card:hover,
-  .vault-card:hover,
-  .featured-card:hover,
-  .feed-product:hover {
-    border-color: rgba(200, 138, 44, 0.45);
-  }
-
-  .product-visual,
-  .vault-visual {
-    height: 132px;
-  }
-
-  .type-tag,
-  .access-pill,
-  .price-chip,
-  .creator-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    border-radius: 999px;
-    font-size: 11px;
-    padding: 5px 9px;
-    font-weight: 700;
-  }
-
-  .type-tag {
-    position: absolute;
-    top: 10px;
-    left: 10px;
-    backdrop-filter: blur(10px);
-  }
-
-  .type-art { background: rgba(209, 91, 69, 0.16); color: var(--art); }
-  .type-ebook { background: rgba(47, 156, 127, 0.16); color: var(--ebook); }
-  .type-tool { background: rgba(69, 118, 187, 0.16); color: var(--tool); }
-
-  .price-chip {
-    position: absolute;
-    right: 10px;
-    bottom: 10px;
-    background: rgba(11, 9, 8, 0.82);
-    color: var(--gold-2);
-  }
-
-  .product-title,
-  .featured-title,
-  .vault-title,
-  .post-product-title {
-    font-weight: 700;
-    margin: 0;
-  }
-
-  .featured-title {
-    font-size: 20px;
-    font-family: "Cormorant Garamond", serif;
-    font-weight: 600;
-  }
-
-  .product-title,
-  .vault-title {
-    font-size: 15px;
-  }
-
-  .subtle {
-    font-size: 12px;
-    color: var(--text-2);
-  }
-
-  .product-footer,
-  .featured-footer,
-  .vault-footer {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    margin-top: 12px;
-  }
-
-  .price {
-    font-weight: 700;
-    color: var(--gold-2);
-  }
-
-  .inline-button,
-  .primary-button,
-  .secondary-button,
-  .ghost-button,
-  .feed-button,
-  .send-button {
-    border: 0;
-    border-radius: 999px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    transition: transform 0.18s, background 0.2s, color 0.2s, border-color 0.2s;
-  }
-
-  .inline-button:hover,
-  .primary-button:hover,
-  .secondary-button:hover,
-  .ghost-button:hover,
-  .feed-button:hover,
-  .send-button:hover {
-    transform: translateY(-1px);
-  }
-
-  .inline-button {
-    width: 32px;
-    height: 32px;
-    background: var(--surface-3);
-    color: var(--gold-2);
-  }
-
-  .primary-button,
-  .secondary-button,
-  .ghost-button {
-    min-height: 48px;
-    padding: 0 18px;
-    font-weight: 700;
-  }
-
-  .primary-button {
-    background: linear-gradient(180deg, var(--gold-2), var(--gold));
-    color: var(--bg);
-  }
-
-  .secondary-button {
-    background: var(--surface-2);
-    color: var(--text);
-    border: 1px solid var(--line);
-  }
-
-  .ghost-button {
-    background: transparent;
-    color: var(--text-2);
-    border: 1px solid var(--line);
-  }
-
-  .stats-grid {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 12px;
-    margin-top: 20px;
-  }
-
-  .stats-card {
-    padding: 16px 14px;
-    text-align: center;
-  }
-
-  .stats-card strong {
-    display: block;
-    font-size: 22px;
-    color: var(--gold-2);
-  }
-
-  .stats-card span {
-    font-size: 11px;
-    color: var(--text-3);
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-  }
-
-  .feed-banner {
-    padding: 12px 14px;
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    border-radius: var(--radius-sm);
-    background: rgba(20, 17, 15, 0.9);
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    color: var(--text-2);
-    font-size: 13px;
-  }
-
-  .live-dot {
-    width: 9px;
-    height: 9px;
-    border-radius: 999px;
-    background: var(--success);
-    box-shadow: 0 0 0 0 rgba(60, 192, 139, 0.5);
-    animation: pulse 1.6s infinite;
-  }
-
-  @keyframes pulse {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(60, 192, 139, 0.5); }
-    70% { box-shadow: 0 0 0 10px rgba(60, 192, 139, 0); }
-  }
-
-  .compose-card {
-    margin-top: 18px;
-    padding: 16px;
-  }
-
-  .compose-top {
-    display: flex;
-    gap: 12px;
-    align-items: start;
-  }
-
-  .avatar,
-  .comment-avatar,
-  .mini-avatar {
-    border-radius: 999px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    color: white;
-    font-weight: 700;
-    flex: 0 0 auto;
-  }
-
-  .avatar {
-    width: 38px;
-    height: 38px;
-    background: linear-gradient(135deg, #a86721, #d39b46);
-  }
-
-  .mini-avatar {
-    width: 34px;
-    height: 34px;
-    background: linear-gradient(135deg, #5f4530, #bd8f5b);
-  }
-
-  .compose-trigger {
-    flex: 1;
-    text-align: left;
-    min-height: 46px;
-    border: 1px solid var(--line);
-    background: var(--surface-2);
-    border-radius: 999px;
-    padding: 0 16px;
-    color: var(--text-3);
-  }
-
-  .compose-actions {
-    gap: 8px;
-    margin-top: 12px;
-    flex-wrap: wrap;
-  }
-
-  .feed-list {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-    margin-top: 18px;
-  }
-
-  .post-card {
-    overflow: hidden;
-  }
-
-  .post-header {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-
-  .post-meta {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .post-author {
-    font-weight: 700;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
-  }
-
-  .creator-pill {
-    background: rgba(200, 138, 44, 0.16);
-    color: var(--gold-2);
-  }
-
-  .post-time {
-    font-size: 12px;
-    color: var(--text-3);
-    margin-top: 3px;
-  }
-
-  .feed-product {
-    margin-top: 14px;
-    border: 1px solid rgba(255, 255, 255, 0.07);
-    border-radius: var(--radius-sm);
-    overflow: hidden;
-    background: var(--surface);
-  }
-
-  .feed-product-visual {
-    height: 196px;
-  }
-
-  .post-product-row {
-    display: flex;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 14px;
-  }
-
-  .feed-actions {
-    gap: 8px;
-    margin-top: 14px;
-    flex-wrap: wrap;
-  }
-
-  .feed-button {
-    padding: 10px 12px;
-    background: var(--surface-2);
-    color: var(--text-2);
-    border: 1px solid var(--line);
-  }
-
-  .feed-button.active {
-    color: var(--text);
-    border-color: rgba(200, 138, 44, 0.45);
-  }
-
-  .comments {
-    margin-top: 16px;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
-
-  .comment {
-    display: flex;
-    gap: 10px;
-    align-items: start;
-  }
-
-  .comment-avatar {
-    width: 28px;
-    height: 28px;
-    font-size: 10px;
-  }
-
-  .comment-bubble {
-    background: var(--surface);
-    border-radius: 14px 14px 14px 4px;
-    padding: 10px 12px;
-    flex: 1;
-  }
-
-  .comment-author {
-    font-size: 12px;
-    font-weight: 700;
-    margin-bottom: 4px;
-  }
-
-  .comment-time {
-    font-size: 11px;
-    color: var(--text-3);
-    margin-top: 5px;
-  }
-
-  .comment-entry {
+  .tab.active { color: var(--text); border-bottom-color: var(--gold); }
+  .tab-badge {
+    display: inline-block; background: var(--feed-accent);
+    color: #fff; font-size: 9px; font-weight: 700;
+    border-radius: 50px; padding: 1px 5px;
+    margin-left: 4px; vertical-align: middle;
+  }
+
+  /* ── SCROLL CONTAINER ── */
+  .scroll-main {
+    flex: 1; overflow-y: auto; scrollbar-width: none;
+  }
+  .scroll-main::-webkit-scrollbar { display: none; }
+
+  /* ── PAGE PANELS ── */
+  .page { display: none; }
+  .page.active { display: block; }
+
+  /* ── GREETING ── */
+  .greeting { padding: 24px 20px 0; }
+  .greeting p { font-size: 13px; color: var(--text-3); letter-spacing: 0.05em; text-transform: uppercase; font-weight: 500; margin-bottom: 4px; }
+  .greeting h1 { font-family: 'Cormorant Garamond', serif; font-size: 34px; font-weight: 600; line-height: 1.1; }
+  .greeting h1 em { font-style: italic; color: var(--gold); }
+
+  /* ── SEARCH ── */
+  .search-wrap { padding: 20px 20px 0; }
+  .search {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--surface-2); border-radius: 50px;
+    padding: 10px 16px; border: 1px solid var(--surface-3);
+    transition: border-color 0.2s;
+  }
+  .search:focus-within { border-color: var(--gold-dim); }
+  .search svg { width: 15px; height: 15px; stroke: var(--text-3); fill: none; stroke-width: 2; flex-shrink: 0; }
+  .search input {
+    background: none; border: none; outline: none;
+    color: var(--text); font-family: 'Syne', sans-serif;
+    font-size: 14px; width: 100%; caret-color: var(--gold);
+  }
+  .search input::placeholder { color: var(--text-3); }
+
+  /* ── CATEGORIES ── */
+  .cats-wrap { padding: 24px 0 0; }
+  .cats-label { padding: 0 20px; font-size: 11px; color: var(--text-3); letter-spacing: 0.12em; text-transform: uppercase; font-weight: 500; margin-bottom: 12px; }
+  .cats { display: flex; gap: 8px; padding: 0 20px; overflow-x: auto; scrollbar-width: none; }
+  .cats::-webkit-scrollbar { display: none; }
+  .cat {
+    flex-shrink: 0; padding: 8px 18px; border-radius: 50px;
+    border: 1px solid var(--surface-3); background: var(--surface);
+    font-size: 13px; font-weight: 500; color: var(--text-2);
+    cursor: pointer; transition: all 0.2s;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .cat.active { background: var(--gold); border-color: var(--gold); color: var(--bg); }
+  .cat:not(.active):hover { border-color: var(--gold-dim); color: var(--text); }
+  .cat-dot { width: 7px; height: 7px; border-radius: 50%; }
+
+  /* ── SECTION HEADERS ── */
+  .section-header { padding: 28px 20px 14px; display: flex; align-items: baseline; justify-content: space-between; }
+  .section-title { font-family: 'Cormorant Garamond', serif; font-size: 22px; font-weight: 600; }
+  .see-all { font-size: 12px; color: var(--gold); font-weight: 500; cursor: pointer; letter-spacing: 0.03em; }
+
+  /* ── FEATURED ── */
+  .featured-scroll { display: flex; gap: 14px; padding: 0 20px; overflow-x: auto; scrollbar-width: none; }
+  .featured-scroll::-webkit-scrollbar { display: none; }
+  .feat-card {
+    flex-shrink: 0; width: 260px;
+    background: var(--surface-2); border-radius: var(--r);
+    overflow: hidden; cursor: pointer; border: 1px solid var(--surface-3);
+    transition: transform 0.2s;
+  }
+  .feat-card:hover { transform: translateY(-2px); }
+  .feat-visual { height: 160px; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+  .feat-badge {
+    position: absolute; top: 12px; left: 12px;
+    padding: 4px 10px; border-radius: 50px;
+    font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+  }
+  .feat-badge.art { background: var(--art-bg); color: var(--art); border: 1px solid #3A1A10; }
+  .feat-badge.ebook { background: var(--ebook-bg); color: var(--ebook); border: 1px solid #0F2D22; }
+  .feat-badge.tool { background: var(--tool-bg); color: var(--tool); border: 1px solid #0F1E35; }
+  .feat-price-badge {
+    position: absolute; bottom: 12px; right: 12px;
+    background: rgba(10,9,7,0.8); backdrop-filter: blur(8px);
+    padding: 5px 10px; border-radius: 50px;
+    font-size: 13px; font-weight: 700; color: var(--gold-light);
+  }
+  .feat-info { padding: 14px 16px 16px; }
+  .feat-info h3 { font-family: 'Cormorant Garamond', serif; font-size: 18px; font-weight: 600; margin-bottom: 4px; }
+  .feat-info p { font-size: 12px; color: var(--text-2); line-height: 1.5; }
+  .feat-actions { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; }
+  .feat-rating { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--text-2); }
+  .stars { color: var(--gold); font-size: 11px; }
+  .add-btn {
+    width: 30px; height: 30px; border-radius: 50%;
+    background: var(--gold); border: none; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--bg); font-size: 18px; transition: background 0.2s, transform 0.1s;
+  }
+  .add-btn:hover { background: var(--gold-light); }
+  .add-btn:active { transform: scale(0.92); }
+
+  /* ── GRID ── */
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 0 20px; }
+  .prod-card {
+    background: var(--surface-2); border-radius: var(--r);
+    overflow: hidden; cursor: pointer; border: 1px solid var(--surface-3);
+    transition: transform 0.2s, border-color 0.2s;
+  }
+  .prod-card:hover { transform: translateY(-2px); border-color: var(--gold-dim); }
+  .prod-visual { height: 120px; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+  .prod-type { position: absolute; top: 8px; left: 8px; width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; }
+  .prod-type.art { background: var(--art-bg); color: var(--art); }
+  .prod-type.ebook { background: var(--ebook-bg); color: var(--ebook); }
+  .prod-type.tool { background: var(--tool-bg); color: var(--tool); }
+  .prod-info { padding: 10px 12px 12px; }
+  .prod-info h3 { font-size: 14px; font-weight: 600; margin-bottom: 2px; line-height: 1.3; }
+  .prod-info p { font-size: 11px; color: var(--text-2); margin-bottom: 8px; }
+  .prod-footer { display: flex; align-items: center; justify-content: space-between; }
+  .prod-price { font-size: 14px; font-weight: 700; color: var(--gold-light); }
+  .prod-add {
+    width: 24px; height: 24px; border-radius: 50%;
+    background: var(--surface-3); border: 1px solid var(--gold-dim);
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    color: var(--gold); font-size: 14px; transition: all 0.2s;
+  }
+  .prod-add:hover { background: var(--gold); color: var(--bg); }
+
+  /* ─────────────────────────────────────────
+     ── FEED PAGE ──
+  ───────────────────────────────────────── */
+
+  /* Compose Box */
+  .compose-box {
+    margin: 20px; padding: 16px;
+    background: var(--surface-2); border-radius: var(--r);
+    border: 1px solid var(--surface-3);
+  }
+  .compose-top { display: flex; gap: 12px; align-items: flex-start; }
+  .avatar-creator {
+    width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700; color: #fff;
+    background: linear-gradient(135deg, var(--gold-dim), var(--gold));
+  }
+  .compose-input {
+    flex: 1; background: var(--surface-3); border: 1px solid #333;
+    border-radius: 50px; padding: 9px 16px;
+    font-family: 'Syne', sans-serif; font-size: 13px;
+    color: var(--text-2); cursor: pointer;
+    display: flex; align-items: center;
+    transition: border-color 0.2s;
+  }
+  .compose-input:hover { border-color: var(--gold-dim); color: var(--text); }
+  .compose-actions { display: flex; gap: 8px; margin-top: 12px; justify-content: flex-end; }
+  .compose-action-btn {
+    display: flex; align-items: center; gap: 5px;
+    padding: 6px 12px; border-radius: 50px;
+    background: var(--surface-3); border: 1px solid var(--surface-3);
+    color: var(--text-2); font-size: 11px; font-weight: 600;
+    cursor: pointer; transition: all 0.2s; letter-spacing: 0.03em;
+  }
+  .compose-action-btn:hover { border-color: var(--gold-dim); color: var(--gold); }
+  .compose-action-btn svg { width: 12px; height: 12px; stroke: currentColor; fill: none; stroke-width: 2; }
+
+  /* Feed Posts */
+  .feed-list { display: flex; flex-direction: column; gap: 0; }
+
+  .post {
+    border-bottom: 1px solid var(--surface-2);
+    padding: 20px;
+    transition: background 0.15s;
+  }
+  .post:hover { background: rgba(255,255,255,0.012); }
+
+  .post-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .post-avatar {
+    width: 38px; height: 38px; border-radius: 50%; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 700; color: #fff;
+  }
+  .post-meta { flex: 1; min-width: 0; }
+  .post-author { font-size: 14px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
+  .creator-badge {
+    font-size: 9px; font-weight: 700; letter-spacing: 0.08em;
+    padding: 2px 7px; border-radius: 50px; text-transform: uppercase;
+    background: rgba(200,134,26,0.15); color: var(--gold); border: 1px solid rgba(200,134,26,0.3);
+  }
+  .post-time { font-size: 11px; color: var(--text-3); margin-top: 1px; }
+  .post-menu { color: var(--text-3); font-size: 18px; cursor: pointer; padding: 4px; }
+
+  .post-text { font-size: 14px; color: var(--text-2); line-height: 1.65; margin-bottom: 14px; }
+  .post-text strong { color: var(--text); }
+
+  /* Product card embed in feed */
+  .post-product {
+    background: var(--surface-2); border: 1px solid var(--surface-3);
+    border-radius: var(--r); overflow: hidden; margin-bottom: 14px;
+    cursor: pointer; transition: border-color 0.2s;
+  }
+  .post-product:hover { border-color: var(--gold-dim); }
+  .post-product-visual { height: 180px; position: relative; }
+  .post-product-visual canvas { width: 100%; height: 100%; display: block; }
+  .post-product-info { padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; }
+  .post-product-left {}
+  .post-product-name { font-family: 'Cormorant Garamond', serif; font-size: 18px; font-weight: 600; }
+  .post-product-sub { font-size: 12px; color: var(--text-2); margin-top: 2px; }
+  .post-product-price { font-size: 18px; font-weight: 700; color: var(--gold-light); }
+
+  /* Collect / Download badge on feed product */
+  .product-action-tag {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 10px; font-weight: 700; letter-spacing: 0.08em;
+    text-transform: uppercase; padding: 4px 10px; border-radius: 50px;
     margin-top: 4px;
   }
+  .tag-collect { background: rgba(42,140,110,0.15); color: var(--ebook); border: 1px solid rgba(42,140,110,0.3); }
+  .tag-download { background: rgba(58,107,170,0.15); color: var(--tool); border: 1px solid rgba(58,107,170,0.3); }
+  .tag-art-collect { background: rgba(196,82,58,0.15); color: var(--art); border: 1px solid rgba(196,82,58,0.3); }
 
-  .send-button {
-    width: 34px;
-    height: 34px;
-    background: rgba(200, 138, 44, 0.18);
-    color: var(--gold-2);
-    flex: 0 0 auto;
+  /* Post actions row */
+  .post-actions { display: flex; align-items: center; gap: 0; margin-top: 2px; }
+  .post-action-btn {
+    flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;
+    padding: 8px 4px; border-radius: 8px;
+    background: none; border: none; cursor: pointer;
+    color: var(--text-3); font-size: 12px; font-weight: 500;
+    transition: all 0.18s; font-family: 'Syne', sans-serif;
+  }
+  .post-action-btn svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.8; flex-shrink: 0; }
+  .post-action-btn:hover { color: var(--text-2); background: var(--surface-2); }
+  .post-action-btn.liked { color: var(--art); }
+  .post-action-btn.liked svg { fill: var(--art); stroke: var(--art); }
+  .post-action-btn.collected { color: var(--ebook); }
+
+  /* Comments section */
+  .comments-section { margin-top: 14px; }
+  .comment-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; }
+  .comment {
+    display: flex; gap: 8px;
+    animation: fadeIn 0.25s ease;
+  }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+  .comment-avatar {
+    width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; font-weight: 700; color: #fff;
+  }
+  .comment-body {
+    background: var(--surface-2); border-radius: 12px 12px 12px 3px;
+    padding: 8px 12px; flex: 1;
+  }
+  .comment-author { font-size: 11px; font-weight: 700; color: var(--text); margin-bottom: 2px; }
+  .comment-text { font-size: 13px; color: var(--text-2); line-height: 1.5; }
+  .comment-time { font-size: 10px; color: var(--text-3); margin-top: 4px; }
+
+  .comment-input-row { display: flex; gap: 8px; align-items: center; }
+  .comment-input-avatar {
+    width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
+    background: linear-gradient(135deg, #3A6BAA, #2A8C6E);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; font-weight: 700; color: #fff;
+  }
+  .comment-input-wrap {
+    flex: 1; display: flex; align-items: center;
+    background: var(--surface-2); border: 1px solid var(--surface-3);
+    border-radius: 50px; padding: 6px 14px; gap: 8px;
+    transition: border-color 0.2s;
+  }
+  .comment-input-wrap:focus-within { border-color: var(--gold-dim); }
+  .comment-input-wrap input {
+    flex: 1; background: none; border: none; outline: none;
+    font-family: 'Syne', sans-serif; font-size: 12px;
+    color: var(--text); caret-color: var(--gold);
+  }
+  .comment-input-wrap input::placeholder { color: var(--text-3); }
+  .comment-send-btn {
+    background: none; border: none; cursor: pointer;
+    color: var(--gold-dim); padding: 0; transition: color 0.2s;
+    display: flex; align-items: center;
+  }
+  .comment-send-btn:hover { color: var(--gold); }
+  .comment-send-btn svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2; }
+
+  /* Live indicator */
+  .live-indicator {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 20px; font-size: 12px; color: var(--text-3);
+    letter-spacing: 0.04em;
+  }
+  .live-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: #44DD88; flex-shrink: 0;
+    animation: livePulse 1.4s ease-in-out infinite;
+  }
+  @keyframes livePulse {
+    0%,100% { opacity: 1; box-shadow: 0 0 0 0 rgba(68,221,136,0.5); }
+    50% { opacity: 0.7; box-shadow: 0 0 0 4px rgba(68,221,136,0); }
   }
 
-  .vault-summary {
-    display: grid;
-    gap: 12px;
-  }
-
-  .vault-empty {
-    padding: 24px 18px;
-    text-align: center;
-  }
-
-  .vault-empty h2 {
-    margin: 0 0 8px;
-    font-size: 28px;
-    font-weight: 600;
-  }
-
-  .vault-empty-icon {
-    width: 54px;
-    height: 54px;
-    margin: 0 auto 14px;
-    border-radius: 18px;
-    display: grid;
-    place-items: center;
-    background: rgba(200, 138, 44, 0.13);
-    color: var(--gold-2);
-    font-size: 24px;
-  }
-
-  .meta-strip {
-    gap: 10px;
-    flex-wrap: wrap;
-    margin-top: 12px;
-  }
-
-  .access-pill {
-    background: rgba(255, 255, 255, 0.05);
-    color: var(--text-2);
-  }
-
-  .profile-stack {
-    display: grid;
-    gap: 16px;
-  }
-
-  .profile-card {
-    padding: 18px;
-  }
-
-  .profile-header {
-    display: flex;
-    gap: 14px;
-    align-items: center;
-  }
-
-  .profile-avatar {
-    width: 58px;
-    height: 58px;
-    border-radius: 20px;
-    background: linear-gradient(135deg, #9c6828, #d7a45e);
-    display: grid;
-    place-items: center;
-    font-size: 22px;
-    font-weight: 700;
-    color: var(--bg);
-  }
-
-  .profile-name {
-    font-size: 18px;
-    font-weight: 700;
-  }
-
-  .profile-handle {
-    font-size: 13px;
-    color: var(--text-3);
-    margin-top: 3px;
-  }
-
-  .profile-list {
-    margin-top: 16px;
-    display: grid;
-    gap: 10px;
-  }
-
-  .profile-row {
-    display: flex;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 12px 0;
-    border-top: 1px solid rgba(255, 255, 255, 0.06);
-    color: var(--text-2);
-  }
-
+  /* ── BOTTOM NAV ── */
   .bottom-nav {
-    position: fixed;
-    left: 50%;
-    transform: translateX(-50%);
-    bottom: 0;
-    width: min(430px, 100%);
-    padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
-    background: linear-gradient(180deg, rgba(11, 9, 8, 0), rgba(11, 9, 8, 0.92) 28%, rgba(11, 9, 8, 0.98));
-    z-index: 22;
+    flex-shrink: 0;
+    background: rgba(10,9,7,0.95);
+    backdrop-filter: blur(20px);
+    border-top: 1px solid var(--surface-2);
+    padding: 12px 0 24px;
+    display: flex;
+  }
+  .nav-item {
+    flex: 1; display: flex; flex-direction: column; align-items: center;
+    gap: 4px; cursor: pointer; transition: color 0.2s;
+    color: var(--text-3); position: relative;
+  }
+  .nav-item.active { color: var(--gold); }
+  .nav-item svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 1.8; }
+  .nav-item.active svg { stroke-width: 2.2; }
+  .nav-label { font-size: 10px; font-weight: 500; letter-spacing: 0.04em; }
+  .nav-badge {
+    position: absolute; top: -2px; right: 20px;
+    background: var(--feed-accent); color: #fff;
+    font-size: 8px; font-weight: 700; border-radius: 50%;
+    width: 14px; height: 14px; display: flex; align-items: center; justify-content: center;
   }
 
-  .bottom-nav-inner {
-    border: 1px solid rgba(255, 255, 255, 0.07);
-    border-radius: 24px;
-    background: rgba(20, 17, 15, 0.92);
-    backdrop-filter: blur(16px);
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    padding: 8px;
-    gap: 6px;
+  /* ── OVERLAY ── */
+  .overlay {
+    position: fixed; inset: 0; z-index: 100;
+    background: rgba(10,9,7,0.98);
+    display: flex; flex-direction: column;
+    transform: translateY(100%);
+    transition: transform 0.35s cubic-bezier(0.32,0,0.15,1);
+    max-width: 390px; margin: 0 auto;
   }
+  .overlay.open { transform: translateY(0); }
+  .overlay-visual { height: 280px; position: relative; flex-shrink: 0; }
+  .overlay-close {
+    position: absolute; top: 54px; right: 20px;
+    width: 36px; height: 36px; border-radius: 50%;
+    background: rgba(10,9,7,0.7); border: 1px solid var(--surface-3);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; color: var(--text-2); font-size: 18px; z-index: 10;
+  }
+  .overlay-content { flex: 1; overflow-y: auto; padding: 24px 20px; scrollbar-width: none; }
+  .overlay-content::-webkit-scrollbar { display: none; }
+  .overlay-cat { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; font-weight: 600; margin-bottom: 8px; }
+  .overlay-cat.art { color: var(--art); }
+  .overlay-cat.ebook { color: var(--ebook); }
+  .overlay-cat.tool { color: var(--tool); }
+  .overlay-title { font-family: 'Cormorant Garamond', serif; font-size: 36px; font-weight: 600; line-height: 1.1; margin-bottom: 8px; }
+  .overlay-desc { font-size: 14px; color: var(--text-2); line-height: 1.7; margin-bottom: 24px; }
+  .overlay-meta { display: flex; gap: 20px; margin-bottom: 20px; }
+  .meta-item { display: flex; flex-direction: column; gap: 3px; }
+  .meta-label { font-size: 10px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.1em; }
+  .meta-val { font-size: 15px; font-weight: 600; }
 
-  .tabbar-button {
-    border: 0;
-    background: transparent;
-    color: var(--text-3);
-    padding: 10px 6px;
-    border-radius: 16px;
-    display: inline-flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 6px;
+  /* Access type info in overlay */
+  .access-info {
+    background: var(--surface-2); border-radius: var(--r-sm);
+    padding: 14px 16px; margin-bottom: 20px;
+    border: 1px solid var(--surface-3);
+  }
+  .access-info-title {
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em;
+    color: var(--text-3); margin-bottom: 8px;
+  }
+  .access-row {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 13px; padding: 5px 0;
+  }
+  .access-icon { width: 22px; height: 22px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 11px; flex-shrink: 0; }
+  .access-icon.in-app { background: rgba(42,140,110,0.2); }
+  .access-icon.external { background: rgba(58,107,170,0.2); }
+  .access-label { flex: 1; color: var(--text-2); }
+  .access-mode {
+    font-size: 10px; font-weight: 700; letter-spacing: 0.06em;
+    padding: 2px 8px; border-radius: 50px;
+  }
+  .access-mode.collect { background: rgba(42,140,110,0.15); color: var(--ebook); }
+  .access-mode.download { background: rgba(58,107,170,0.15); color: var(--tool); }
+
+  .overlay-actions { display: flex; gap: 12px; padding-bottom: 40px; }
+  .btn-primary {
+    flex: 1; padding: 16px;
+    background: var(--gold); border: none;
+    border-radius: 50px; font-family: 'Syne', sans-serif;
+    font-size: 15px; font-weight: 700; color: var(--bg);
+    cursor: pointer; transition: background 0.2s, transform 0.1s;
+  }
+  .btn-primary:hover { background: var(--gold-light); }
+  .btn-primary:active { transform: scale(0.98); }
+  .btn-secondary {
+    width: 54px; height: 54px; border-radius: 50%;
+    background: var(--surface-2); border: 1px solid var(--surface-3);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; transition: all 0.2s; flex-shrink: 0;
+  }
+  .btn-secondary svg { width: 18px; height: 18px; stroke: var(--text-2); fill: none; stroke-width: 1.8; }
+  .btn-secondary:hover { border-color: var(--gold-dim); }
+  .btn-secondary.liked svg { stroke: var(--art); fill: var(--art); }
+
+  /* ── TOAST ── */
+  .toast {
+    position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: var(--surface-3); border: 1px solid var(--gold-dim);
+    padding: 10px 20px; border-radius: 50px;
+    font-size: 13px; color: var(--text); font-weight: 500;
+    opacity: 0; transition: all 0.3s; z-index: 200; white-space: nowrap;
+    max-width: 90%;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  .bottom-space { height: 32px; }
+
+  /* Compose modal */
+  .compose-modal {
+    position: fixed; inset: 0; z-index: 150;
+    background: rgba(10,9,7,0.96);
+    display: flex; flex-direction: column;
+    max-width: 390px; margin: 0 auto;
+    transform: translateY(100%);
+    transition: transform 0.3s cubic-bezier(0.32,0,0.15,1);
+  }
+  .compose-modal.open { transform: translateY(0); }
+  .compose-modal-header {
+    padding: 54px 20px 20px;
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1px solid var(--surface-2);
+  }
+  .compose-modal-header h2 { font-family: 'Cormorant Garamond', serif; font-size: 22px; font-weight: 600; }
+  .compose-close-btn {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: var(--surface-2); border: 1px solid var(--surface-3);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; color: var(--text-2); font-size: 16px;
+  }
+  .compose-modal-body { flex: 1; padding: 20px; display: flex; flex-direction: column; gap: 16px; overflow-y: auto; }
+  .compose-field-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-3); margin-bottom: 6px; }
+  .compose-textarea {
+    width: 100%; background: var(--surface-2); border: 1px solid var(--surface-3);
+    border-radius: var(--r-sm); padding: 12px 14px;
+    font-family: 'Syne', sans-serif; font-size: 14px; color: var(--text);
+    resize: none; outline: none; caret-color: var(--gold); min-height: 80px;
+  }
+  .compose-textarea:focus { border-color: var(--gold-dim); }
+  .compose-product-pick {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+  }
+  .compose-product-opt {
+    background: var(--surface-2); border: 1px solid var(--surface-3);
+    border-radius: var(--r-sm); padding: 10px;
+    cursor: pointer; transition: all 0.2s;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .compose-product-opt:hover, .compose-product-opt.selected { border-color: var(--gold-dim); background: var(--surface-3); }
+  .compose-product-opt.selected { border-color: var(--gold); }
+  .compose-product-thumb { width: 32px; height: 32px; border-radius: 6px; flex-shrink: 0; }
+  .compose-product-opt-name { font-size: 12px; font-weight: 600; line-height: 1.3; }
+  .compose-product-opt-price { font-size: 11px; color: var(--gold); }
+  .compose-submit-btn {
+    background: var(--gold); border: none; border-radius: 50px;
+    padding: 16px; font-family: 'Syne', sans-serif;
+    font-size: 15px; font-weight: 700; color: var(--bg);
+    cursor: pointer; transition: background 0.2s;
+    margin: 0 20px 40px;
+  }
+  .compose-submit-btn:hover { background: var(--gold-light); }
+
+  /* ── CREATOR CARDS TRADING ── */
+  .creator-card {
+    background: var(--surface-2); border-radius: var(--r);
+    border: 1px solid var(--surface-3); cursor: pointer;
+    transition: all 0.2s; overflow: hidden;
+  }
+  .creator-card:hover { border-color: var(--gold-dim); transform: translateY(-2px); }
+  .creator-card-avatar {
+    width: 100%; height: 100px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 48px; font-weight: 700;
+    background: linear-gradient(135deg, var(--gold-dim), var(--gold));
     position: relative;
   }
+  .creator-card-verified {
+    position: absolute; top: 8px; right: 8px;
+    background: var(--gold); color: var(--bg); border-radius: 50%;
+    width: 24px; height: 24px; display: flex; align-items: center;
+    justify-content: center; font-size: 12px;
+  }
+  .creator-card-info { padding: 16px; }
+  .creator-card-name { font-family: 'Cormorant Garamond', serif; font-size: 18px; font-weight: 600; margin-bottom: 2px; }
+  .creator-card-handle { font-size: 12px; color: var(--text-3); margin-bottom: 12px; }
+  .creator-stats {
+    display: flex; gap: 12px; font-size: 11px; color: var(--text-2); margin-bottom: 12px;
+  }
+  .stat-item { display: flex; flex-direction: column; gap: 2px; }
+  .stat-value { font-size: 16px; font-weight: 700; color: var(--gold); }
+  .creator-pool { background: var(--surface-3); border-radius: var(--r-sm); padding: 12px; margin-bottom: 12px; }
+  .pool-header { font-size: 10px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px; }
+  .pool-price { font-size: 20px; font-weight: 700; color: var(--gold-light); margin-bottom: 6px; }
+  .pool-info { display: flex; gap: 8px; font-size: 10px; color: var(--text-2); }
+  .pool-bar {
+    width: 100%; height: 4px; background: var(--surface-2); border-radius: 2px;
+    overflow: hidden; margin-top: 8px;
+  }
+  .pool-bar-fill { height: 100%; background: linear-gradient(90deg, var(--gold-dim), var(--gold-light)); }
+  .creator-actions { display: flex; gap: 8px; }
+  .creator-btn {
+    flex: 1; padding: 10px; border-radius: 50px;
+    border: 1px solid var(--gold-dim); background: transparent;
+    color: var(--gold); font-size: 12px; font-weight: 600;
+    cursor: pointer; transition: all 0.2s; font-family: 'Syne', sans-serif;
+  }
+  .creator-btn:hover { background: var(--gold); color: var(--bg); border-color: var(--gold); }
+  .creator-btn.primary { background: var(--gold); color: var(--bg); border-color: var(--gold); }
+  .creator-btn.primary:hover { background: var(--gold-light); border-color: var(--gold-light); }
 
-  .tabbar-button.active {
-    color: var(--gold-2);
-    background: rgba(200, 138, 44, 0.12);
+  /* Creator Trading Detail Modal */
+  .trade-modal {
+    position: fixed; inset: 0; z-index: 150;
+    background: rgba(10,9,7,0.96); display: flex;
+    flex-direction: column; max-width: 390px; margin: 0 auto;
+    transform: translateY(100%); transition: transform 0.3s cubic-bezier(0.32,0,0.15,1);
+  }
+  .trade-modal.open { transform: translateY(0); }
+  .trade-header {
+    padding: 54px 20px 20px; display: flex;
+    align-items: center; justify-content: space-between;
+    border-bottom: 1px solid var(--surface-2);
+  }
+  .trade-header h2 { font-family: 'Cormorant Garamond', serif; font-size: 22px; font-weight: 600; }
+  .trade-close-btn {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: var(--surface-2); border: 1px solid var(--surface-3);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; color: var(--text-2); font-size: 16px;
+  }
+  .trade-content { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 20px; }
+  .trade-section { background: var(--surface-2); border: 1px solid var(--surface-3); border-radius: var(--r-sm); padding: 16px; }
+  .trade-section-title { font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-3); margin-bottom: 12px; }
+  .trade-input-group { margin-bottom: 12px; }
+  .trade-input-label { font-size: 11px; color: var(--text-2); margin-bottom: 6px; display: block; }
+  .trade-input {
+    width: 100%; background: var(--surface-3); border: 1px solid var(--surface-3);
+    border-radius: var(--r-sm); padding: 10px 12px;
+    font-family: 'Syne', sans-serif; font-size: 14px; color: var(--text);
+    outline: none; caret-color: var(--gold);
+  }
+  .trade-input:focus { border-color: var(--gold-dim); }
+  .trade-chart { height: 120px; margin-bottom: 12px; background: var(--surface-3); border-radius: var(--r-sm); position: relative; overflow: hidden; }
+  .trade-history { max-height: 200px; overflow-y: auto; }
+  .trade-item {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 0; border-bottom: 1px solid var(--surface-3); font-size: 12px;
+  }
+  .trade-item:last-child { border-bottom: none; }
+  .trade-item-user { color: var(--text-2); flex: 1; }
+  .trade-item-action { color: var(--gold); font-weight: 600; min-width: 60px; text-align: center; }
+  .trade-item-price { color: var(--gold-light); font-weight: 700; min-width: 70px; text-align: right; }
+  .trade-actions { padding: 20px; border-top: 1px solid var(--surface-2); display: flex; gap: 12px; }
+  .trade-btn {
+    flex: 1; padding: 14px; border-radius: 50px; border: none;
+    font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 700;
+    cursor: pointer; transition: all 0.2s;
+  }
+  .trade-buy { background: var(--ebook); color: var(--bg); }
+  .trade-buy:hover { background: #40A870; }
+  .trade-sell { background: var(--art); color: var(--bg); }
+  .trade-sell:hover { background: #E56A48; }
+
+  /* Creator Grid */
+  .creator-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
+    padding: 0 20px; margin-bottom: 20px;
   }
 
-  .tabbar-label {
-    font-size: 11px;
-  }
-
-  .modal-scrim,
-  .drawer-scrim {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.62);
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.22s;
-    z-index: 40;
-  }
-
-  .modal-scrim.open,
-  .drawer-scrim.open {
-    opacity: 1;
-    pointer-events: auto;
-  }
-
-  .modal,
-  .drawer-shell {
-    position: fixed;
-    left: 50%;
-    width: min(430px, 100%);
-    z-index: 41;
-    pointer-events: none;
-  }
-
-  .modal {
-    bottom: 0;
-    transform: translateX(-50%);
-    display: flex;
-    justify-content: center;
-    padding: 0 12px 12px;
-  }
-
-  .modal-card {
-    width: 100%;
-    max-height: calc(100vh - 24px);
-    transform: translateY(102%);
-    transition: transform 0.28s ease;
-    overflow: hidden;
-    pointer-events: auto;
-  }
-
-  .modal.open .modal-card {
-    transform: translateY(0);
-  }
-
-  .modal-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 18px 18px 12px;
-  }
-
-  .modal-title {
-    margin: 0;
-    font-size: 32px;
-    font-weight: 600;
-  }
-
-  .modal-copy {
-    font-size: 13px;
-    margin-top: 6px;
-  }
-
-  .close-button {
-    width: 40px;
-    height: 40px;
-    border-radius: 999px;
-    border: 1px solid var(--line);
-    background: var(--surface-2);
-    color: var(--text);
-  }
-
-  .overlay-scroll,
-  .modal-scroll,
-  .drawer-body {
-    overflow-y: auto;
-    scrollbar-width: none;
-  }
-
-  .overlay-scroll::-webkit-scrollbar,
-  .modal-scroll::-webkit-scrollbar,
-  .drawer-body::-webkit-scrollbar {
-    display: none;
-  }
-
-  .overlay-visual {
-    height: 270px;
-  }
-
-  .overlay-body {
-    padding-top: 18px;
-  }
-
-  .overlay-title {
-    font-size: 38px;
-    margin: 0;
-    font-weight: 600;
-  }
-
-  .detail-copy {
-    margin-top: 10px;
-    font-size: 14px;
-  }
-
-  .detail-list {
-    display: grid;
-    gap: 12px;
-    margin-top: 20px;
-  }
-
-  .detail-row {
-    display: flex;
-    justify-content: space-between;
-    gap: 10px;
-    padding-bottom: 12px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  }
-
-  .detail-row span:first-child {
-    color: var(--text-3);
-    font-size: 12px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-  }
-
-  .detail-row span:last-child {
-    text-align: right;
-  }
-
-  .overlay-actions {
-    gap: 10px;
-    margin-top: 22px;
-    padding-bottom: 10px;
-  }
-
-  .overlay-actions > * {
-    flex: 1;
-  }
-
-  .drawer-shell {
-    top: 0;
-    bottom: 0;
-    transform: translateX(-50%);
-    display: flex;
-    justify-content: flex-end;
-  }
-
-  .drawer {
-    width: 100%;
-    max-width: 380px;
-    height: 100%;
-    border-radius: 0;
-    transform: translateX(104%);
-    transition: transform 0.28s ease;
-    pointer-events: auto;
-    display: flex;
-    flex-direction: column;
-  }
-
-  .drawer-shell.open .drawer {
-    transform: translateX(0);
-  }
-
-  .drawer-header {
-    padding: 20px 18px 12px;
-    display: flex;
-    align-items: start;
-    justify-content: space-between;
-    gap: 12px;
-  }
-
-  .drawer-title {
-    font-size: 30px;
-    font-family: "Cormorant Garamond", serif;
-    font-weight: 600;
-    margin: 0;
-  }
-
-  .drawer-body {
-    padding: 8px 18px 18px;
-    flex: 1;
-  }
-
-  .cart-list,
-  .compose-product-list {
-    display: grid;
-    gap: 12px;
-  }
-
-  .cart-item,
-  .compose-product-option {
-    display: grid;
-    grid-template-columns: 64px 1fr auto;
-    gap: 12px;
-    align-items: center;
-    padding: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.07);
-    border-radius: var(--radius-sm);
-    background: var(--surface);
-  }
-
-  .compose-product-option {
-    cursor: pointer;
-  }
-
-  .compose-product-option.selected {
-    border-color: rgba(200, 138, 44, 0.5);
-    background: rgba(200, 138, 44, 0.08);
-  }
-
-  .thumb {
-    width: 64px;
-    height: 64px;
-    border-radius: 14px;
-    overflow: hidden;
-    background: var(--surface-2);
-  }
-
-  .qty-controls {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    margin-top: 8px;
-  }
-
-  .qty-button {
-    width: 28px;
-    height: 28px;
-    border-radius: 999px;
-    border: 1px solid var(--line);
-    background: var(--surface-2);
-    color: var(--text);
-  }
-
-  .drawer-footer {
-    flex-direction: column;
-    gap: 14px;
-    padding: 16px 18px 20px;
-    border-top: 1px solid rgba(255, 255, 255, 0.06);
-    background: rgba(20, 17, 15, 0.96);
-  }
-
-  .checkout-summary {
-    justify-content: space-between;
-    gap: 12px;
-    color: var(--text-2);
-    font-size: 14px;
-  }
-
-  .checkout-summary strong {
-    color: var(--text);
-  }
-
-  .empty-state {
-    border: 1px dashed rgba(255, 255, 255, 0.12);
-    border-radius: var(--radius);
-    padding: 20px;
-    color: var(--text-2);
-    text-align: center;
-  }
-
-  .checkout-form,
-  .compose-form {
-    display: grid;
-    gap: 14px;
-    padding: 0 18px 18px;
-  }
-
-  .checkout-field,
-  .compose-field {
-    display: grid;
-    gap: 8px;
-  }
-
-  .field-label {
-    font-size: 12px;
-    letter-spacing: 0.08em;
-    color: var(--text-3);
-    text-transform: uppercase;
-  }
-
-  .compose-textarea {
-    min-height: 120px;
-    resize: vertical;
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--line);
-    background: var(--surface-2);
-    padding: 14px;
-  }
-
-  .checkout-card {
-    margin: 0 18px 18px;
-  }
-
-  .checkout-card ul {
-    margin: 10px 0 0;
-    padding-left: 18px;
-    color: var(--text-2);
-  }
-
-  .reader-card {
-    margin: 0 18px 18px;
-    overflow: hidden;
-  }
-
-  .reader-hero {
-    height: 210px;
-  }
-
-  .reader-body {
-    padding: 18px;
-    font-size: 15px;
-  }
-
-  .toast {
-    position: fixed;
-    left: 50%;
-    bottom: 96px;
-    transform: translateX(-50%) translateY(20px);
-    min-width: 220px;
-    max-width: calc(100vw - 32px);
-    padding: 13px 16px;
-    border-radius: 999px;
-    background: rgba(15, 12, 10, 0.92);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    color: var(--text);
-    text-align: center;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.2s, transform 0.2s;
-    z-index: 60;
-  }
-
-  .toast.show {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0);
-  }
-
-  .visually-hidden {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    border: 0;
-  }
-
-  @media (max-width: 390px) {
-    .screen {
-      padding-inline: 16px;
-    }
-
-    .product-grid,
-    .vault-grid {
-      grid-template-columns: 1fr;
-    }
-  }
 </style>
 </head>
 <body>
-<div class="app-shell">
-  <header class="header">
-    <div class="header-row">
-      <div class="brand">
-        <div class="brand-mark">V<span>.</span>ault</div>
-        <div class="brand-copy">Collect, read, and download digital work</div>
-      </div>
-      <div class="header-actions">
-        <button class="icon-button" type="button" aria-label="Search the catalog" onclick="focusSearch()">
-          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"></circle><line x1="16.65" y1="16.65" x2="21" y2="21"></line></svg>
-        </button>
-        <button class="icon-button" type="button" aria-label="Open cart" onclick="openCart()">
-          <svg viewBox="0 0 24 24"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg>
-          <span class="badge" id="cartBadge">0</span>
-        </button>
-      </div>
+<div class="phone">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="logo">V<span>.</span>ault</div>
+    <div class="header-icons">
+      <button class="icon-btn" onclick="showSearch()">
+        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="22" y2="22"/></svg>
+      </button>
+      <button class="icon-btn" onclick="showCart()">
+        <svg viewBox="0 0 24 24"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
+        <div class="cart-badge" id="cartBadge">0</div>
+      </button>
     </div>
-    <nav class="segmented-nav" aria-label="Primary sections">
-      <button class="nav-button active" data-screen="shop" type="button" onclick="switchScreen('shop')">Shop</button>
-      <button class="nav-button" data-screen="feed" type="button" onclick="switchScreen('feed')">Feed <span class="nav-pill" id="feedNavPill">3</span></button>
-      <button class="nav-button" data-screen="vault" type="button" onclick="switchScreen('vault')">My Vault</button>
-      <button class="nav-button" data-screen="profile" type="button" onclick="switchScreen('profile')">Profile</button>
-    </nav>
-  </header>
+  </div>
 
-  <main>
-    <section class="screen active" id="screen-shop">
-      <div class="hero">
-        <div class="eyebrow" id="greetingLabel">Good evening</div>
+  <!-- TAB BAR -->
+  <div class="tab-bar">
+    <div class="tab active" onclick="switchTab('home', this)">Shop</div>
+    <div class="tab" onclick="switchTab('feed', this)">Feed <span class="tab-badge">3</span></div>
+    <div class="tab" onclick="switchTab('collection', this)">My Vault</div>
+    <div class="tab" onclick="switchTab('creators', this)">Creators</div>
+  </div>
+
+  <div class="scroll-main">
+
+    <!-- ═══════════ SHOP PAGE ═══════════ -->
+    <div class="page active" id="page-home">
+
+      <div class="greeting">
+        <p>Good evening</p>
         <h1>Discover <em>digital</em><br>masterworks.</h1>
-        <p>Browse collectible art, working ebooks, and production-ready creative tools in one polished storefront.</p>
       </div>
 
-      <div class="search-card">
-        <div class="search-input-wrap">
-          <svg viewBox="0 0 24 24" style="width:18px;height:18px;stroke:var(--text-3);fill:none;stroke-width:1.9"><circle cx="11" cy="11" r="7"></circle><line x1="16.65" y1="16.65" x2="21" y2="21"></line></svg>
-          <input id="searchInput" type="search" placeholder="Search art, books, tools..." oninput="filterProducts()">
-        </div>
-        <div class="chips" id="categoryChips"></div>
-      </div>
-
-      <div class="stats-grid">
-        <div class="stats-card">
-          <strong id="statsProducts">0</strong>
-          <span>Products</span>
-        </div>
-        <div class="stats-card">
-          <strong id="statsCollected">0</strong>
-          <span>Collected</span>
-        </div>
-        <div class="stats-card">
-          <strong id="statsCreators">0</strong>
-          <span>Creators</span>
+      <div class="search-wrap">
+        <div class="search">
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="22" y2="22"/></svg>
+          <input type="text" placeholder="Search art, books, tools…" id="searchInput" oninput="filterProducts()">
         </div>
       </div>
 
-      <div class="section">
+      <div class="cats-wrap">
+        <div class="cats-label">Browse by</div>
+        <div class="cats">
+          <div class="cat active" onclick="setCategory('all', this)"><span>All</span></div>
+          <div class="cat" onclick="setCategory('art', this)"><span class="cat-dot" style="background:var(--art)"></span>Art</div>
+          <div class="cat" onclick="setCategory('ebook', this)"><span class="cat-dot" style="background:var(--ebook)"></span>Ebooks</div>
+          <div class="cat" onclick="setCategory('tool', this)"><span class="cat-dot" style="background:var(--tool)"></span>Tools</div>
+        </div>
+      </div>
+
+      <div>
         <div class="section-header">
-          <div>
-            <h2 class="section-title">Featured drops</h2>
-            <div class="section-meta">Curated work with instant access after checkout.</div>
-          </div>
-          <button class="ghost-button" type="button" onclick="scrollToCatalog()">See all</button>
+          <div class="section-title">Featured</div>
+          <div class="see-all">See all →</div>
         </div>
-        <div class="featured-row" id="featuredRow"></div>
+        <div class="featured-scroll" id="featuredScroll"></div>
       </div>
 
-      <div class="section" id="catalogSection">
+      <div>
         <div class="section-header">
-          <div>
-            <h2 class="section-title">Catalog</h2>
-            <div class="section-meta" id="catalogMeta">0 items</div>
-          </div>
+          <div class="section-title">Collection</div>
+          <div id="gridCount" style="font-size:12px;color:var(--text-3)"></div>
         </div>
-        <div class="product-grid" id="productGrid"></div>
+        <div class="grid" id="productGrid"></div>
       </div>
-    </section>
 
-    <section class="screen" id="screen-feed">
-      <div class="feed-banner">
+      <div class="bottom-space"></div>
+    </div>
+
+    <!-- ═══════════ FEED PAGE ═══════════ -->
+    <div class="page" id="page-feed">
+
+      <!-- Live indicator -->
+      <div class="live-indicator">
         <span class="live-dot"></span>
-        Live creator feed with drops, launch notes, and collector discussion.
+        Live creator feed · updated just now
       </div>
 
-      <div class="compose-card">
+      <!-- Compose box -->
+      <div class="compose-box">
         <div class="compose-top">
-          <div class="avatar">YO</div>
-          <button class="compose-trigger" type="button" onclick="openCompose()">Share a launch update, a note, or a product drop...</button>
+          <div class="avatar-creator">YO</div>
+          <div class="compose-input" onclick="openCompose()">Share a drop or update…</div>
         </div>
         <div class="compose-actions">
-          <button class="secondary-button" type="button" onclick="openCompose()">New post</button>
-          <button class="ghost-button" type="button" onclick="openCompose(true)">Attach product</button>
-        </div>
-      </div>
-
-      <div class="feed-list" id="feedList"></div>
-    </section>
-
-    <section class="screen" id="screen-vault">
-      <div class="hero">
-        <div class="eyebrow">Your collection</div>
-        <h1>My <em>Vault</em></h1>
-        <p>Everything you have purchased lives here, ready to open again without re-buying.</p>
-      </div>
-
-      <div class="stats-grid">
-        <div class="stats-card">
-          <strong id="vaultBooksStat">0</strong>
-          <span>Ebooks</span>
-        </div>
-        <div class="stats-card">
-          <strong id="vaultArtStat">0</strong>
-          <span>Art</span>
-        </div>
-        <div class="stats-card">
-          <strong id="vaultToolsStat">0</strong>
-          <span>Tools</span>
-        </div>
-      </div>
-
-      <div class="section">
-        <div class="section-header">
-          <div>
-            <h2 class="section-title">Ready to open</h2>
-            <div class="section-meta">Collected items and completed downloads.</div>
-          </div>
-        </div>
-        <div class="vault-summary" id="vaultSummary"></div>
-        <div class="vault-grid" id="vaultGrid"></div>
-      </div>
-    </section>
-
-    <section class="screen" id="screen-profile">
-      <div class="hero">
-        <div class="eyebrow">Account</div>
-        <h1>Collector <em>profile</em></h1>
-        <p>View your activity, purchase history snapshot, and demo account details.</p>
-      </div>
-
-      <div class="profile-stack">
-        <div class="profile-card">
-          <div class="profile-header">
-            <div class="profile-avatar">YO</div>
-            <div>
-              <div class="profile-name">Your demo account</div>
-              <div class="profile-handle">@vault.collector</div>
-            </div>
-          </div>
-          <div class="profile-list">
-            <div class="profile-row"><span>Wishlist items</span><strong id="profileWishlistCount">0</strong></div>
-            <div class="profile-row"><span>Cart total items</span><strong id="profileCartCount">0</strong></div>
-            <div class="profile-row"><span>Feed posts published</span><strong id="profilePostCount">0</strong></div>
-          </div>
-        </div>
-
-        <div class="profile-card">
-          <strong>How this build works</strong>
-          <p class="muted">This is a fully interactive single-file product demo. Cart, vault, wishlist, comments, and custom posts persist in local storage on this device.</p>
-        </div>
-
-        <div class="profile-card">
-          <strong>Quick actions</strong>
-          <div class="compose-actions" style="margin-top:12px">
-            <button class="secondary-button" type="button" onclick="openCheckout()">Checkout</button>
-            <button class="ghost-button" type="button" onclick="switchScreen('vault')">Open vault</button>
-            <button class="ghost-button" type="button" onclick="resetDemo()">Reset demo data</button>
-          </div>
-        </div>
-      </div>
-    </section>
-  </main>
-</div>
-
-<nav class="bottom-nav" aria-label="Bottom navigation">
-  <div class="bottom-nav-inner">
-    <button class="tabbar-button active" type="button" data-screen="shop" onclick="switchScreen('shop')">
-      <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"></path><path d="M9 22V12h6v10"></path></svg>
-      <span class="tabbar-label">Shop</span>
-    </button>
-    <button class="tabbar-button" type="button" data-screen="feed" onclick="switchScreen('feed')">
-      <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z"></path></svg>
-      <span class="tabbar-label">Feed</span>
-    </button>
-    <button class="tabbar-button" type="button" data-screen="vault" onclick="switchScreen('vault')">
-      <svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2Z"></path></svg>
-      <span class="tabbar-label">Vault</span>
-    </button>
-    <button class="tabbar-button" type="button" data-screen="profile" onclick="switchScreen('profile')">
-      <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
-      <span class="tabbar-label">Profile</span>
-    </button>
-  </div>
-</nav>
-
-<div class="modal-scrim" id="modalScrim" onclick="closeActiveModal()"></div>
-
-<div class="modal" id="detailModal" aria-hidden="true">
-  <div class="modal-card">
-    <div class="overlay-scroll">
-      <div class="overlay-visual" id="detailVisualWrap">
-        <canvas id="detailCanvas" style="width:100%;height:100%;display:block"></canvas>
-      </div>
-      <div class="overlay-body">
-        <div class="modal-header" style="padding:0 16px 0">
-          <div>
-            <div class="eyebrow" id="detailEyebrow">Product</div>
-            <h2 class="overlay-title" id="detailTitle"></h2>
-          </div>
-          <button class="close-button" type="button" aria-label="Close details" onclick="closeDetail()">
-            <svg viewBox="0 0 24 24"><line x1="6" y1="6" x2="18" y2="18"></line><line x1="18" y1="6" x2="6" y2="18"></line></svg>
+          <button class="compose-action-btn" onclick="openCompose()">
+            <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+            Image
+          </button>
+          <button class="compose-action-btn" onclick="openCompose()">
+            <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            PDF
+          </button>
+          <button class="compose-action-btn" onclick="openCompose()">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+            Product
           </button>
         </div>
-        <div class="overlay-body" style="padding-top:10px">
-          <p class="detail-copy" id="detailDescription"></p>
-          <div class="meta-strip" id="detailMetaStrip"></div>
-          <div class="detail-list">
-            <div class="detail-row"><span>Format</span><span id="detailFormat"></span></div>
-            <div class="detail-row"><span>Rating</span><span id="detailRating"></span></div>
-            <div class="detail-row"><span>Access</span><span id="detailAccess"></span></div>
-            <div class="detail-row"><span>Creator</span><span id="detailCreator"></span></div>
-          </div>
-          <div class="overlay-actions">
-            <button class="primary-button" id="detailPrimaryButton" type="button" onclick="handlePrimaryDetailAction()">Collect</button>
-            <button class="secondary-button" id="detailWishlistButton" type="button" onclick="toggleWishlistFromDetail()">Save</button>
-          </div>
+      </div>
+
+      <!-- Posts -->
+      <div class="feed-list" id="feedList"></div>
+      <div class="bottom-space"></div>
+    </div>
+
+    <!-- ═══════════ VAULT PAGE ═══════════ -->
+    <div class="page" id="page-collection">
+      <div class="greeting">
+        <p>Your collection</p>
+        <h1>My <em>Vault</em></h1>
+      </div>
+      <div style="padding:20px;">
+        <div style="background:var(--surface-2);border:1px solid var(--surface-3);border-radius:var(--r);padding:20px;text-align:center;color:var(--text-3);" id="vaultContent">
+          <div style="font-size:32px;margin-bottom:12px;">◉</div>
+          <div style="font-size:14px;margin-bottom:6px;color:var(--text-2);">Your vault is empty</div>
+          <div style="font-size:12px;">Collect items to see them here</div>
+        </div>
+        <div id="vaultGrid" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;"></div>
+      </div>
+      <div class="bottom-space"></div>
+    </div>
+
+    <!-- ═══════════ CREATOR CARDS TRADING PAGE ═══════════ -->
+    <div class="page" id="page-creators">
+      <div class="greeting">
+        <p>Trade creator cards</p>
+        <h1>Discover <em>creators</em></h1>
+      </div>
+
+      <div class="search-wrap">
+        <div class="search">
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="22" y2="22"/></svg>
+          <input type="text" placeholder="Search creators…" id="creatorSearchInput" oninput="filterCreators()">
         </div>
       </div>
+
+      <div class="cats-wrap">
+        <div class="cats-label">Filter by</div>
+        <div class="cats">
+          <div class="cat active" onclick="setCreatorFilter('all', this)"><span>All</span></div>
+          <div class="cat" onclick="setCreatorFilter('verified', this)"><span class="cat-dot" style="background:var(--gold)"></span>Verified</div>
+          <div class="cat" onclick="setCreatorFilter('trending', this)"><span class="cat-dot" style="background:var(--feed-accent)"></span>Trending</div>
+          <div class="cat" onclick="setCreatorFilter('hot', this)"><span class="cat-dot" style="background:var(--art)"></span>Hot</div>
+        </div>
+      </div>
+
+      <div style="padding: 20px 0;">
+        <div class="section-header">
+          <div class="section-title">Trading Pool</div>
+          <div style="font-size:12px;color:var(--text-3);" id="creatorsCount"></div>
+        </div>
+        <div class="creator-grid" id="creatorGrid"></div>
+      </div>
+
+      <div class="bottom-space"></div>
+    </div>
+
+  </div><!-- scroll-main -->
+
+  <!-- BOTTOM NAV -->
+  <div class="bottom-nav">
+    <div class="nav-item active" id="nav-home" onclick="switchTab('home', null, this)">
+      <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      <span class="nav-label">Shop</span>
+    </div>
+    <div class="nav-item" id="nav-feed" onclick="switchTab('feed', null, this)">
+      <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+      <span class="nav-label">Feed</span>
+      <div class="nav-badge">3</div>
+    </div>
+    <div class="nav-item" id="nav-collection" onclick="switchTab('collection', null, this)">
+      <svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+      <span class="nav-label">My Vault</span>
+    </div>
+    <div class="nav-item" id="nav-creators" onclick="switchTab('creators', null, this)">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M12 14c-4 0-6 3-6 3v4h12v-4s-2-3-6-3z"/></svg>
+      <span class="nav-label">Creators</span>
+      <div class="nav-badge" id="creatorsBadge" style="display:none;">2</div>
+    </div>
+  </div>
+
+</div><!-- phone -->
+
+<!-- PRODUCT OVERLAY -->
+<div class="overlay" id="overlay">
+  <div class="overlay-visual" id="overlayVisual">
+    <canvas id="overlayCanvas"></canvas>
+    <div class="overlay-close" onclick="closeOverlay()">✕</div>
+  </div>
+  <div class="overlay-content">
+    <div class="overlay-cat" id="overlayCat"></div>
+    <div class="overlay-title" id="overlayTitle"></div>
+    <div class="overlay-desc" id="overlayDesc"></div>
+    <div class="overlay-meta">
+      <div class="meta-item">
+        <span class="meta-label">Price</span>
+        <span class="meta-val" id="overlayPrice" style="color:var(--gold-light)"></span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Rating</span>
+        <span class="meta-val" id="overlayRating"></span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Format</span>
+        <span class="meta-val" id="overlayFormat"></span>
+      </div>
+    </div>
+
+    <!-- Access info block -->
+    <div class="access-info" id="overlayAccessInfo"></div>
+
+    <div class="overlay-actions">
+      <button class="btn-primary" id="overlayBuyBtn" onclick="collectOrDownload()">Collect</button>
+      <button class="btn-secondary" id="likeBtn" onclick="toggleLike()">
+        <svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
+      </button>
     </div>
   </div>
 </div>
 
-<div class="modal" id="composeModal" aria-hidden="true">
-  <div class="modal-card">
-    <div class="modal-header">
-      <div>
-        <h2 class="modal-title">New post</h2>
-        <div class="modal-copy">Share a launch note, attach a product, and publish it to the feed.</div>
+<!-- COMPOSE MODAL -->
+<div class="compose-modal" id="composeModal">
+  <div class="compose-modal-header">
+    <h2>New Drop Post</h2>
+    <div class="compose-close-btn" onclick="closeCompose()">✕</div>
+  </div>
+  <div class="compose-modal-body">
+    <div>
+      <div class="compose-field-label">Caption</div>
+      <textarea class="compose-textarea" id="composeCaption" placeholder="Tell collectors about this drop…" rows="3"></textarea>
+    </div>
+    <div>
+      <div class="compose-field-label">Attach a product</div>
+      <div class="compose-product-pick" id="composePicker"></div>
+    </div>
+  </div>
+  <button class="compose-submit-btn" onclick="submitPost()">Post to Feed</button>
+</div>
+
+<!-- CREATOR TRADING MODAL -->
+<div class="trade-modal" id="tradeModal">
+  <div class="trade-header">
+    <div>
+      <h2 id="tradeCreatorName" style="margin-bottom:4px;">Mira Kojo</h2>
+      <div style="font-size:12px;color:var(--text-3);" id="tradeCreatorHandle">@mirakojo</div>
+    </div>
+    <div class="trade-close-btn" onclick="closeTradeModal()">✕</div>
+  </div>
+  <div class="trade-content">
+    <!-- Trading Stats -->
+    <div class="trade-section">
+      <div class="trade-section-title">Trading Stats</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
+        <div style="text-align:center;">
+          <div style="font-size:20px;font-weight:700;color:var(--gold-light);margin-bottom:4px;" id="tradeFloorPrice">$4.20</div>
+          <div style="font-size:10px;color:var(--text-3);">Floor Price</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="font-size:20px;font-weight:700;color:var(--ebook);margin-bottom:4px;" id="tradeVolume24h">$84K</div>
+          <div style="font-size:10px;color:var(--text-3);">24h Vol</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="font-size:20px;font-weight:700;color:var(--art);margin-bottom:4px;" id="tradeHolders">234</div>
+          <div style="font-size:10px;color:var(--text-3);">Holders</div>
+        </div>
       </div>
-      <button class="close-button" type="button" aria-label="Close composer" onclick="closeCompose()">
-        <svg viewBox="0 0 24 24"><line x1="6" y1="6" x2="18" y2="18"></line><line x1="18" y1="6" x2="6" y2="18"></line></svg>
-      </button>
     </div>
-    <div class="modal-scroll">
-      <form class="compose-form" onsubmit="event.preventDefault(); submitPost();">
-        <div class="compose-field">
-          <label class="field-label" for="composeCaption">Caption</label>
-          <textarea class="compose-textarea" id="composeCaption" placeholder="Tell collectors what is new, what shipped, or why this drop matters."></textarea>
-        </div>
-        <div class="compose-field">
-          <label class="field-label">Attach a product</label>
-          <div class="compose-product-list" id="composeProductList"></div>
-        </div>
-        <button class="primary-button" type="submit">Post to feed</button>
-      </form>
+
+    <!-- Trading Chart (Placeholder) -->
+    <div class="trade-section">
+      <div class="trade-section-title">Price History (7d)</div>
+      <div class="trade-chart" id="tradeChartArea" onclick="showToast('Chart: coming soon')"></div>
     </div>
+
+    <!-- Buy Order -->
+    <div class="trade-section">
+      <div class="trade-section-title">💚 Place Buy Order</div>
+      <div class="trade-input-group">
+        <label class="trade-input-label">Amount</label>
+        <input type="number" class="trade-input" id="tradeAmount" placeholder="Enter amount to buy" min="0.01" step="0.01" value="1">
+      </div>
+      <div class="trade-input-group">
+        <label class="trade-input-label">Max Price</label>
+        <input type="number" class="trade-input" id="tradePrice" placeholder="Price in ETH" min="0.01" step="0.01" value="4.20">
+      </div>
+    </div>
+
+    <!-- Recent Trades -->
+    <div class="trade-section">
+      <div class="trade-section-title">Recent Trades</div>
+      <div class="trade-history" id="tradeHistory"></div>
+    </div>
+  </div>
+  <div class="trade-actions">
+    <button class="trade-btn trade-buy" onclick="executeBuyOrder()">Buy Card</button>
+    <button class="trade-btn trade-sell" onclick="executeSellOrder()">Sell Card</button>
   </div>
 </div>
 
-<div class="modal" id="checkoutModal" aria-hidden="true">
-  <div class="modal-card">
-    <div class="modal-header">
-      <div>
-        <h2 class="modal-title">Checkout</h2>
-        <div class="modal-copy">Finish your purchase and unlock the items in your vault right away.</div>
-      </div>
-      <button class="close-button" type="button" aria-label="Close checkout" onclick="closeCheckout()">
-        <svg viewBox="0 0 24 24"><line x1="6" y1="6" x2="18" y2="18"></line><line x1="18" y1="6" x2="6" y2="18"></line></svg>
-      </button>
-    </div>
-    <div class="modal-scroll">
-      <div class="checkout-card">
-        <div class="overlay-body">
-          <strong>Order summary</strong>
-          <div class="checkout-summary" style="margin-top:12px"><span>Items</span><strong id="checkoutItemCount">0</strong></div>
-          <div class="checkout-summary"><span>Total</span><strong id="checkoutTotal">$0</strong></div>
-          <ul id="checkoutItems"></ul>
-        </div>
-      </div>
-      <form class="checkout-form" onsubmit="event.preventDefault(); completeCheckout();">
-        <div class="checkout-field">
-          <label class="field-label" for="checkoutName">Full name</label>
-          <div class="checkout-input"><input id="checkoutName" type="text" placeholder="Collector name"></div>
-        </div>
-        <div class="checkout-field">
-          <label class="field-label" for="checkoutEmail">Email</label>
-          <div class="checkout-input"><input id="checkoutEmail" type="email" placeholder="collector@example.com"></div>
-        </div>
-        <div class="checkout-field">
-          <label class="field-label" for="checkoutCard">Card</label>
-          <div class="checkout-input"><input id="checkoutCard" type="text" inputmode="numeric" placeholder="4242 4242 4242 4242"></div>
-        </div>
-        <button class="primary-button" type="submit">Complete purchase</button>
-      </form>
-    </div>
-  </div>
-</div>
-
-<div class="modal" id="readerModal" aria-hidden="true">
-  <div class="modal-card">
-    <div class="modal-header">
-      <div>
-        <h2 class="modal-title" id="readerTitle">Reader</h2>
-        <div class="modal-copy" id="readerSubtitle">Open your collected item.</div>
-      </div>
-      <button class="close-button" type="button" aria-label="Close reader" onclick="closeReader()">
-        <svg viewBox="0 0 24 24"><line x1="6" y1="6" x2="18" y2="18"></line><line x1="18" y1="6" x2="6" y2="18"></line></svg>
-      </button>
-    </div>
-    <div class="modal-scroll">
-      <div class="reader-card">
-        <div class="reader-hero">
-          <canvas id="readerCanvas" style="width:100%;height:100%;display:block"></canvas>
-        </div>
-        <div class="reader-body" id="readerBody"></div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<div class="drawer-scrim" id="drawerScrim" onclick="closeCart()"></div>
-<aside class="drawer-shell" id="cartDrawer" aria-hidden="true">
-  <div class="drawer">
-    <div class="drawer-header">
-      <div>
-        <h2 class="drawer-title">Your cart</h2>
-        <div class="drawer-note">Add items now and complete checkout when ready.</div>
-      </div>
-      <button class="close-button" type="button" aria-label="Close cart" onclick="closeCart()">
-        <svg viewBox="0 0 24 24"><line x1="6" y1="6" x2="18" y2="18"></line><line x1="18" y1="6" x2="6" y2="18"></line></svg>
-      </button>
-    </div>
-    <div class="drawer-body">
-      <div class="cart-list" id="cartList"></div>
-    </div>
-    <div class="drawer-footer">
-      <div class="checkout-summary"><span>Subtotal</span><strong id="cartSubtotal">$0</strong></div>
-      <button class="primary-button" type="button" onclick="openCheckout()">Checkout</button>
-    </div>
-  </div>
-</aside>
-
+<!-- TOAST -->
 <div class="toast" id="toast"></div>
 
 <script>
-const STORAGE_KEY = "vault-product-state-v1";
-
+// ═══════════════════════════════════════════
+// DATA
+// ═══════════════════════════════════════════
 const products = [
-  {
-    id: 1,
-    cat: "art",
-    name: "Neon Dreams",
-    sub: "Digital art print series",
-    price: 24,
-    rating: 4.9,
-    format: "PNG / SVG",
-    featured: true,
-    creator: "Mira Kojo",
-    desc: "A set of twelve electric city prints rendered at large print-ready resolution with clean vector companions for layout work.",
-    accessType: "collect",
-    accessNote: "Collected in-app and ready to reopen from your vault.",
-    palette: ["#ff3366", "#ff9f63", "#190d1a", "#7d39ff", "#ffd3ae"],
-    style: "neon",
-    readerText: "This collected art pack includes layered PNG exports, sharp SVG assets, and a curation note from the artist about color rhythm and pacing."
-  },
-  {
-    id: 2,
-    cat: "ebook",
-    name: "Design Systems",
-    sub: "The complete field guide",
-    price: 12,
-    rating: 4.8,
-    format: "PDF / EPUB",
-    featured: true,
-    creator: "Ade Osei",
-    desc: "A practical handbook for teams building scalable systems, with chapters on tokens, audits, migration, component API design, and documentation rituals.",
-    accessType: "collect",
-    accessNote: "Available inside your vault reader immediately after checkout.",
-    palette: ["#153f2d", "#2d8a61", "#0c1f17", "#5fd3a0", "#def6ea"],
-    style: "book",
-    readerText: "Chapter 1 starts by defining consistency debt, then walks through token governance, rollout sequencing, and team agreement templates."
-  },
-  {
-    id: 3,
-    cat: "tool",
-    name: "ColorSage Pro",
-    sub: "Intelligent palette generator",
-    price: 29,
-    rating: 4.7,
-    format: "Web App License",
-    featured: true,
-    creator: "Nadia Studio",
-    desc: "Generate accessible palettes, export to CSS and Figma variables, and analyze contrast pairings with a workflow built for product teams.",
-    accessType: "download",
-    accessNote: "Unlocks a downloadable license and setup checklist.",
-    palette: ["#0d2137", "#2e5f99", "#081220", "#6ba1e6", "#d7e6fb"],
-    style: "tool",
-    readerText: "Your download includes setup instructions, a license key pattern for demos, and a quick-start workflow for palette generation."
-  },
-  {
-    id: 4,
-    cat: "art",
-    name: "Abstract Void",
-    sub: "Generative motion series",
-    price: 38,
-    rating: 5.0,
-    format: "PNG / MP4",
-    featured: false,
-    creator: "Mira Kojo",
-    desc: "A generative set exploring negative space, with stills for print and motion loops for ambient gallery playback.",
-    accessType: "collect",
-    accessNote: "Stored in your vault as collected media.",
-    palette: ["#060606", "#2d2d2d", "#f0e1bf", "#9b8b77", "#ffffff"],
-    style: "abstract",
-    readerText: "Each piece ships with a still composition and a loopable motion export suited for installations or presentation backgrounds."
-  },
-  {
-    id: 5,
-    cat: "ebook",
-    name: "The Creative Mind",
-    sub: "Psychology of art",
-    price: 9,
-    rating: 4.6,
-    format: "PDF / EPUB",
-    featured: false,
-    creator: "Ade Osei",
-    desc: "An essay-rich reading experience covering flow states, creative recovery, attention, and long-form making rituals.",
-    accessType: "collect",
-    accessNote: "Readable in-app from the vault.",
-    palette: ["#2b1b0f", "#6f4b24", "#1a120c", "#c69963", "#f0ddbb"],
-    style: "book2",
-    readerText: "The opening section explores the distance between inspiration and repeatable practice, with short reflective prompts after each chapter."
-  },
-  {
-    id: 6,
-    cat: "tool",
-    name: "FontVault",
-    sub: "Typography library",
-    price: 19,
-    rating: 4.8,
-    format: "Desktop App",
-    featured: false,
-    creator: "Tunde W.",
-    desc: "Browse premium type pairings, preview them in a specimen view, and export implementation-ready CSS declarations.",
-    accessType: "download",
-    accessNote: "Download package plus onboarding checklist.",
-    palette: ["#1f1432", "#4a2f80", "#11091b", "#b98df5", "#e6d6ff"],
-    style: "font",
-    readerText: "This tool package includes a downloadable bundle and a setup guide describing installation, pairing suggestions, and export modes."
-  },
-  {
-    id: 7,
-    cat: "art",
-    name: "Urban Decay",
-    sub: "Photo collection",
-    price: 18,
-    rating: 4.5,
-    format: "JPEG / TIFF",
-    featured: false,
-    creator: "Mira Kojo",
-    desc: "Sixty documentary photographs of weathered structures, tuned for prints, editorial layouts, and reference boards.",
-    accessType: "collect",
-    accessNote: "Collected in your gallery vault.",
-    palette: ["#21150e", "#463422", "#6f5639", "#c49c72", "#f2e2cc"],
-    style: "photo",
-    readerText: "Collected files include print-ready stills and a short note on framing choices, texture preservation, and documentary sequencing."
-  },
-  {
-    id: 8,
-    cat: "tool",
-    name: "PixelFlow",
-    sub: "Animation toolkit",
-    price: 45,
-    rating: 4.9,
-    format: "Plugin + Files",
-    featured: false,
-    creator: "Tunde W.",
-    desc: "A motion system toolkit with easing presets, sequence planning templates, and export helpers for handoff to production.",
-    accessType: "download",
-    accessNote: "Download externally after purchase.",
-    palette: ["#0c1c2d", "#17567f", "#06131e", "#49abdf", "#cdeefe"],
-    style: "motion",
-    readerText: "You will receive a plugin bundle, motion cheat sheet, and a concise guide for integrating presets into design workflows."
-  },
-  {
-    id: 9,
-    cat: "ebook",
-    name: "Code and Craft",
-    sub: "Dev meets design",
-    price: 15,
-    rating: 4.7,
-    format: "PDF / EPUB",
-    featured: false,
-    creator: "Nadia Studio",
-    desc: "A handbook for design engineers covering CSS systems, animation, component polish, and the taste required to ship elegant interfaces.",
-    accessType: "collect",
-    accessNote: "Opens from your vault after purchase.",
-    palette: ["#102112", "#214f24", "#09130a", "#51b455", "#d8f5d8"],
-    style: "book3",
-    readerText: "This guide walks through taste-driven implementation decisions, from spacing systems to motion restraint and UI review checklists."
-  }
+  { id:1, cat:'art', name:'Neon Dreams', sub:'Digital art print series', price:24, rating:'4.9', format:'PNG / SVG', featured:true,
+    desc:'A stunning collection of 12 high-resolution neon-inspired digital prints. Each piece captures the pulse of the electric city, rendered at 6000×6000px.',
+    palette:['#FF3366','#FF6B9D','#1A0A1A','#8B00FF','#4B0082'], style:'neon',
+    // art & PDF → collect in-app. Tools → download externally
+    accessType:'collect', accessNote:'Image files collected in your Vault' },
+  { id:2, cat:'ebook', name:'Design Systems', sub:'The complete field guide', price:12, rating:'4.8', format:'PDF / EPUB', featured:true,
+    desc:'A comprehensive 340-page guide to building scalable design systems from scratch. Covers tokens, components, documentation, and team workflows.',
+    palette:['#0F4C2A','#1A7A4A','#0A2A18','#2EA86A','#E8F5EE'], style:'book',
+    accessType:'collect', accessNote:'PDF opens inside your Vault reader' },
+  { id:3, cat:'tool', name:'ColorSage Pro', sub:'Intelligent palette generator', price:29, rating:'4.7', format:'Web App', featured:true,
+    desc:'Generate harmonious color palettes using perceptual color science. Export to Figma, CSS, Tailwind or Adobe Swatch with one click. Lifetime license.',
+    palette:['#1A2A4A','#2A4A8A','#0A1525','#4A7ACC','#B8D4FF'], style:'tool',
+    accessType:'download', accessNote:'Download & install outside app' },
+  { id:4, cat:'art', name:'Abstract Void', sub:'Generative series', price:38, rating:'5.0', format:'PNG / MP4',
+    desc:'Ten pieces of generative art exploring negative space. Each work is algorithmically unique with an animated version included.',
+    palette:['#0A0A0A','#2A2A2A','#F0E8D0','#888070','#FFFFFF'], style:'abstract',
+    accessType:'collect', accessNote:'Images & video collected in Vault' },
+  { id:5, cat:'ebook', name:'The Creative Mind', sub:'Psychology of art', price:9, rating:'4.6', format:'PDF / EPUB',
+    desc:'Explore the neuroscience and philosophy behind creative thinking — how artists, writers, and makers produce their best work.',
+    palette:['#2A1A0A','#5A3A1A','#8A6030','#C09060','#F0D8A8'], style:'book2',
+    accessType:'collect', accessNote:'PDF opens inside your Vault reader' },
+  { id:6, cat:'tool', name:'FontVault', sub:'Typography library', price:19, rating:'4.8', format:'Desktop App',
+    desc:'800+ premium typefaces with instant preview, pairing suggestions, and one-click export to Figma or CSS @font-face declarations.',
+    palette:['#1A1030','#2A1A50','#4A3080','#8A60C0','#D0B0F0'], style:'font',
+    accessType:'download', accessNote:'Download & install outside app' },
+  { id:7, cat:'art', name:'Urban Decay', sub:'Photo collection', price:18, rating:'4.5', format:'JPEG / TIFF',
+    desc:'60 high-resolution documentary photographs capturing the beauty of forgotten urban spaces. Print-ready up to 60×40 inches.',
+    palette:['#1A1008','#3A2A18','#6A5030','#C0A080','#F0E0C0'], style:'photo',
+    accessType:'collect', accessNote:'Images collected in your Vault' },
+  { id:8, cat:'tool', name:'PixelFlow', sub:'Animation toolkit', price:45, rating:'4.9', format:'Plugin + Files',
+    desc:'200+ Figma-ready animation presets, timing curve editor, and an After Effects export bridge for seamless handoff.',
+    palette:['#0A1A2A','#0A3A5A','#1A6A9A','#40A0D0','#A0D8F0'], style:'motion',
+    accessType:'download', accessNote:'Download plugin & files outside app' },
+  { id:9, cat:'ebook', name:'Code & Craft', sub:'Dev meets design', price:15, rating:'4.7', format:'PDF / EPUB',
+    desc:'The essential handbook for developer-designers: CSS art, SVG animation, and design engineering in one practical guide.',
+    palette:['#0A180A','#0A3A0A','#1A6A1A','#40A040','#A0D8A0'], style:'book3',
+    accessType:'collect', accessNote:'PDF opens inside your Vault reader' }
 ];
 
+// Creator personas
 const creators = [
-  { initials: "MK", name: "Mira Kojo", badge: true, color: "#d15b45" },
-  { initials: "AO", name: "Ade Osei", badge: true, color: "#2f9c7f" },
-  { initials: "NS", name: "Nadia Studio", badge: false, color: "#4576bb" },
-  { initials: "TW", name: "Tunde W.", badge: true, color: "#8f66df" }
+  { initials:'MK', name:'Mira Kojo', handle:'@mirakojo', badge:true, color:'#C4523A', sales:340, earnings:12500, holders:128, floorPrice:4.20, volume24h:84000, verified:true, trendScore:95 },
+  { initials:'AD', name:'Ade Osei', handle:'@adeosei', badge:true, color:'#2A8C6E', sales:256, earnings:8900, holders:96, floorPrice:3.50, volume24h:62000, verified:true, trendScore:82 },
+  { initials:'NS', name:'Nadia S.', handle:'@nadiastudio', badge:false, color:'#3A6BAA', sales:189, earnings:5200, holders:67, floorPrice:2.80, volume24h:41000, verified:false, trendScore:71 },
+  { initials:'TW', name:'Tunde W.', handle:'@tunde.w', badge:true, color:'#9B6FE8', sales:412, earnings:15600, holders:156, floorPrice:5.10, volume24h:112000, verified:true, trendScore:88 },
+  { initials:'JP', name:'Jane Park', handle:'@janepark', badge:true, color:'#E8A030', sales:287, earnings:11200, holders:104, floorPrice:3.90, volume24h:78000, verified:true, trendScore:85 },
+  { initials:'MR', name:'Marco R.', handle:'@marcorobot', badge:false, color:'#FF6B9D', sales:156, earnings:4100, holders:52, floorPrice:2.50, volume24h:32000, verified:false, trendScore:65 },
 ];
 
-const defaultFeedPosts = [
-  {
-    id: 100,
-    creator: creators[0],
-    productId: 1,
-    caption: "Just dropped Neon Dreams. Collector pack includes bonus alternate color studies for early buyers.",
-    time: "Just now",
-    likes: 14,
-    likedByMe: false
-  },
-  {
-    id: 101,
-    creator: creators[1],
-    productId: 2,
-    caption: "Design Systems is live with PDF and EPUB formats. Built to be readable in one sitting or used chapter by chapter.",
-    time: "18m ago",
-    likes: 27,
-    likedByMe: false
-  },
-  {
-    id: 102,
-    creator: creators[3],
-    productId: 8,
-    caption: "PixelFlow v2 ships today with cleaner timing presets and better handoff notes for motion-heavy product teams.",
-    time: "1h ago",
-    likes: 41,
-    likedByMe: false
-  }
-];
-
-const defaultComments = {
-  100: [
-    { id: 1, user: "Kemi A.", color: "#4576bb", text: "The palette balance on this drop is excellent.", time: "2m" },
-    { id: 2, user: "Lara V.", color: "#8f66df", text: "Would love a dark print variation too.", time: "5m" }
+// Feed comments per post
+const seedComments = {
+  0: [
+    { user:'Kemi A.', color:'#3A6BAA', text:'The neon palette is insane 🔥 Already framed the first one.', time:'2m' },
+    { user:'Lara V.', color:'#9B6FE8', text:'Is there a full-res preview I can see before buying?', time:'5m' },
   ],
-  101: [
-    { id: 3, user: "Dev A.", color: "#2f9c7f", text: "The token chapters are immediately useful.", time: "12m" }
+  1: [
+    { user:'Dev A.', color:'#2A8C6E', text:'PDF reader works perfectly. Worth every cent.', time:'12m' },
   ],
-  102: [
-    { id: 4, user: "Seun B.", color: "#d15b45", text: "Downloaded already. The easing presets are sharp.", time: "1h" }
-  ]
+  2: [
+    { user:'Seun B.', color:'#C4523A', text:'Just grabbed this — the motion presets are 🤌', time:'1h' },
+    { user:'Cass T.', color:'#7A5010', text:'Does this work with Figma beta?', time:'2h' },
+    { user:'Ade Osei', color:'#2A8C6E', text:'Yes, compatible with latest Figma @Cass T.', time:'1h' },
+  ],
 };
 
-let state = {
-  activeScreen: "shop",
-  category: "all",
-  wishlist: [],
-  cart: [],
-  collected: [],
-  downloads: [],
-  feedPosts: [],
-  comments: {},
-  customPostId: 1000
-};
-
-let currentDetailId = null;
-let currentReaderId = null;
-let activeModal = null;
+// ═══════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════
+let currentCat = 'all';
+let currentCreatorFilter = 'all';
+let currentTradeCreator = null;
+let cartCount = 0;
+let currentProduct = null;
+let likedProducts = new Set();
+let collectedProducts = new Set();
+let postLikes = {};
+let postComments = {};
 let selectedComposeProduct = null;
+let feedPosts = [];
+let creatorPortfolio = {}; // { creatorId: { owned: count, avgPrice: value }}
+let tradeHistory = {}; // { creatorId: [{user, action, amount, time}, ...] }
 
-function loadState() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      resetState(false);
-      return;
+// ═══════════════════════════════════════════
+// CANVAS ART GENERATOR
+// ═══════════════════════════════════════════
+function drawArt(canvas, product, w, h) {
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  const p = product.palette;
+  ctx.fillStyle = p[2] || '#0A0A0A';
+  ctx.fillRect(0,0,w,h);
+  const s = product.style;
+
+  if (s === 'neon') {
+    for (let i=0;i<8;i++) {
+      ctx.beginPath(); ctx.strokeStyle = p[i%p.length];
+      ctx.lineWidth = 1.5+Math.random()*2; ctx.shadowColor = p[i%p.length]; ctx.shadowBlur = 12;
+      const x1=Math.random()*w,y1=Math.random()*h,x2=Math.random()*w,y2=Math.random()*h;
+      const cx=Math.random()*w,cy=Math.random()*h;
+      ctx.moveTo(x1,y1); ctx.quadraticCurveTo(cx,cy,x2,y2); ctx.stroke();
     }
-    const parsed = JSON.parse(raw);
-    state = {
-      ...state,
-      ...parsed,
-      feedPosts: Array.isArray(parsed.feedPosts) && parsed.feedPosts.length ? parsed.feedPosts : structuredClone(defaultFeedPosts),
-      comments: parsed.comments && typeof parsed.comments === "object" ? parsed.comments : structuredClone(defaultComments)
-    };
-  } catch (error) {
-    resetState(false);
-  }
-}
-
-function resetState(save = true) {
-  state = {
-    activeScreen: "shop",
-    category: "all",
-    wishlist: [],
-    cart: [],
-    collected: [],
-    downloads: [],
-    feedPosts: structuredClone(defaultFeedPosts),
-    comments: structuredClone(defaultComments),
-    customPostId: 1000
-  };
-  if (save) {
-    saveState();
-  }
-}
-
-function saveState() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-}
-
-function getProduct(productId) {
-  return products.find((product) => product.id === productId) || null;
-}
-
-function formatPrice(value) {
-  return "$" + Number(value || 0).toFixed(0);
-}
-
-function escapeHtml(value) {
-  return String(value)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
-function getCategoryLabel(cat) {
-  if (cat === "ebook") return "Ebook";
-  if (cat === "tool") return "Tool";
-  return "Art";
-}
-
-function getTypeClass(cat) {
-  return cat === "ebook" ? "type-ebook" : cat === "tool" ? "type-tool" : "type-art";
-}
-
-function getAccessLabel(product) {
-  return product.accessType === "collect" ? "Collect in vault" : "Download after purchase";
-}
-
-function getCartCount() {
-  return state.cart.reduce((sum, item) => sum + item.quantity, 0);
-}
-
-function getCartSubtotal() {
-  return state.cart.reduce((sum, item) => {
-    const product = getProduct(item.productId);
-    return sum + (product ? product.price * item.quantity : 0);
-  }, 0);
-}
-
-function isWishlisted(productId) {
-  return state.wishlist.includes(productId);
-}
-
-function isCollected(productId) {
-  return state.collected.includes(productId);
-}
-
-function isDownloaded(productId) {
-  return state.downloads.includes(productId);
-}
-
-function drawArt(canvas, product, width, height) {
-  if (!canvas || !product) return;
-  const w = width || canvas.clientWidth || 200;
-  const h = height || canvas.clientHeight || 140;
-  canvas.width = w;
-  canvas.height = h;
-  const ctx = canvas.getContext("2d");
-  const palette = product.palette;
-  ctx.clearRect(0, 0, w, h);
-  const gradient = ctx.createLinearGradient(0, 0, w, h);
-  gradient.addColorStop(0, palette[0]);
-  gradient.addColorStop(0.5, palette[1]);
-  gradient.addColorStop(1, palette[2]);
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, w, h);
-
-  if (product.style === "neon") {
-    ctx.lineWidth = 2;
-    for (let index = 0; index < 8; index += 1) {
-      ctx.strokeStyle = palette[index % palette.length];
-      ctx.shadowColor = palette[index % palette.length];
-      ctx.shadowBlur = 12;
-      ctx.beginPath();
-      ctx.moveTo(Math.random() * w, Math.random() * h);
-      ctx.quadraticCurveTo(Math.random() * w, Math.random() * h, Math.random() * w, Math.random() * h);
-      ctx.stroke();
+    ctx.shadowBlur=0;
+    for (let i=0;i<20;i++) {
+      ctx.beginPath(); ctx.fillStyle=p[i%p.length];
+      ctx.shadowColor=p[i%p.length]; ctx.shadowBlur=8;
+      ctx.arc(Math.random()*w,Math.random()*h,1+Math.random()*3,0,Math.PI*2); ctx.fill();
     }
-    ctx.shadowBlur = 0;
-  } else if (product.style.startsWith("book")) {
-    ctx.fillStyle = "rgba(255,255,255,0.08)";
-    for (let row = 0; row < 7; row += 1) {
-      ctx.fillRect(w * 0.12, 24 + row * 19, w * 0.76, 4);
+    ctx.shadowBlur=0;
+  } else if (s==='abstract') {
+    for (let i=0;i<6;i++) {
+      const x=Math.random()*w,y=Math.random()*h,r=20+Math.random()*60;
+      const grad=ctx.createRadialGradient(x,y,0,x,y,r);
+      grad.addColorStop(0,p[i%p.length]+'88'); grad.addColorStop(1,'transparent');
+      ctx.fillStyle=grad; ctx.fillRect(0,0,w,h);
     }
-    ctx.fillStyle = palette[4];
-    ctx.globalAlpha = 0.24;
-    ctx.beginPath();
-    ctx.arc(w * 0.72, h * 0.34, Math.min(w, h) * 0.22, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.globalAlpha = 1;
-  } else if (product.style === "abstract") {
-    for (let ring = 0; ring < 7; ring += 1) {
-      ctx.strokeStyle = palette[ring % palette.length];
-      ctx.globalAlpha = 0.16;
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.arc(w / 2, h / 2, 18 + ring * 20, 0, Math.PI * 2);
-      ctx.stroke();
+    ctx.strokeStyle=p[4]||'#FFF'; ctx.lineWidth=0.5; ctx.globalAlpha=0.15;
+    for (let i=0;i<5;i++) { ctx.beginPath(); ctx.arc(w/2,h/2,15+i*18,0,Math.PI*2); ctx.stroke(); }
+    ctx.globalAlpha=1;
+  } else if (s==='book'||s==='book2'||s==='book3') {
+    const grad=ctx.createLinearGradient(0,0,w,h);
+    grad.addColorStop(0,p[0]); grad.addColorStop(1,p[1]);
+    ctx.fillStyle=grad; ctx.fillRect(0,0,w,h);
+    ctx.fillStyle=p[4]||'#FFF'; ctx.globalAlpha=0.08;
+    for (let i=0;i<6;i++) ctx.fillRect(w*0.1,h*(0.15+i*0.12),w*0.8,4);
+    ctx.globalAlpha=1;
+    ctx.beginPath(); ctx.arc(w/2,h/2,Math.min(w,h)*0.22,0,Math.PI*2);
+    ctx.fillStyle=p[3]||'#888'; ctx.globalAlpha=0.3; ctx.fill(); ctx.globalAlpha=1;
+  } else if (s==='tool'||s==='font'||s==='motion') {
+    const grad=ctx.createLinearGradient(0,h,w,0);
+    grad.addColorStop(0,p[0]); grad.addColorStop(1,p[1]);
+    ctx.fillStyle=grad; ctx.fillRect(0,0,w,h);
+    ctx.strokeStyle=p[3]||'#888'; ctx.lineWidth=0.8; ctx.globalAlpha=0.3;
+    const step=Math.min(w,h)/5;
+    for (let i=0;i<w;i+=step){ctx.beginPath();ctx.moveTo(i,0);ctx.lineTo(i,h);ctx.stroke();}
+    for (let j=0;j<h;j+=step){ctx.beginPath();ctx.moveTo(0,j);ctx.lineTo(w,j);ctx.stroke();}
+    ctx.globalAlpha=1;
+    ctx.beginPath(); ctx.arc(w*0.6,h*0.4,Math.min(w,h)*0.15,0,Math.PI*2);
+    ctx.fillStyle=p[3]||'#888'; ctx.globalAlpha=0.6; ctx.fill(); ctx.globalAlpha=1;
+    ctx.beginPath(); ctx.arc(w*0.35,h*0.6,Math.min(w,h)*0.09,0,Math.PI*2);
+    ctx.fillStyle=p[4]||'#FFF'; ctx.globalAlpha=0.4; ctx.fill(); ctx.globalAlpha=1;
+  } else if (s==='photo') {
+    const grad=ctx.createLinearGradient(0,0,w,h);
+    grad.addColorStop(0,p[0]); grad.addColorStop(0.5,p[1]); grad.addColorStop(1,p[2]);
+    ctx.fillStyle=grad; ctx.fillRect(0,0,w,h);
+    ctx.strokeStyle=p[3]||'#888'; ctx.lineWidth=1; ctx.globalAlpha=0.2;
+    for(let i=0;i<4;i++){
+      const rx=w*0.1+Math.random()*w*0.4,ry=h*0.1+Math.random()*h*0.4;
+      ctx.strokeRect(rx,ry,w*0.3,h*0.3);
     }
-    ctx.globalAlpha = 1;
-  } else if (product.style === "photo") {
-    ctx.strokeStyle = "rgba(255,255,255,0.18)";
-    ctx.lineWidth = 1.2;
-    for (let frame = 0; frame < 4; frame += 1) {
-      ctx.strokeRect(18 + frame * 26, 14 + frame * 14, w * 0.44, h * 0.42);
-    }
+    ctx.globalAlpha=1;
   } else {
-    ctx.strokeStyle = "rgba(255,255,255,0.14)";
-    ctx.lineWidth = 1;
-    const step = Math.max(26, Math.floor(Math.min(w, h) / 5));
-    for (let x = 0; x <= w; x += step) {
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, h);
-      ctx.stroke();
-    }
-    for (let y = 0; y <= h; y += step) {
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(w, y);
-      ctx.stroke();
-    }
+    const grad=ctx.createLinearGradient(0,0,w,h);
+    grad.addColorStop(0,p[0]||'#1A1A1A'); grad.addColorStop(1,p[1]||'#3A3A3A');
+    ctx.fillStyle=grad; ctx.fillRect(0,0,w,h);
   }
 }
 
-function renderCategoryChips() {
-  const categories = [
-    { id: "all", label: "All", color: "var(--gold)" },
-    { id: "art", label: "Art", color: "var(--art)" },
-    { id: "ebook", label: "Ebooks", color: "var(--ebook)" },
-    { id: "tool", label: "Tools", color: "var(--tool)" }
-  ];
-
-  document.getElementById("categoryChips").innerHTML = categories.map((category) => `
-    <button
-      class="chip ${state.category === category.id ? "active" : ""}"
-      type="button"
-      onclick="setCategory('${category.id}')"
-    >
-      <span class="dot" style="background:${category.color}"></span>
-      ${escapeHtml(category.label)}
-    </button>
-  `).join("");
+// Small thumb canvas (32px)
+function drawThumb(canvas, product) {
+  drawArt(canvas, product, 32, 32);
 }
 
+// ═══════════════════════════════════════════
+// TAB SWITCHING
+// ═══════════════════════════════════════════
+function switchTab(name, tabEl, navEl) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+
+  document.getElementById('page-'+name).classList.add('active');
+  if (tabEl) tabEl.classList.add('active');
+  if (navEl) navEl.classList.add('active');
+  else document.getElementById('nav-'+name)?.classList.add('active');
+
+  // Match tab bar if called from nav
+  const tabs = document.querySelectorAll('.tab');
+  if (name==='home') tabs[0].classList.add('active');
+  else if (name==='feed') tabs[1].classList.add('active');
+  else if (name==='collection') tabs[2].classList.add('active');
+  else if (name==='creators') tabs[3].classList.add('active');
+
+  // Render creators page if switching to it
+  if (name === 'creators') {
+    setTimeout(() => renderCreators(), 50);
+  }
+
+  document.querySelector('.scroll-main').scrollTo({top:0});
+}
+
+// ═══════════════════════════════════════════
+// SHOP — FEATURED + GRID
+// ═══════════════════════════════════════════
 function renderFeatured() {
-  const featured = products.filter((product) => product.featured);
-  const container = document.getElementById("featuredRow");
-  container.innerHTML = featured.map((product) => `
-    <article class="featured-card">
-      <button type="button" style="all:unset;display:block;width:100%;cursor:pointer" onclick="openDetail(${product.id})">
-        <div class="featured-visual">
-          <canvas id="featuredCanvas${product.id}" style="width:100%;height:100%;display:block"></canvas>
-          <span class="type-tag ${getTypeClass(product.cat)}">${escapeHtml(getCategoryLabel(product.cat))}</span>
-          <span class="price-chip">${formatPrice(product.price)}</span>
-        </div>
-        <div class="featured-body">
-          <h3 class="featured-title">${escapeHtml(product.name)}</h3>
-          <p class="subtle">${escapeHtml(product.sub)}</p>
-          <div class="featured-footer">
-            <span class="subtle">Rating ${product.rating}</span>
-            <button class="inline-button" type="button" aria-label="Add ${escapeHtml(product.name)} to cart" onclick="event.stopPropagation(); addToCart(${product.id}, 1)">
-              <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-            </button>
-          </div>
-        </div>
-      </button>
-    </article>
-  `).join("");
-
-  requestAnimationFrame(() => {
-    featured.forEach((product) => drawArt(document.getElementById("featuredCanvas" + product.id), product, 286, 180));
-  });
-}
-
-function getFilteredProducts() {
-  const query = document.getElementById("searchInput").value.trim().toLowerCase();
-  return products.filter((product) => {
-    const categoryMatch = state.category === "all" || product.cat === state.category;
-    const queryMatch = !query || [product.name, product.sub, product.creator, product.desc].join(" ").toLowerCase().includes(query);
-    return categoryMatch && queryMatch;
-  });
-}
-
-function renderCatalog() {
-  const filtered = getFilteredProducts();
-  const container = document.getElementById("productGrid");
-  document.getElementById("catalogMeta").textContent = filtered.length + (filtered.length === 1 ? " item" : " items");
-  container.innerHTML = filtered.map((product) => `
-    <article class="product-card">
-      <button type="button" style="all:unset;display:block;width:100%;cursor:pointer" onclick="openDetail(${product.id})">
-        <div class="product-visual">
-          <canvas id="productCanvas${product.id}" style="width:100%;height:100%;display:block"></canvas>
-          <span class="type-tag ${getTypeClass(product.cat)}">${escapeHtml(getCategoryLabel(product.cat))}</span>
-        </div>
-        <div class="product-body">
-          <h3 class="product-title">${escapeHtml(product.name)}</h3>
-          <p class="subtle">${escapeHtml(product.sub)}</p>
-          <div class="meta-strip">
-            <span class="access-pill">${escapeHtml(product.format)}</span>
-          </div>
-          <div class="product-footer">
-            <span class="price">${formatPrice(product.price)}</span>
-            <button class="inline-button" type="button" aria-label="Add ${escapeHtml(product.name)} to cart" onclick="event.stopPropagation(); addToCart(${product.id}, 1)">
-              <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-            </button>
-          </div>
-        </div>
-      </button>
-    </article>
-  `).join("");
-
-  requestAnimationFrame(() => {
-    filtered.forEach((product) => {
-      const canvas = document.getElementById("productCanvas" + product.id);
-      if (canvas) drawArt(canvas, product, canvas.clientWidth || 180, 132);
-    });
-  });
-}
-
-function buildFeedPostHtml(post) {
-  const product = getProduct(post.productId);
-  const comments = state.comments[post.id] || [];
-  const productHtml = product ? `
-    <button class="feed-product" type="button" onclick="openDetail(${product.id})">
-      <div class="feed-product-visual">
-        <canvas id="feedCanvas${post.id}" style="width:100%;height:100%;display:block"></canvas>
+  const el = document.getElementById('featuredScroll');
+  const featured = products.filter(p => p.featured);
+  el.innerHTML = featured.map(p => `
+    <div class="feat-card" onclick="openOverlay(${p.id})">
+      <div class="feat-visual">
+        <canvas id="fc${p.id}" style="width:100%;height:100%;"></canvas>
+        <div class="feat-badge ${p.cat}">${p.cat==='ebook'?'Ebook':p.cat.charAt(0).toUpperCase()+p.cat.slice(1)}</div>
+        <div class="feat-price-badge">$${p.price}</div>
       </div>
-      <div class="post-product-row">
-        <div>
-          <div class="post-product-title">${escapeHtml(product.name)}</div>
-          <div class="subtle">${escapeHtml(product.sub)}</div>
-          <div class="meta-strip">
-            <span class="access-pill">${escapeHtml(getAccessLabel(product))}</span>
-          </div>
+      <div class="feat-info">
+        <h3>${p.name}</h3>
+        <p>${p.sub}</p>
+        <div class="feat-actions">
+          <div class="feat-rating"><span class="stars">★★★★★</span><span>${p.rating}</span></div>
+          <button class="add-btn" onclick="event.stopPropagation();addToCart(${p.id})">+</button>
         </div>
-        <div class="price">${formatPrice(product.price)}</div>
-      </div>
-    </button>
-  ` : "";
-
-  return `
-    <article class="post-card">
-      <div class="post-body">
-        <div class="post-header">
-          <div class="mini-avatar" style="background:${escapeHtml(post.creator.color)}">${escapeHtml(post.creator.initials)}</div>
-          <div class="post-meta">
-            <div class="post-author">
-              ${escapeHtml(post.creator.name)}
-              ${post.creator.badge ? '<span class="creator-pill">Creator</span>' : ""}
-            </div>
-            <div class="post-time">${escapeHtml(post.time)}</div>
-          </div>
-        </div>
-        <p class="post-copy">${escapeHtml(post.caption)}</p>
-        ${productHtml}
-        <div class="feed-actions">
-          <button class="feed-button ${post.likedByMe ? "active" : ""}" type="button" onclick="togglePostLike(${post.id})">
-            <svg viewBox="0 0 24 24"><path d="M12 21s-7-4.35-9-9.14C1.44 7.82 4.27 4 8.14 4c1.83 0 2.98.74 3.86 1.86C12.88 4.74 14.03 4 15.86 4 19.73 4 22.56 7.82 21 11.86 19 16.65 12 21 12 21Z"></path></svg>
-            ${post.likes}
-          </button>
-          <button class="feed-button" type="button" onclick="focusComment(${post.id})">
-            <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z"></path></svg>
-            ${comments.length}
-          </button>
-          <button class="feed-button" type="button" onclick="${product ? `openDetail(${product.id})` : `showToast('This post has no product attached.')`}">
-            <svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2Z"></path></svg>
-            ${product ? (isCollected(product.id) || isDownloaded(product.id) ? "Open" : "View") : "Post"}
-          </button>
-          <button class="feed-button" type="button" onclick="sharePost(${post.id})">
-            <svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>
-            Share
-          </button>
-        </div>
-        <div class="comments" id="commentList${post.id}">
-          ${comments.map(buildCommentHtml).join("")}
-          <div class="comment-entry">
-            <input id="commentInput${post.id}" type="text" placeholder="Add a comment..." onkeydown="if(event.key==='Enter'){ event.preventDefault(); submitComment(${post.id}); }">
-            <button class="send-button" type="button" aria-label="Send comment" onclick="submitComment(${post.id})">
-              <svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
-            </button>
-          </div>
-        </div>
-      </div>
-    </article>
-  `;
-}
-
-function buildCommentHtml(comment) {
-  const initials = comment.user.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase();
-  return `
-    <div class="comment">
-      <div class="comment-avatar" style="background:${escapeHtml(comment.color)}">${escapeHtml(initials)}</div>
-      <div class="comment-bubble">
-        <div class="comment-author">${escapeHtml(comment.user)}</div>
-        <div>${escapeHtml(comment.text)}</div>
-        <div class="comment-time">${escapeHtml(comment.time)}</div>
       </div>
     </div>
-  `;
+  `).join('');
+  setTimeout(() => featured.forEach(p => { const c=document.getElementById('fc'+p.id); if(c) drawArt(c,p,260,160); }), 10);
 }
 
-function renderFeed() {
-  const container = document.getElementById("feedList");
-  container.innerHTML = state.feedPosts.map(buildFeedPostHtml).join("");
-  document.getElementById("feedNavPill").textContent = String(state.feedPosts.length);
-
-  requestAnimationFrame(() => {
-    state.feedPosts.forEach((post) => {
-      const product = getProduct(post.productId);
-      if (!product) return;
-      const canvas = document.getElementById("feedCanvas" + post.id);
-      if (canvas) drawArt(canvas, product, canvas.clientWidth || 360, 196);
-    });
-  });
-}
-
-function renderVault() {
-  const summary = document.getElementById("vaultSummary");
-  const grid = document.getElementById("vaultGrid");
-  const items = [...new Set([...state.collected, ...state.downloads])]
-    .map(getProduct)
-    .filter(Boolean);
-
-  if (!items.length) {
-    summary.innerHTML = `
-      <div class="vault-empty card">
-        <div class="vault-empty-icon">V</div>
-        <h2>Your <em>Vault</em> is empty</h2>
-        <p class="muted">Collect an ebook, art pack, or creative tool and it will appear here right after checkout.</p>
-        <div class="compose-actions" style="justify-content:center;margin-top:14px">
-          <button class="primary-button" type="button" onclick="switchScreen('shop')">Browse products</button>
+function renderGrid(filtered) {
+  const arr = filtered || products;
+  const el = document.getElementById('productGrid');
+  document.getElementById('gridCount').textContent = arr.length + ' items';
+  el.innerHTML = arr.map(p => `
+    <div class="prod-card" onclick="openOverlay(${p.id})">
+      <div class="prod-visual">
+        <canvas id="pc${p.id}" style="width:100%;height:100%;"></canvas>
+        <div class="prod-type ${p.cat}">${p.cat==='art'?'✦':p.cat==='ebook'?'◉':'▲'}</div>
+      </div>
+      <div class="prod-info">
+        <h3>${p.name}</h3>
+        <p>${p.sub}</p>
+        <div class="prod-footer">
+          <span class="prod-price">$${p.price}</span>
+          <button class="prod-add" onclick="event.stopPropagation();addToCart(${p.id})">+</button>
         </div>
       </div>
-    `;
-    grid.innerHTML = "";
-  } else {
-    summary.innerHTML = "";
-    grid.innerHTML = items.map((product) => `
-      <article class="vault-card">
-        <button type="button" style="all:unset;display:block;width:100%;cursor:pointer" onclick="openReader(${product.id})">
-          <div class="vault-visual">
-            <canvas id="vaultCanvas${product.id}" style="width:100%;height:100%;display:block"></canvas>
-            <span class="type-tag ${getTypeClass(product.cat)}">${escapeHtml(getCategoryLabel(product.cat))}</span>
-          </div>
-          <div class="vault-body">
-            <h3 class="vault-title">${escapeHtml(product.name)}</h3>
-            <p class="subtle">${escapeHtml(product.accessType === "collect" ? "Open in Vault" : "Download package available")}</p>
-            <div class="vault-footer">
-              <span class="access-pill">${escapeHtml(product.format)}</span>
-              <span class="price">${product.accessType === "collect" ? "Open" : "Download"}</span>
-            </div>
-          </div>
-        </button>
-      </article>
-    `).join("");
-
-    requestAnimationFrame(() => {
-      items.forEach((product) => {
-        const canvas = document.getElementById("vaultCanvas" + product.id);
-        if (canvas) drawArt(canvas, product, canvas.clientWidth || 180, 132);
-      });
-    });
-  }
-
-  document.getElementById("vaultBooksStat").textContent = String(items.filter((item) => item.cat === "ebook").length);
-  document.getElementById("vaultArtStat").textContent = String(items.filter((item) => item.cat === "art").length);
-  document.getElementById("vaultToolsStat").textContent = String(items.filter((item) => item.cat === "tool").length);
+    </div>
+  `).join('');
+  setTimeout(() => arr.forEach(p => { const c=document.getElementById('pc'+p.id); if(c) drawArt(c,p,c.offsetWidth||160,120); }), 10);
 }
 
-function renderProfile() {
-  document.getElementById("profileWishlistCount").textContent = String(state.wishlist.length);
-  document.getElementById("profileCartCount").textContent = String(getCartCount());
-  const customPosts = state.feedPosts.filter((post) => post.creator.name === "You").length;
-  document.getElementById("profilePostCount").textContent = String(customPosts);
-}
-
-function renderStats() {
-  document.getElementById("statsProducts").textContent = String(products.length);
-  document.getElementById("statsCollected").textContent = String(state.collected.length + state.downloads.length);
-  document.getElementById("statsCreators").textContent = String(creators.length);
-}
-
-function renderCart() {
-  document.getElementById("cartBadge").textContent = String(getCartCount());
-  document.getElementById("cartSubtotal").textContent = formatPrice(getCartSubtotal());
-  const list = document.getElementById("cartList");
-
-  if (!state.cart.length) {
-    list.innerHTML = `
-      <div class="empty-state">
-        Your cart is empty. Add a product from the catalog or a featured drop.
-      </div>
-    `;
-    return;
-  }
-
-  list.innerHTML = state.cart.map((item) => {
-    const product = getProduct(item.productId);
-    if (!product) return "";
-    return `
-      <div class="cart-item">
-        <canvas class="thumb" id="cartCanvas${product.id}" width="64" height="64"></canvas>
-        <div>
-          <strong>${escapeHtml(product.name)}</strong>
-          <div class="subtle">${escapeHtml(product.sub)}</div>
-          <div class="qty-controls">
-            <button class="qty-button" type="button" aria-label="Decrease quantity" onclick="changeCartQuantity(${product.id}, -1)">-</button>
-            <span>${item.quantity}</span>
-            <button class="qty-button" type="button" aria-label="Increase quantity" onclick="changeCartQuantity(${product.id}, 1)">+</button>
-          </div>
-        </div>
-        <div style="text-align:right">
-          <div class="price">${formatPrice(product.price * item.quantity)}</div>
-          <button class="ghost-button" style="min-height:34px;padding:0 10px;margin-top:10px" type="button" onclick="removeFromCart(${product.id})">Remove</button>
-        </div>
-      </div>
-    `;
-  }).join("");
-
-  requestAnimationFrame(() => {
-    state.cart.forEach((item) => {
-      const product = getProduct(item.productId);
-      if (!product) return;
-      drawArt(document.getElementById("cartCanvas" + product.id), product, 64, 64);
-    });
-  });
-}
-
-function renderComposeProducts() {
-  const container = document.getElementById("composeProductList");
-  container.innerHTML = `
-    <button class="compose-product-option ${selectedComposeProduct === null ? "selected" : ""}" type="button" onclick="selectComposeProduct(null)">
-      <div class="thumb" style="display:grid;place-items:center;color:var(--gold-2);font-weight:700">No</div>
-      <div>
-        <strong>Post without attachment</strong>
-        <div class="subtle">Share a text-only update.</div>
-      </div>
-      <div class="subtle">Optional</div>
-    </button>
-  ` + products.map((product) => `
-    <button class="compose-product-option ${selectedComposeProduct === product.id ? "selected" : ""}" type="button" onclick="selectComposeProduct(${product.id})">
-      <canvas class="thumb" id="composeCanvas${product.id}" width="64" height="64"></canvas>
-      <div>
-        <strong>${escapeHtml(product.name)}</strong>
-        <div class="subtle">${escapeHtml(product.sub)}</div>
-      </div>
-      <div class="price">${formatPrice(product.price)}</div>
-    </button>
-  `).join("");
-
-  requestAnimationFrame(() => {
-    products.forEach((product) => {
-      const canvas = document.getElementById("composeCanvas" + product.id);
-      if (canvas) drawArt(canvas, product, 64, 64);
-    });
-  });
-}
-
-function renderCheckoutSummary() {
-  const count = getCartCount();
-  const total = getCartSubtotal();
-  document.getElementById("checkoutItemCount").textContent = String(count);
-  document.getElementById("checkoutTotal").textContent = formatPrice(total);
-
-  const itemsEl = document.getElementById("checkoutItems");
-  if (!state.cart.length) {
-    itemsEl.innerHTML = "<li>Your cart is empty.</li>";
-    return;
-  }
-
-  itemsEl.innerHTML = state.cart.map((item) => {
-    const product = getProduct(item.productId);
-    if (!product) return "";
-    return `<li>${escapeHtml(product.name)} x ${item.quantity}</li>`;
-  }).join("");
-}
-
-function renderAll() {
-  renderCategoryChips();
-  renderFeatured();
-  renderCatalog();
-  renderFeed();
-  renderVault();
-  renderProfile();
-  renderStats();
-  renderCart();
-  renderCheckoutSummary();
-  updateNavigation();
-  saveState();
-}
-
-function updateNavigation() {
-  document.querySelectorAll(".screen").forEach((screen) => {
-    screen.classList.toggle("active", screen.id === "screen-" + state.activeScreen);
-  });
-  document.querySelectorAll(".nav-button, .tabbar-button").forEach((button) => {
-    button.classList.toggle("active", button.dataset.screen === state.activeScreen);
-  });
-}
-
-function switchScreen(screen) {
-  state.activeScreen = screen;
-  updateNavigation();
-  saveState();
-  window.scrollTo({ top: 0, behavior: "smooth" });
-}
-
-function setCategory(category) {
-  state.category = category;
-  renderCategoryChips();
-  renderCatalog();
-  saveState();
+function setCategory(cat, el) {
+  currentCat = cat;
+  document.querySelectorAll('.cat').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  filterProducts();
 }
 
 function filterProducts() {
-  renderCatalog();
+  const q = document.getElementById('searchInput').value.toLowerCase();
+  let arr = products;
+  if (currentCat!=='all') arr = arr.filter(p=>p.cat===currentCat);
+  if (q) arr = arr.filter(p=>p.name.toLowerCase().includes(q)||p.sub.toLowerCase().includes(q));
+  renderGrid(arr);
 }
 
-function scrollToCatalog() {
-  document.getElementById("catalogSection").scrollIntoView({ behavior: "smooth", block: "start" });
+// ═══════════════════════════════════════════
+// CART
+// ═══════════════════════════════════════════
+function addToCart(id) {
+  cartCount++;
+  document.getElementById('cartBadge').textContent = cartCount;
+  const p = products.find(x=>x.id===id);
+  showToast(`${p.name} added to cart`);
+  const badge = document.getElementById('cartBadge');
+  badge.style.transform = 'scale(1.4)';
+  setTimeout(()=>badge.style.transform='',250);
 }
+function showCart() { showToast(`${cartCount} item${cartCount!==1?'s':''} in your cart`); }
 
-function focusSearch() {
-  switchScreen("shop");
-  setTimeout(() => document.getElementById("searchInput").focus(), 100);
-}
+// ═══════════════════════════════════════════
+// PRODUCT OVERLAY
+// ═══════════════════════════════════════════
+function openOverlay(id) {
+  const p = products.find(x=>x.id===id);
+  currentProduct = p;
+  document.getElementById('overlayCat').className = 'overlay-cat '+p.cat;
+  document.getElementById('overlayCat').textContent = p.cat==='ebook'?'📚 Ebook':p.cat==='art'?'✦ Digital Art':'▲ Tool';
+  document.getElementById('overlayTitle').textContent = p.name;
+  document.getElementById('overlayDesc').textContent = p.desc;
+  document.getElementById('overlayPrice').textContent = '$'+p.price;
+  document.getElementById('overlayRating').textContent = '★ '+p.rating;
+  document.getElementById('overlayFormat').textContent = p.format;
 
-function addToCart(productId, quantity = 1) {
-  const product = getProduct(productId);
-  if (!product) return;
-  const existing = state.cart.find((item) => item.productId === productId);
-  if (existing) {
-    existing.quantity += quantity;
+  // Access info
+  const ai = document.getElementById('overlayAccessInfo');
+  const isCollect = p.accessType === 'collect';
+  if (isCollect) {
+    ai.innerHTML = `
+      <div class="access-info-title">How you get access</div>
+      <div class="access-row">
+        <div class="access-icon in-app">◉</div>
+        <span class="access-label">${p.format}</span>
+        <span class="access-mode collect">Collect in-app</span>
+      </div>
+      <div style="font-size:11px;color:var(--text-3);margin-top:8px;">${p.accessNote}</div>
+    `;
   } else {
-    state.cart.push({ productId, quantity });
+    ai.innerHTML = `
+      <div class="access-info-title">How you get access</div>
+      <div class="access-row">
+        <div class="access-icon external">▲</div>
+        <span class="access-label">${p.format}</span>
+        <span class="access-mode download">Download externally</span>
+      </div>
+      <div style="font-size:11px;color:var(--text-3);margin-top:8px;">${p.accessNote}</div>
+    `;
   }
-  renderCart();
-  renderProfile();
-  renderCheckoutSummary();
-  saveState();
-  showToast(product.name + " added to cart.");
-}
 
-function changeCartQuantity(productId, delta) {
-  const item = state.cart.find((entry) => entry.productId === productId);
-  if (!item) return;
-  item.quantity += delta;
-  if (item.quantity <= 0) {
-    state.cart = state.cart.filter((entry) => entry.productId !== productId);
+  // Button label
+  const btn = document.getElementById('overlayBuyBtn');
+  if (collectedProducts.has(id)) {
+    btn.textContent = isCollect ? 'Open in Vault →' : 'Download →';
+  } else {
+    btn.textContent = isCollect ? 'Collect — $'+p.price : 'Get & Download — $'+p.price;
   }
-  renderCart();
-  renderProfile();
-  renderCheckoutSummary();
-  saveState();
+
+  const lb = document.getElementById('likeBtn');
+  lb.className = 'btn-secondary'+(likedProducts.has(id)?' liked':'');
+
+  document.getElementById('overlay').classList.add('open');
+  const c = document.getElementById('overlayCanvas');
+  const vw = document.getElementById('overlayVisual');
+  setTimeout(()=>{
+    c.style.width='100%'; c.style.height='100%';
+    c.style.position='absolute'; c.style.top='0'; c.style.left='0';
+    drawArt(c,p,vw.offsetWidth||390,280);
+  },50);
 }
 
-function removeFromCart(productId) {
-  const product = getProduct(productId);
-  state.cart = state.cart.filter((entry) => entry.productId !== productId);
-  renderCart();
-  renderProfile();
-  renderCheckoutSummary();
-  saveState();
-  if (product) showToast(product.name + " removed from cart.");
+function closeOverlay() { document.getElementById('overlay').classList.remove('open'); }
+
+function collectOrDownload() {
+  if (!currentProduct) return;
+  const p = currentProduct;
+  const isCollect = p.accessType === 'collect';
+
+  if (collectedProducts.has(p.id)) {
+    if (isCollect) {
+      closeOverlay();
+      switchTab('collection');
+      showToast(`Opening ${p.name} in Vault…`);
+    } else {
+      showToast(`Downloading ${p.name}…`);
+    }
+    return;
+  }
+
+  // First-time acquire
+  collectedProducts.add(p.id);
+  addToCart(p.id);
+
+  if (isCollect) {
+    addToVault(p);
+    showToast(`${p.name} collected to your Vault ✓`);
+    document.getElementById('overlayBuyBtn').textContent = 'Open in Vault →';
+  } else {
+    showToast(`Download starting for ${p.name}…`);
+    document.getElementById('overlayBuyBtn').textContent = 'Download →';
+  }
 }
 
-function openCart() {
-  document.getElementById("drawerScrim").classList.add("open");
-  document.getElementById("cartDrawer").classList.add("open");
-  document.getElementById("cartDrawer").setAttribute("aria-hidden", "false");
+function toggleLike() {
+  if (!currentProduct) return;
+  const id = currentProduct.id;
+  const btn = document.getElementById('likeBtn');
+  if (likedProducts.has(id)) {
+    likedProducts.delete(id);
+    btn.classList.remove('liked');
+    showToast('Removed from saved');
+  } else {
+    likedProducts.add(id);
+    btn.classList.add('liked');
+    showToast('Saved to wishlist ♥');
+  }
 }
 
-function closeCart() {
-  document.getElementById("drawerScrim").classList.remove("open");
-  document.getElementById("cartDrawer").classList.remove("open");
-  document.getElementById("cartDrawer").setAttribute("aria-hidden", "true");
-}
-
-function openDetail(productId) {
-  const product = getProduct(productId);
-  if (!product) return;
-  currentDetailId = productId;
-  document.getElementById("detailEyebrow").textContent = getCategoryLabel(product.cat) + " by " + product.creator;
-  document.getElementById("detailTitle").textContent = product.name;
-  document.getElementById("detailDescription").textContent = product.desc;
-  document.getElementById("detailFormat").textContent = product.format;
-  document.getElementById("detailRating").textContent = String(product.rating);
-  document.getElementById("detailAccess").textContent = getAccessLabel(product);
-  document.getElementById("detailCreator").textContent = product.creator;
-  document.getElementById("detailMetaStrip").innerHTML = `
-    <span class="access-pill">${formatPrice(product.price)}</span>
-    <span class="access-pill">${escapeHtml(product.accessNote)}</span>
+// ═══════════════════════════════════════════
+// VAULT
+// ═══════════════════════════════════════════
+function addToVault(product) {
+  document.getElementById('vaultContent').style.display = 'none';
+  const vg = document.getElementById('vaultGrid');
+  const card = document.createElement('div');
+  card.className = 'prod-card';
+  card.style.cursor = 'pointer';
+  const isCollect = product.accessType === 'collect';
+  card.innerHTML = `
+    <div class="prod-visual">
+      <canvas id="vc${product.id}" style="width:100%;height:100%;"></canvas>
+      <div class="prod-type ${product.cat}">${product.cat==='art'?'✦':product.cat==='ebook'?'◉':'▲'}</div>
+    </div>
+    <div class="prod-info">
+      <h3>${product.name}</h3>
+      <p>${isCollect ? (product.cat==='ebook'?'Tap to read':'View in app') : 'Downloaded'}</p>
+      <div class="prod-footer">
+        <span class="product-action-tag ${isCollect?(product.cat==='ebook'?'tag-collect':'tag-art-collect'):'tag-download'}" style="font-size:9px;padding:2px 8px;">
+          ${isCollect?(product.cat==='ebook'?'◉ PDF':'✦ Image'):'▲ External'}
+        </span>
+      </div>
+    </div>
   `;
-
-  const primary = document.getElementById("detailPrimaryButton");
-  if (product.accessType === "collect" && isCollected(product.id)) {
-    primary.textContent = "Open in Vault";
-  } else if (product.accessType === "download" && isDownloaded(product.id)) {
-    primary.textContent = "Download Again";
-  } else if (state.cart.some((item) => item.productId === product.id)) {
-    primary.textContent = "View Cart";
-  } else {
-    primary.textContent = "Add to Cart";
-  }
-
-  const wishlistButton = document.getElementById("detailWishlistButton");
-  wishlistButton.textContent = isWishlisted(product.id) ? "Saved" : "Save";
-
-  openModal("detailModal");
-  requestAnimationFrame(() => drawArt(document.getElementById("detailCanvas"), product, document.getElementById("detailVisualWrap").clientWidth || 390, 270));
+  card.onclick = () => openOverlay(product.id);
+  vg.appendChild(card);
+  setTimeout(()=>{ const c=document.getElementById('vc'+product.id); if(c) drawArt(c,product,c.offsetWidth||160,120); },30);
 }
 
-function closeDetail() {
-  closeModal("detailModal");
-}
+// ═══════════════════════════════════════════
+// FEED
+// ═══════════════════════════════════════════
+function buildInitialFeed() {
+  feedPosts = [
+    { id:0, creator:creators[0], productId:1, caption:'Just dropped <strong>Neon Dreams</strong> — 12 prints, each one unique. Electric city series, collector edition. First 20 sales get a bonus MP4.', time:'Just now', likes:14 },
+    { id:1, creator:creators[1], productId:2, caption:'My <strong>Design Systems</strong> field guide is live. 340 pages. Everything I know about tokens, component libraries, and scale. PDF + EPUB inside your vault the moment you collect.', time:'18m ago', likes:27 },
+    { id:2, creator:creators[3], productId:8, caption:'<strong>PixelFlow v2</strong> is out. 200+ motion presets, rebuilt timing curve editor. Download it, bring it into your own setup. Motion design shouldn\'t cost this much friction.', time:'1h ago', likes:41 },
+  ];
 
-function handlePrimaryDetailAction() {
-  const product = getProduct(currentDetailId);
-  if (!product) return;
+  // Seed comments
+  Object.keys(seedComments).forEach(k => {
+    postComments[k] = seedComments[k];
+  });
+  // Seed likes
+  feedPosts.forEach(p => { postLikes[p.id] = new Set(); });
 
-  if (product.accessType === "collect" && isCollected(product.id)) {
-    closeDetail();
-    openReader(product.id);
-    return;
-  }
-
-  if (product.accessType === "download" && isDownloaded(product.id)) {
-    closeDetail();
-    openReader(product.id);
-    return;
-  }
-
-  if (state.cart.some((item) => item.productId === product.id)) {
-    closeDetail();
-    openCart();
-    return;
-  }
-
-  addToCart(product.id, 1);
-  openCart();
-  openDetail(product.id);
-}
-
-function toggleWishlistFromDetail() {
-  const product = getProduct(currentDetailId);
-  if (!product) return;
-  toggleWishlist(product.id);
-  openDetail(product.id);
-}
-
-function toggleWishlist(productId) {
-  if (isWishlisted(productId)) {
-    state.wishlist = state.wishlist.filter((id) => id !== productId);
-    showToast("Removed from wishlist.");
-  } else {
-    state.wishlist.push(productId);
-    showToast("Saved to wishlist.");
-  }
-  renderProfile();
-  saveState();
-}
-
-function openCompose(preselectProduct = false) {
-  selectedComposeProduct = preselectProduct && currentDetailId ? currentDetailId : null;
-  renderComposeProducts();
-  openModal("composeModal");
-}
-
-function closeCompose() {
-  closeModal("composeModal");
-}
-
-function selectComposeProduct(productId) {
-  selectedComposeProduct = productId;
-  renderComposeProducts();
-}
-
-function submitPost() {
-  const textarea = document.getElementById("composeCaption");
-  const caption = textarea.value.trim();
-  if (!caption) {
-    showToast("Add a caption before posting.");
-    return;
-  }
-
-  const post = {
-    id: state.customPostId,
-    creator: { initials: "YO", name: "You", badge: true, color: "#c88a2c" },
-    productId: selectedComposeProduct || null,
-    caption,
-    time: "Just now",
-    likes: 0,
-    likedByMe: false
-  };
-
-  state.customPostId += 1;
-  state.feedPosts.unshift(post);
-  state.comments[post.id] = [];
-  textarea.value = "";
   renderFeed();
-  renderProfile();
-  saveState();
-  closeCompose();
-  selectedComposeProduct = null;
-  switchScreen("feed");
-  showToast("Post published to feed.");
+}
+
+function renderFeed() {
+  const el = document.getElementById('feedList');
+  el.innerHTML = feedPosts.map(post => buildPostHTML(post)).join('');
+
+  // Draw canvases
+  setTimeout(() => {
+    feedPosts.forEach(post => {
+      const prod = products.find(x=>x.id===post.productId);
+      if (!prod) return;
+      const c = document.getElementById('feedCanvas'+post.id);
+      if (c) drawArt(c, prod, 350, 180);
+    });
+  }, 20);
+}
+
+function buildPostHTML(post) {
+  const prod = products.find(x=>x.id===post.productId);
+  const comments = postComments[post.id] || [];
+  const likeCount = post.likes + (postLikes[post.id]?.size||0);
+  const isLiked = postLikes[post.id]?.has('me');
+  const isCollected = collectedProducts.has(prod?.id);
+  const isCollectType = prod?.accessType==='collect';
+
+  const actionTag = prod ? (
+    isCollectType
+      ? `<div class="product-action-tag ${prod.cat==='ebook'?'tag-collect':'tag-art-collect'}">${prod.cat==='ebook'?'◉ PDF / Collect':'✦ Image / Collect'}</div>`
+      : `<div class="product-action-tag tag-download">▲ Tool / Download externally</div>`
+  ) : '';
+
+  return `
+    <div class="post" id="post${post.id}">
+      <div class="post-header">
+        <div class="post-avatar" style="background:${post.creator.color}">${post.creator.initials}</div>
+        <div class="post-meta">
+          <div class="post-author">
+            ${post.creator.name}
+            ${post.creator.badge?'<span class="creator-badge">Creator</span>':''}
+          </div>
+          <div class="post-time">${post.time}</div>
+        </div>
+        <div class="post-menu">···</div>
+      </div>
+
+      <div class="post-text">${post.caption}</div>
+
+      ${prod ? `
+        <div class="post-product" onclick="openOverlay(${prod.id})">
+          <div class="post-product-visual">
+            <canvas id="feedCanvas${post.id}" style="width:100%;height:100%;display:block;"></canvas>
+          </div>
+          <div class="post-product-info">
+            <div class="post-product-left">
+              <div class="post-product-name">${prod.name}</div>
+              <div class="post-product-sub">${prod.sub}</div>
+              ${actionTag}
+            </div>
+            <div class="post-product-price">$${prod.price}</div>
+          </div>
+        </div>
+      ` : ''}
+
+      <div class="post-actions">
+        <button class="post-action-btn ${isLiked?'liked':''}" onclick="togglePostLike(${post.id})">
+          <svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
+          <span id="likeCount${post.id}">${likeCount}</span>
+        </button>
+        <button class="post-action-btn" onclick="focusComment(${post.id})">
+          <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+          <span id="cmtCount${post.id}">${comments.length}</span>
+        </button>
+        <button class="post-action-btn ${isCollected?'collected':''}" onclick="openOverlay(${prod?.id})">
+          <svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+          ${isCollected?'Collected':'Collect'}
+        </button>
+        <button class="post-action-btn" onclick="sharePost(${post.id})">
+          <svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+          Share
+        </button>
+      </div>
+
+      <!-- Comments -->
+      <div class="comments-section">
+        ${comments.length > 0 ? `
+          <div class="comment-list" id="cmtList${post.id}">
+            ${comments.map(c=>buildCommentHTML(c)).join('')}
+          </div>
+        ` : `<div class="comment-list" id="cmtList${post.id}"></div>`}
+        <div class="comment-input-row">
+          <div class="comment-input-avatar">YO</div>
+          <div class="comment-input-wrap">
+            <input type="text" placeholder="Add a comment…"
+              id="cmtInput${post.id}"
+              onkeydown="if(event.key==='Enter') submitComment(${post.id})"
+            />
+            <button class="comment-send-btn" onclick="submitComment(${post.id})">
+              <svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function buildCommentHTML(c) {
+  return `
+    <div class="comment">
+      <div class="comment-avatar" style="background:${c.color}">${c.user.split(' ').map(w=>w[0]).join('').slice(0,2)}</div>
+      <div class="comment-body">
+        <div class="comment-author">${c.user}</div>
+        <div class="comment-text">${c.text}</div>
+        <div class="comment-time">${c.time}</div>
+      </div>
+    </div>
+  `;
 }
 
 function togglePostLike(postId) {
-  const post = state.feedPosts.find((entry) => entry.id === postId);
-  if (!post) return;
-  post.likedByMe = !post.likedByMe;
-  post.likes += post.likedByMe ? 1 : -1;
-  renderFeed();
-  saveState();
+  const s = postLikes[postId];
+  const btn = document.querySelector(`#post${postId} .post-action-btn`);
+  const countEl = document.getElementById('likeCount'+postId);
+  const post = feedPosts.find(p=>p.id===postId);
+  if (s.has('me')) {
+    s.delete('me');
+    btn.classList.remove('liked');
+  } else {
+    s.add('me');
+    btn.classList.add('liked');
+  }
+  countEl.textContent = post.likes + s.size;
 }
 
 function focusComment(postId) {
-  const input = document.getElementById("commentInput" + postId);
-  if (!input) return;
-  input.focus();
-  input.scrollIntoView({ behavior: "smooth", block: "center" });
+  const input = document.getElementById('cmtInput'+postId);
+  if (input) { input.focus(); input.scrollIntoView({behavior:'smooth',block:'center'}); }
 }
 
 function submitComment(postId) {
-  const input = document.getElementById("commentInput" + postId);
-  if (!input) return;
+  const input = document.getElementById('cmtInput'+postId);
   const text = input.value.trim();
   if (!text) return;
-  input.value = "";
-  if (!Array.isArray(state.comments[postId])) {
-    state.comments[postId] = [];
-  }
-  state.comments[postId].push({
-    id: Date.now(),
-    user: "You",
-    color: "#4576bb",
-    text,
-    time: "Just now"
-  });
-  renderFeed();
-  saveState();
-  showToast("Comment posted.");
+  input.value = '';
+
+  const newComment = { user:'You', color:'#3A6BAA', text, time:'Just now' };
+  if (!postComments[postId]) postComments[postId] = [];
+  postComments[postId].push(newComment);
+
+  const list = document.getElementById('cmtList'+postId);
+  const div = document.createElement('div');
+  div.innerHTML = buildCommentHTML(newComment);
+  list.appendChild(div.firstElementChild);
+
+  const countEl = document.getElementById('cmtCount'+postId);
+  countEl.textContent = parseInt(countEl.textContent)+1;
+  showToast('Comment posted');
 }
 
 function sharePost(postId) {
-  const url = window.location.href.split("#")[0] + "#post-" + postId;
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(url).then(() => showToast("Post link copied."), () => showToast("Share link ready: " + url));
-  } else {
-    showToast("Share link ready: " + url);
-  }
+  showToast('Link copied to clipboard ✓');
 }
 
-function openCheckout() {
-  if (!state.cart.length) {
-    showToast("Add something to your cart first.");
-    return;
-  }
-  closeCart();
-  renderCheckoutSummary();
-  openModal("checkoutModal");
+// ═══════════════════════════════════════════
+// COMPOSE
+// ═══════════════════════════════════════════
+function openCompose() {
+  document.getElementById('composeModal').classList.add('open');
+  // Build product picker
+  const picker = document.getElementById('composePicker');
+  picker.innerHTML = products.map(p=>`
+    <div class="compose-product-opt" id="cpOpt${p.id}" onclick="selectComposeProduct(${p.id})">
+      <canvas class="compose-product-thumb" id="cpThumb${p.id}"></canvas>
+      <div>
+        <div class="compose-product-opt-name">${p.name}</div>
+        <div class="compose-product-opt-price">$${p.price}</div>
+      </div>
+    </div>
+  `).join('');
+  setTimeout(()=>{
+    products.forEach(p=>{
+      const c=document.getElementById('cpThumb'+p.id);
+      if(c) drawArt(c,p,32,32);
+    });
+  },20);
+  selectedComposeProduct = null;
 }
 
-function closeCheckout() {
-  closeModal("checkoutModal");
+function selectComposeProduct(id) {
+  selectedComposeProduct = id;
+  document.querySelectorAll('.compose-product-opt').forEach(el=>el.classList.remove('selected'));
+  document.getElementById('cpOpt'+id)?.classList.add('selected');
 }
 
-function completeCheckout() {
-  if (!state.cart.length) {
-    showToast("Your cart is empty.");
-    return;
-  }
+function closeCompose() { document.getElementById('composeModal').classList.remove('open'); }
 
-  const name = document.getElementById("checkoutName").value.trim();
-  const email = document.getElementById("checkoutEmail").value.trim();
-  const card = document.getElementById("checkoutCard").value.trim();
+function submitPost() {
+  const caption = document.getElementById('composeCaption').value.trim();
+  if (!caption) { showToast('Add a caption first'); return; }
 
-  if (!name || !email || card.replace(/\s/g, "").length < 8) {
-    showToast("Complete the checkout form first.");
-    return;
-  }
+  const newPost = {
+    id: feedPosts.length + 10,
+    creator: { initials:'YO', name:'You', handle:'@you', badge:true, color:'#C8861A' },
+    productId: selectedComposeProduct || null,
+    caption,
+    time:'Just now',
+    likes: 0,
+  };
 
-  state.cart.forEach((item) => {
-    const product = getProduct(item.productId);
-    if (!product) return;
-    if (product.accessType === "collect") {
-      if (!state.collected.includes(product.id)) state.collected.push(product.id);
-    } else {
-      if (!state.downloads.includes(product.id)) state.downloads.push(product.id);
-    }
+  feedPosts.unshift(newPost);
+  postLikes[newPost.id] = new Set();
+  postComments[newPost.id] = [];
+
+  renderFeed();
+  closeCompose();
+  document.getElementById('composeCaption').value = '';
+
+  // Switch to feed
+  switchTab('feed');
+  showToast('Posted to feed ✓');
+
+  // Remove badge
+  document.querySelector('.tab-badge')?.remove();
+}
+
+// ═══════════════════════════════════════════
+// UTILS
+// ═══════════════════════════════════════════
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(()=>t.classList.remove('show'),2200);
+}
+
+function showSearch() {
+  switchTab('home');
+  setTimeout(()=>document.getElementById('searchInput').focus(),100);
+}
+
+// ═══════════════════════════════════════════
+// CREATOR CARDS TRADING
+// ═══════════════════════════════════════════
+function initializeCreatorTradeHistory() {
+  creators.forEach((c, idx) => {
+    tradeHistory[idx] = [
+      { user:'Kemi A.', action:'Bought', amount:5, price:4.15, time:'2m ago' },
+      { user:'Lara V.', action:'Sold', amount:2, price:4.30, time:'8m ago' },
+      { user:'Dev A.', action:'Bought', amount:10, price:4.10, time:'15m ago' },
+      { user:'Seun B.', action:'Sold', amount:3, price:4.25, time:'22m ago' },
+    ];
   });
-
-  state.cart = [];
-  document.getElementById("checkoutCard").value = "";
-  saveState();
-  renderAll();
-  closeCheckout();
-  switchScreen("vault");
-  showToast("Purchase complete. Your items are ready.");
 }
 
-function openReader(productId) {
-  const product = getProduct(productId);
-  if (!product) return;
+function renderCreators() {
+  const arr = filterCreatorsBySearch();
+  const el = document.getElementById('creatorGrid');
+  document.getElementById('creatorsCount').textContent = arr.length + ' creators';
+  
+  el.innerHTML = arr.map((c, idx) => `
+    <div class="creator-card" onclick="openTradeModal(${creators.indexOf(c)})">
+      <div class="creator-card-avatar">
+        ${c.initials}
+        ${c.verified ? '<div class="creator-card-verified">✓</div>' : ''}
+      </div>
+      <div class="creator-card-info">
+        <div class="creator-card-name">${c.name}</div>
+        <div class="creator-card-handle">${c.handle}</div>
+        
+        <div class="creator-stats">
+          <div class="stat-item">
+            <span class="stat-value">$${(c.earnings/1000).toFixed(1)}K</span>
+            <span>Earnings</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-value">${c.holders}</span>
+            <span>Holders</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-value">${c.trendScore}%</span>
+            <span>Trend</span>
+          </div>
+        </div>
 
-  if (product.accessType === "collect" && !isCollected(product.id)) {
-    showToast("Collect this item first.");
+        <div class="creator-pool">
+          <div class="pool-header">Floor Price</div>
+          <div class="pool-price">$${c.floorPrice.toFixed(2)}</div>
+          <div class="pool-info">
+            <span>24h: $${(c.volume24h/1000).toFixed(0)}K vol</span>
+          </div>
+          <div class="pool-bar">
+            <div class="pool-bar-fill" style="width:${Math.random()*60+40}%"></div>
+          </div>
+        </div>
+
+        <div class="creator-actions">
+          <button class="creator-btn" onclick="event.stopPropagation();openTradeModal(${creators.indexOf(c)})">Trade</button>
+          <button class="creator-btn primary" onclick="event.stopPropagation();buyCreatorCard(${creators.indexOf(c)})">Buy Card</button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function filterCreatorsBySearch() {
+  const q = document.getElementById('creatorSearchInput').value.toLowerCase();
+  let arr = creators;
+  
+  if (currentCreatorFilter === 'verified') {
+    arr = arr.filter(c => c.verified);
+  } else if (currentCreatorFilter === 'trending') {
+    arr = arr.sort((a, b) => b.trendScore - a.trendScore);
+  } else if (currentCreatorFilter === 'hot') {
+    arr = arr.sort((a, b) => b.volume24h - a.volume24h);
+  }
+  
+  if (q) {
+    arr = arr.filter(c => c.name.toLowerCase().includes(q) || c.handle.toLowerCase().includes(q));
+  }
+  
+  return arr;
+}
+
+function setCreatorFilter(filter, el) {
+  currentCreatorFilter = filter;
+  document.querySelectorAll('.cats .cat').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  filterCreators();
+}
+
+function filterCreators() {
+  renderCreators();
+}
+
+function openTradeModal(creatorIdx) {
+  const c = creators[creatorIdx];
+  currentTradeCreator = creatorIdx;
+  
+  document.getElementById('tradeCreatorName').textContent = c.name;
+  document.getElementById('tradeCreatorHandle').textContent = c.handle;
+  document.getElementById('tradeFloorPrice').textContent = '$' + c.floorPrice.toFixed(2);
+  document.getElementById('tradeVolume24h').textContent = '$' + (c.volume24h/1000).toFixed(0) + 'K';
+  document.getElementById('tradeHolders').textContent = c.holders;
+  document.getElementById('tradePrice').value = c.floorPrice.toFixed(2);
+
+  // Render trade history
+  const history = tradeHistory[creatorIdx] || [];
+  const historyEl = document.getElementById('tradeHistory');
+  historyEl.innerHTML = history.map(t => `
+    <div class="trade-item">
+      <div class="trade-item-user">${t.user}</div>
+      <div class="trade-item-action">${t.action}</div>
+      <div class="trade-item-price">$${t.price.toFixed(2)}</div>
+      <div style="font-size:11px;color:var(--text-3);min-width:50px;text-align:right;">${t.time}</div>
+    </div>
+  `).join('');
+
+  // Draw price chart
+  drawTradeChart();
+
+  document.getElementById('tradeModal').classList.add('open');
+}
+
+function closeTradeModal() {
+  document.getElementById('tradeModal').classList.remove('open');
+  currentTradeCreator = null;
+}
+
+function drawTradeChart() {
+  const container = document.getElementById('tradeChartArea');
+  const canvas = document.createElement('canvas');
+  canvas.style.width = '100%';
+  canvas.style.height = '100%';
+  canvas.style.display = 'block';
+  container.innerHTML = '';
+  container.appendChild(canvas);
+  
+  const w = container.offsetWidth || 330;
+  const h = 120;
+  canvas.width = w;
+  canvas.height = h;
+  
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = 'var(--surface-3)';
+  ctx.fillRect(0, 0, w, h);
+  
+  // Draw simple line chart
+  const points = Array.from({length: 7}, (_, i) => ({
+    x: (i/(7-1))*w,
+    y: h - ((Math.sin(i*0.5)*0.2 + 0.6)*h)
+  }));
+  
+  ctx.strokeStyle = '#C8861A';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  points.forEach((p, i) => {
+    if (i === 0) ctx.moveTo(p.x, p.y);
+    else ctx.lineTo(p.x, p.y);
+  });
+  ctx.stroke();
+  
+  // Draw area under curve
+  ctx.fillStyle = 'rgba(200, 134, 26, 0.15)';
+  ctx.lineTo(w, h);
+  ctx.lineTo(0, h);
+  ctx.fill();
+}
+
+function executeBuyOrder() {
+  const amount = parseFloat(document.getElementById('tradeAmount').value);
+  const pricePerCard = parseFloat(document.getElementById('tradePrice').value);
+  
+  if (!amount || amount <= 0 || !pricePerCard) {
+    showToast('Enter valid amount and price');
     return;
   }
+  
+  const totalCost = (amount * pricePerCard).toFixed(2);
+  const c = creators[currentTradeCreator];
+  
+  // Update creator portfolio
+  if (!creatorPortfolio[currentTradeCreator]) {
+    creatorPortfolio[currentTradeCreator] = { owned: 0, avgPrice: 0 };
+  }
+  const portfolio = creatorPortfolio[currentTradeCreator];
+  portfolio.avgPrice = ((portfolio.owned * portfolio.avgPrice) + (amount * pricePerCard)) / (portfolio.owned + amount);
+  portfolio.owned += amount;
+  
+  // Add to trade history
+  if (!tradeHistory[currentTradeCreator]) tradeHistory[currentTradeCreator] = [];
+  tradeHistory[currentTradeCreator].unshift({
+    user: 'You',
+    action: 'Bought',
+    amount: amount,
+    price: pricePerCard,
+    time: 'Just now'
+  });
+  
+  closeTradeModal();
+  showToast(`Purchased ${amount} ${c.name} card${amount>1?'s':''} for $${totalCost} ✓`);
+  renderCreators();
+}
 
-  if (product.accessType === "download" && !isDownloaded(product.id)) {
-    showToast("Purchase this tool first.");
+function executeSellOrder() {
+  const c = creators[currentTradeCreator];
+  const portfolio = creatorPortfolio[currentTradeCreator];
+  
+  if (!portfolio || portfolio.owned === 0) {
+    showToast(`You don't own any ${c.name} cards`);
     return;
   }
-
-  currentReaderId = productId;
-  document.getElementById("readerTitle").textContent = product.name;
-  document.getElementById("readerSubtitle").textContent = product.accessType === "collect" ? "Opened from your vault." : "Download details and setup guide.";
-  document.getElementById("readerBody").innerHTML = `
-    <p>${escapeHtml(product.readerText)}</p>
-    <div class="meta-strip">
-      <span class="access-pill">${escapeHtml(product.format)}</span>
-      <span class="access-pill">${escapeHtml(product.accessType === "collect" ? "Vault access active" : "Download unlocked")}</span>
-    </div>
-    <div class="compose-actions" style="margin-top:18px">
-      ${product.accessType === "collect"
-        ? '<button class="primary-button" type="button" onclick="showToast(\'Reading session started.\')">Open item</button>'
-        : '<button class="primary-button" type="button" onclick="downloadTool()">Download package</button>'}
-      <button class="ghost-button" type="button" onclick="openDetail(' + product.id + ')">View details</button>
-    </div>
-  `;
-  openModal("readerModal");
-  requestAnimationFrame(() => drawArt(document.getElementById("readerCanvas"), product, document.querySelector("#readerModal .reader-hero").clientWidth || 390, 210));
-}
-
-function downloadTool() {
-  const product = getProduct(currentReaderId);
-  if (!product) return;
-  showToast("Download prepared for " + product.name + ".");
-}
-
-function closeReader() {
-  closeModal("readerModal");
-}
-
-function openModal(id) {
-  closeActiveModal();
-  activeModal = id;
-  document.getElementById("modalScrim").classList.add("open");
-  const modal = document.getElementById(id);
-  modal.classList.add("open");
-  modal.setAttribute("aria-hidden", "false");
-}
-
-function closeModal(id) {
-  const modal = document.getElementById(id);
-  modal.classList.remove("open");
-  modal.setAttribute("aria-hidden", "true");
-  if (activeModal === id) {
-    activeModal = null;
-    document.getElementById("modalScrim").classList.remove("open");
+  
+  const amount = parseFloat(document.getElementById('tradeAmount').value);
+  if (!amount || amount <= 0 || amount > portfolio.owned) {
+    showToast(`Enter valid amount (max: ${portfolio.owned})`);
+    return;
   }
+  
+  const pricePerCard = parseFloat(document.getElementById('tradePrice').value);
+  const totalRevenue = (amount * pricePerCard).toFixed(2);
+  
+  // Update portfolio
+  portfolio.owned -= amount;
+  
+  // Add to trade history
+  if (!tradeHistory[currentTradeCreator]) tradeHistory[currentTradeCreator] = [];
+  tradeHistory[currentTradeCreator].unshift({
+    user: 'You',
+    action: 'Sold',
+    amount: amount,
+    price: pricePerCard,
+    time: 'Just now'
+  });
+  
+  closeTradeModal();
+  showToast(`Sold ${amount} ${c.name} card${amount>1?'s':''} for $${totalRevenue} ✓`);
+  renderCreators();
 }
 
-function closeActiveModal() {
-  if (!activeModal) return;
-  const modalId = activeModal;
-  activeModal = null;
-  document.getElementById("modalScrim").classList.remove("open");
-  document.getElementById(modalId).classList.remove("open");
-  document.getElementById(modalId).setAttribute("aria-hidden", "true");
+function buyCreatorCard(creatorIdx) {
+  const c = creators[creatorIdx];
+  document.getElementById('tradeAmount').value = '1';
+  document.getElementById('tradePrice').value = c.floorPrice.toFixed(2);
+  openTradeModal(creatorIdx);
 }
 
-function showToast(message) {
-  const toast = document.getElementById("toast");
-  toast.textContent = message;
-  toast.classList.add("show");
-  clearTimeout(showToast.timer);
-  showToast.timer = setTimeout(() => toast.classList.remove("show"), 2200);
-}
-
-function getGreeting() {
-  const hour = new Date().getHours();
-  if (hour < 12) return "Good morning";
-  if (hour < 18) return "Good afternoon";
-  return "Good evening";
-}
-
-function resetDemo() {
-  resetState(true);
-  renderAll();
-  closeActiveModal();
-  closeCart();
-  document.getElementById("searchInput").value = "";
-  document.getElementById("checkoutName").value = "";
-  document.getElementById("checkoutEmail").value = "";
-  document.getElementById("checkoutCard").value = "";
-  document.getElementById("composeCaption").value = "";
-  showToast("Demo state reset.");
-}
-
-document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape") {
-    closeActiveModal();
-    closeCart();
-  }
-});
-
-function initialize() {
-  loadState();
-  document.getElementById("greetingLabel").textContent = getGreeting();
-  renderAll();
-  switchScreen(state.activeScreen || "shop");
-}
-
-initialize();
+// ═══════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════
+renderFeatured();
+renderGrid();
+buildInitialFeed();
+initializeCreatorTradeHistory();
 </script>
 </body>
 </html>
