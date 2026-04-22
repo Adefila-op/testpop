@@ -1,12 +1,23 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { featureCards } from "../data/mockData";
 import { useCollections } from "../hooks/useCollections";
 import { useDemoWallet } from "../hooks/useDemoWallet";
 
-type TabType = "for-you" | "trending" | "new" | "following";
+type TabType = "for-you" | "trending" | "following";
+
+const navigationTabs: Array<{
+  key: TabType;
+  label: string;
+  to: string;
+}> = [
+  { key: "for-you", label: "For You", to: "/discover" },
+  { key: "following", label: "Following", to: "/creators" },
+  { key: "trending", label: "Trending", to: "/marketplace" },
+];
 
 export function DiscoveryPage() {
+  const navigate = useNavigate();
   const { isConnected, connect } = useDemoWallet();
   const { collect, isCollected } = useCollections();
   const [activeTab, setActiveTab] = useState<TabType>("for-you");
@@ -16,6 +27,8 @@ export function DiscoveryPage() {
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
 
   const activeCard = featureCards[activeCardIndex];
+  const likeCount = activeCard.likes + (likedIds.has(activeCard.id) ? 1 : 0);
+  const isSaved = savedIds.has(activeCard.id);
 
   const handleNextCard = () => {
     setActiveCardIndex((prev) => (prev + 1) % featureCards.length);
@@ -54,81 +67,85 @@ export function DiscoveryPage() {
     setSavedIds(newSaved);
   };
 
+  const handleTopNav = (tab: (typeof navigationTabs)[number]) => {
+    setActiveTab(tab.key);
+    navigate(tab.to);
+  };
+
   return (
     <section className="screen screen--discovery-onchain">
-      {/* Header */}
       <div className="discovery-onchain-header">
         <div className="discovery-onchain-header__left">
           <h1 className="discovery-onchain-logo">POPUP</h1>
         </div>
         <div className="discovery-onchain-header__right">
           <button className="discovery-onchain-header__btn" type="button" title="Wallet">
-            👜 Wallet
+            Wallet
           </button>
           <button className="discovery-onchain-header__btn" type="button" title="Notifications">
-            🔔
+            Alerts
           </button>
         </div>
       </div>
 
-      {/* Navigation Tabs */}
       <div className="discovery-onchain-tabs">
-        {(["for-you", "trending", "new", "following"] as const).map((tab) => (
-          <button
-            key={tab}
-            className={`discovery-onchain-tab ${activeTab === tab ? "discovery-onchain-tab--active" : ""}`}
-            onClick={() => setActiveTab(tab)}
-            type="button"
-          >
-            {tab === "for-you"
-              ? "For You"
-              : tab === "trending"
-                ? "Trending"
-                : tab === "new"
-                  ? "New"
-                  : "Following"}
-          </button>
-        ))}
-        <button className="discovery-onchain-search" type="button" title="Search">
-          🔍
-        </button>
-      </div>
-
-      {/* Featured Card */}
-      <div className="discovery-onchain-featured" style={{ background: activeCard.accent }}>
-        {/* Live Badge */}
-        <div className="discovery-onchain-featured__badge">
-          <span className="live-badge">● LIVE NOW</span>
-          <span className="live-counter">{activeCardIndex + 1} / {featureCards.length}</span>
-        </div>
-
-        {/* Menu Button */}
-        <button className="discovery-onchain-featured__menu" type="button">
-          ⋯
-        </button>
-
-        {/* Creator Info */}
-        <Link to={`/creator/${activeCard.creatorId}`} className="discovery-onchain-creator">
+        <Link to={`/creator/${activeCard.creatorId}`} className="discovery-onchain-tabs__creator">
           <span
-            className="discovery-onchain-creator__avatar"
+            className="discovery-onchain-tabs__creator-avatar"
             style={{ background: activeCard.accent }}
-          />
-          <div className="discovery-onchain-creator__info">
-            <div className="discovery-onchain-creator__name">
-              {activeCard.creator} <span className="verified-badge">✓</span>
-            </div>
-            <div className="discovery-onchain-creator__handle">{activeCard.handle}</div>
-            <div className="discovery-onchain-creator__collectors">👥 2.3K collectors</div>
-          </div>
+            aria-hidden="true"
+          >
+            {activeCard.creator.charAt(0)}
+          </span>
+          <span className="discovery-onchain-tabs__creator-copy">
+            <strong>{activeCard.creator}</strong>
+            <span>{activeCard.handle}</span>
+          </span>
         </Link>
 
-        {/* Title & Description */}
+        {navigationTabs.map((tab) => (
+          <button
+            key={tab.key}
+            className={`discovery-onchain-tab ${activeTab === tab.key ? "discovery-onchain-tab--active" : ""}`}
+            onClick={() => handleTopNav(tab)}
+            type="button"
+          >
+            {tab.label}
+          </button>
+        ))}
+
+        <button
+          className="discovery-onchain-search"
+          type="button"
+          title="Browse creators"
+          onClick={() => navigate("/creators")}
+        >
+          Browse
+        </button>
+      </div>
+
+      <div className="discovery-onchain-featured" style={{ background: activeCard.accent }}>
+        <div className="discovery-onchain-featured__badge">
+          <span className="live-badge">Live now</span>
+          <span className="live-counter">
+            {activeCardIndex + 1} / {featureCards.length}
+          </span>
+        </div>
+
+        <button
+          className="discovery-onchain-featured__menu"
+          type="button"
+          onClick={handleNextCard}
+          aria-label="Show next product"
+        >
+          Next
+        </button>
+
         <div className="discovery-onchain-content">
           <h2 className="discovery-onchain-title">{activeCard.title}</h2>
           <p className="discovery-onchain-description">{activeCard.summary}</p>
         </div>
 
-        {/* Tags */}
         <div className="discovery-onchain-tags">
           <span className="discovery-onchain-tag">{activeCard.type}</span>
           <span className="discovery-onchain-tag">Creator</span>
@@ -138,34 +155,38 @@ export function DiscoveryPage() {
           </button>
         </div>
 
-        {/* Stats */}
         <div className="discovery-onchain-stats">
           <div className="stat-item">
             <div className="stat-value">
-              <span className="stat-icon">⭐</span> 4.8
+              <span className="stat-icon">4.8</span>
             </div>
             <div className="stat-label">(120 reviews)</div>
           </div>
           <div className="stat-divider" />
           <div className="stat-item">
             <div className="stat-value">
-              <span className="stat-icon">🛒</span> 2.3K
+              <span className="stat-icon">2.3K</span>
             </div>
             <div className="stat-label">collected</div>
           </div>
           <div className="stat-divider" />
           <div className="stat-item">
             <div className="stat-value">
-              <span className="stat-icon">🔥</span> 120
+              <span className="stat-icon">120</span>
             </div>
             <div className="stat-label">sold today</div>
           </div>
         </div>
 
-        {/* Action Buttons */}
         <div className="discovery-onchain-actions">
-          <button className="discovery-onchain-action-btn discovery-onchain-action-btn--secondary" type="button">
-            👁 Preview <br /> <span className="action-secondary">View sample pages</span>
+          <button
+            className="discovery-onchain-action-btn discovery-onchain-action-btn--secondary"
+            type="button"
+            onClick={() => navigate(`/product/${activeCard.id}`)}
+          >
+            Preview
+            <br />
+            <span className="action-secondary">Open the product page</span>
           </button>
           <button
             className="discovery-onchain-action-btn discovery-onchain-action-btn--primary"
@@ -173,30 +194,45 @@ export function DiscoveryPage() {
             disabled={collectingId === activeCard.id}
             type="button"
           >
-            <span className="action-eth">◆</span> {collectingId === activeCard.id ? "Collecting..." : `Buy for ${activeCard.price}`}
+            <span className="action-eth">ETH</span>{" "}
+            {collectingId === activeCard.id ? "Collecting..." : `Buy for ${activeCard.price}`}
             <br />
-            <span className="action-secondary">{activeCard.price === "$39.60" ? "≈ $39.60" : ""} Instant access</span>
+            <span className="action-secondary">Instant access</span>
           </button>
         </div>
 
-        {/* Engagement Stats */}
         <div className="discovery-onchain-engagement">
-          <button className="engagement-item" type="button">
-            <span className="engagement-count">❤️ {activeCard.likes + (likedIds.has(activeCard.id) ? 1 : 0)}</span>
+          <button
+            className="engagement-item"
+            type="button"
+            onClick={() => toggleLike(activeCard.id)}
+          >
+            <span className="engagement-count">Like {likeCount}</span>
           </button>
-          <button className="engagement-item" type="button">
-            <span className="engagement-count">💬 {activeCard.gifts}</span>
+          <button
+            className="engagement-item"
+            type="button"
+            onClick={() => navigate(`/product/${activeCard.id}`)}
+          >
+            <span className="engagement-count">Comments {activeCard.gifts}</span>
           </button>
-          <button className="engagement-item" type="button">
-            <span className="engagement-count">↗️ 21</span>
+          <button
+            className="engagement-item"
+            type="button"
+            onClick={() => navigate(`/creator/${activeCard.creatorId}`)}
+          >
+            <span className="engagement-count">Creator</span>
           </button>
-          <button className="engagement-item" type="button">
-            <span className="engagement-count">🔖</span>
+          <button
+            className="engagement-item"
+            type="button"
+            onClick={() => toggleSave(activeCard.id)}
+          >
+            <span className="engagement-count">{isSaved ? "Saved" : "Save"}</span>
           </button>
         </div>
       </div>
 
-      {/* Top Selling Section */}
       <div className="discovery-onchain-top-section">
         <div className="discovery-onchain-section-header">
           <h3>Top selling this week</h3>
