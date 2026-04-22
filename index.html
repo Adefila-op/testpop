@@ -50,6 +50,7 @@
     overflow: hidden;
     display: flex;
     flex-direction: column;
+    max-width: 100%;
   }
 
   /* ── HEADER ── */
@@ -108,8 +109,10 @@
 
   /* ── SCROLL CONTAINER ── */
   .scroll-main {
-    flex: 1; overflow-y: auto; scrollbar-width: none;
-    padding-bottom: 100px;
+    flex: 1;
+    overflow-y: auto;
+    scrollbar-width: none;
+    padding-bottom: 120px;
   }
   .scroll-main::-webkit-scrollbar { display: none; }
 
@@ -402,12 +405,18 @@
 
   /* ── BOTTOM NAV ── */
   .bottom-nav {
-    flex-shrink: 0;
+    position: fixed;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 390px;
+    max-width: 100vw;
     background: rgba(10,9,7,0.95);
     backdrop-filter: blur(20px);
     border-top: 1px solid var(--surface-2);
     padding: 12px 0 24px;
     display: flex;
+    z-index: 50;
   }
   .nav-item {
     flex: 1; display: flex; flex-direction: column; align-items: center;
@@ -1344,7 +1353,7 @@ function renderGrid(filtered) {
 function setCategory(cat, el) {
   currentCat = cat;
   document.querySelectorAll('.cat').forEach(c => c.classList.remove('active'));
-  el.classList.add('active');
+  if (el) el.classList.add('active');
   filterProducts();
 }
 
