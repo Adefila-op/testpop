@@ -1,12 +1,2845 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ONCHAIN DISCOVERY - Creator Tokens &amp; Digital Products</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vault - Digital Collection</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Syne:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; }
+
+  :root {
+    --bg: #0b0908;
+    --surface: #14110f;
+    --surface-2: #1d1917;
+    --surface-3: #2c2622;
+    --line: #3b332d;
+    --gold: #c88a2c;
+    --gold-2: #efb259;
+    --text: #f4efe7;
+    --text-2: #b6aa9c;
+    --text-3: #776b61;
+    --success: #3cc08b;
+    --danger: #d56a5a;
+    --art: #d15b45;
+    --ebook: #2f9c7f;
+    --tool: #4576bb;
+    --radius: 18px;
+    --radius-sm: 12px;
+    --shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+  }
+
+  body {
+    background:
+      radial-gradient(circle at top, rgba(200, 138, 44, 0.12), transparent 26%),
+      linear-gradient(180deg, #0f0c09 0%, var(--bg) 34%);
+    color: var(--text);
+    font-family: "Syne", sans-serif;
+    display: flex;
+    justify-content: center;
+  }
+
+  button, input, textarea, select {
+    font: inherit;
+  }
+
+  button {
+    cursor: pointer;
+  }
+
+  button:focus-visible,
+  input:focus-visible,
+  textarea:focus-visible {
+    outline: 2px solid var(--gold-2);
+    outline-offset: 2px;
+  }
+
+  .app-shell {
+    width: 100%;
+    max-width: 430px;
+    min-height: 100vh;
+    background: rgba(11, 9, 8, 0.96);
+    border-inline: 1px solid rgba(255, 255, 255, 0.05);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .header {
+    padding: 22px 20px 14px;
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    backdrop-filter: blur(18px);
+    background: linear-gradient(180deg, rgba(11, 9, 8, 0.96), rgba(11, 9, 8, 0.78));
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  }
+
+  .header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+
+  .brand {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .brand-mark {
+    font-family: "Cormorant Garamond", serif;
+    font-size: 30px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+  }
+
+  .brand-mark span {
+    color: var(--gold);
+  }
+
+  .brand-copy {
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-3);
+  }
+
+  .header-actions,
+  .segmented-nav,
+  .icon-stack,
+  .stat-row,
+  .inline-actions,
+  .overlay-actions,
+  .checkout-summary,
+  .drawer-footer,
+  .compose-actions,
+  .feed-actions,
+  .meta-strip {
+    display: flex;
+  }
+
+  .header-actions {
+    gap: 10px;
+  }
+
+  .icon-button {
+    width: 42px;
+    height: 42px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: var(--surface-2);
+    color: var(--text);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    transition: border-color 0.2s, transform 0.2s, background 0.2s;
+  }
+
+  .icon-button:hover {
+    transform: translateY(-1px);
+    border-color: var(--gold);
+    background: var(--surface-3);
+  }
+
+  .icon-button svg,
+  .nav-button svg,
+  .chip svg,
+  .overlay-button svg,
+  .feed-button svg,
+  .send-button svg {
+    width: 18px;
+    height: 18px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 1.9;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .badge {
+    position: absolute;
+    top: -3px;
+    right: -1px;
+    min-width: 18px;
+    height: 18px;
+    border-radius: 999px;
+    background: var(--gold);
+    color: var(--bg);
+    font-size: 10px;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding-inline: 4px;
+  }
+
+  .segmented-nav {
+    gap: 8px;
+    padding-top: 16px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .segmented-nav::-webkit-scrollbar,
+  .chips::-webkit-scrollbar,
+  .featured-row::-webkit-scrollbar {
+    display: none;
+  }
+
+  .nav-button {
+    border: 1px solid var(--line);
+    background: transparent;
+    color: var(--text-3);
+    border-radius: 999px;
+    padding: 10px 14px;
+    min-width: max-content;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: border-color 0.2s, color 0.2s, background 0.2s;
+  }
+
+  .nav-button.active {
+    background: linear-gradient(180deg, rgba(200, 138, 44, 0.18), rgba(200, 138, 44, 0.08));
+    color: var(--text);
+    border-color: rgba(200, 138, 44, 0.5);
+  }
+
+  .nav-pill {
+    font-size: 11px;
+    background: rgba(200, 138, 44, 0.18);
+    color: var(--gold-2);
+    padding: 2px 7px;
+    border-radius: 999px;
+  }
+
+  .screen {
+    display: none;
+    padding: 14px 20px 114px;
+  }
+
+  .screen.active {
+    display: block;
+  }
+
+  .hero {
+    padding-top: 8px;
+  }
+
+  .eyebrow {
+    font-size: 11px;
+    color: var(--text-3);
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  .hero h1,
+  .section-title,
+  .overlay-title,
+  .modal-title,
+  .vault-empty h2 {
+    font-family: "Cormorant Garamond", serif;
+    line-height: 1.05;
+  }
+
+  .hero h1 {
+    font-size: 40px;
+    font-weight: 600;
+    margin: 0 0 10px;
+  }
+
+  .hero h1 em,
+  .section-title em,
+  .vault-empty h2 em {
+    font-style: italic;
+    color: var(--gold);
+  }
+
+  .hero p,
+  .section-meta,
+  .muted,
+  .post-copy,
+  .drawer-note,
+  .modal-copy,
+  .detail-copy,
+  .reader-body {
+    color: var(--text-2);
+    line-height: 1.6;
+  }
+
+  .card,
+  .vault-card,
+  .featured-card,
+  .post-card,
+  .modal-card,
+  .drawer,
+  .stats-card,
+  .checkout-card {
+    background: linear-gradient(180deg, rgba(29, 25, 23, 0.96), rgba(18, 15, 13, 0.98));
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+  }
+
+  .search-card,
+  .compose-card,
+  .reader-card,
+  .profile-card {
+    background: var(--surface);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: var(--radius);
+  }
+
+  .search-card {
+    margin-top: 20px;
+    padding: 14px;
+  }
+
+  .search-input-wrap,
+  .comment-entry,
+  .compose-input,
+  .checkout-input {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: var(--surface-2);
+    padding: 12px 14px;
+  }
+
+  .search-input-wrap input,
+  .comment-entry input,
+  .checkout-input input,
+  .compose-textarea {
+    width: 100%;
+    border: 0;
+    background: transparent;
+    color: var(--text);
+    outline: 0;
+  }
+
+  .search-input-wrap input::placeholder,
+  .comment-entry input::placeholder,
+  .checkout-input input::placeholder,
+  .compose-textarea::placeholder {
+    color: var(--text-3);
+  }
+
+  .chips,
+  .featured-row {
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .chips {
+    margin-top: 14px;
+  }
+
+  .chip {
+    min-width: max-content;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: transparent;
+    color: var(--text-2);
+    padding: 9px 14px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: border-color 0.2s, color 0.2s, background 0.2s;
+  }
+
+  .chip.active {
+    background: rgba(200, 138, 44, 0.18);
+    color: var(--text);
+    border-color: rgba(200, 138, 44, 0.5);
+  }
+
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+  }
+
+  .section {
+    margin-top: 28px;
+  }
+
+  .section-header {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+
+  .section-title {
+    margin: 0;
+    font-size: 28px;
+    font-weight: 600;
+  }
+
+  .section-meta {
+    font-size: 12px;
+  }
+
+  .featured-card {
+    min-width: 286px;
+    overflow: hidden;
+  }
+
+  .featured-visual,
+  .product-visual,
+  .overlay-visual,
+  .vault-visual,
+  .feed-product-visual,
+  .reader-hero {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .featured-visual {
+    height: 180px;
+  }
+
+  .featured-body,
+  .product-body,
+  .vault-body,
+  .post-body,
+  .overlay-body,
+  .profile-card,
+  .stats-card,
+  .checkout-card {
+    padding: 16px;
+  }
+
+  .product-grid,
+  .vault-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .product-card,
+  .vault-card {
+    overflow: hidden;
+  }
+
+  .product-card {
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: var(--radius);
+    background: var(--surface);
+  }
+
+  .product-card:hover,
+  .vault-card:hover,
+  .featured-card:hover,
+  .feed-product:hover {
+    border-color: rgba(200, 138, 44, 0.45);
+  }
+
+  .product-visual,
+  .vault-visual {
+    height: 132px;
+  }
+
+  .type-tag,
+  .access-pill,
+  .price-chip,
+  .creator-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border-radius: 999px;
+    font-size: 11px;
+    padding: 5px 9px;
+    font-weight: 700;
+  }
+
+  .type-tag {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    backdrop-filter: blur(10px);
+  }
+
+  .type-art { background: rgba(209, 91, 69, 0.16); color: var(--art); }
+  .type-ebook { background: rgba(47, 156, 127, 0.16); color: var(--ebook); }
+  .type-tool { background: rgba(69, 118, 187, 0.16); color: var(--tool); }
+
+  .price-chip {
+    position: absolute;
+    right: 10px;
+    bottom: 10px;
+    background: rgba(11, 9, 8, 0.82);
+    color: var(--gold-2);
+  }
+
+  .product-title,
+  .featured-title,
+  .vault-title,
+  .post-product-title {
+    font-weight: 700;
+    margin: 0;
+  }
+
+  .featured-title {
+    font-size: 20px;
+    font-family: "Cormorant Garamond", serif;
+    font-weight: 600;
+  }
+
+  .product-title,
+  .vault-title {
+    font-size: 15px;
+  }
+
+  .subtle {
+    font-size: 12px;
+    color: var(--text-2);
+  }
+
+  .product-footer,
+  .featured-footer,
+  .vault-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: 12px;
+  }
+
+  .price {
+    font-weight: 700;
+    color: var(--gold-2);
+  }
+
+  .inline-button,
+  .primary-button,
+  .secondary-button,
+  .ghost-button,
+  .feed-button,
+  .send-button {
+    border: 0;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: transform 0.18s, background 0.2s, color 0.2s, border-color 0.2s;
+  }
+
+  .inline-button:hover,
+  .primary-button:hover,
+  .secondary-button:hover,
+  .ghost-button:hover,
+  .feed-button:hover,
+  .send-button:hover {
+    transform: translateY(-1px);
+  }
+
+  .inline-button {
+    width: 32px;
+    height: 32px;
+    background: var(--surface-3);
+    color: var(--gold-2);
+  }
+
+  .primary-button,
+  .secondary-button,
+  .ghost-button {
+    min-height: 48px;
+    padding: 0 18px;
+    font-weight: 700;
+  }
+
+  .primary-button {
+    background: linear-gradient(180deg, var(--gold-2), var(--gold));
+    color: var(--bg);
+  }
+
+  .secondary-button {
+    background: var(--surface-2);
+    color: var(--text);
+    border: 1px solid var(--line);
+  }
+
+  .ghost-button {
+    background: transparent;
+    color: var(--text-2);
+    border: 1px solid var(--line);
+  }
+
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    margin-top: 20px;
+  }
+
+  .stats-card {
+    padding: 16px 14px;
+    text-align: center;
+  }
+
+  .stats-card strong {
+    display: block;
+    font-size: 22px;
+    color: var(--gold-2);
+  }
+
+  .stats-card span {
+    font-size: 11px;
+    color: var(--text-3);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .feed-banner {
+    padding: 12px 14px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: var(--radius-sm);
+    background: rgba(20, 17, 15, 0.9);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--text-2);
+    font-size: 13px;
+  }
+
+  .live-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 999px;
+    background: var(--success);
+    box-shadow: 0 0 0 0 rgba(60, 192, 139, 0.5);
+    animation: pulse 1.6s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(60, 192, 139, 0.5); }
+    70% { box-shadow: 0 0 0 10px rgba(60, 192, 139, 0); }
+  }
+
+  .compose-card {
+    margin-top: 18px;
+    padding: 16px;
+  }
+
+  .compose-top {
+    display: flex;
+    gap: 12px;
+    align-items: start;
+  }
+
+  .avatar,
+  .comment-avatar,
+  .mini-avatar {
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: 700;
+    flex: 0 0 auto;
+  }
+
+  .avatar {
+    width: 38px;
+    height: 38px;
+    background: linear-gradient(135deg, #a86721, #d39b46);
+  }
+
+  .mini-avatar {
+    width: 34px;
+    height: 34px;
+    background: linear-gradient(135deg, #5f4530, #bd8f5b);
+  }
+
+  .compose-trigger {
+    flex: 1;
+    text-align: left;
+    min-height: 46px;
+    border: 1px solid var(--line);
+    background: var(--surface-2);
+    border-radius: 999px;
+    padding: 0 16px;
+    color: var(--text-3);
+  }
+
+  .compose-actions {
+    gap: 8px;
+    margin-top: 12px;
+    flex-wrap: wrap;
+  }
+
+  .feed-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-top: 18px;
+  }
+
+  .post-card {
+    overflow: hidden;
+  }
+
+  .post-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .post-meta {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .post-author {
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .creator-pill {
+    background: rgba(200, 138, 44, 0.16);
+    color: var(--gold-2);
+  }
+
+  .post-time {
+    font-size: 12px;
+    color: var(--text-3);
+    margin-top: 3px;
+  }
+
+  .feed-product {
+    margin-top: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    background: var(--surface);
+  }
+
+  .feed-product-visual {
+    height: 196px;
+  }
+
+  .post-product-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px;
+  }
+
+  .feed-actions {
+    gap: 8px;
+    margin-top: 14px;
+    flex-wrap: wrap;
+  }
+
+  .feed-button {
+    padding: 10px 12px;
+    background: var(--surface-2);
+    color: var(--text-2);
+    border: 1px solid var(--line);
+  }
+
+  .feed-button.active {
+    color: var(--text);
+    border-color: rgba(200, 138, 44, 0.45);
+  }
+
+  .comments {
+    margin-top: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .comment {
+    display: flex;
+    gap: 10px;
+    align-items: start;
+  }
+
+  .comment-avatar {
+    width: 28px;
+    height: 28px;
+    font-size: 10px;
+  }
+
+  .comment-bubble {
+    background: var(--surface);
+    border-radius: 14px 14px 14px 4px;
+    padding: 10px 12px;
+    flex: 1;
+  }
+
+  .comment-author {
+    font-size: 12px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+
+  .comment-time {
+    font-size: 11px;
+    color: var(--text-3);
+    margin-top: 5px;
+  }
+
+  .comment-entry {
+    margin-top: 4px;
+  }
+
+  .send-button {
+    width: 34px;
+    height: 34px;
+    background: rgba(200, 138, 44, 0.18);
+    color: var(--gold-2);
+    flex: 0 0 auto;
+  }
+
+  .vault-summary {
+    display: grid;
+    gap: 12px;
+  }
+
+  .vault-empty {
+    padding: 24px 18px;
+    text-align: center;
+  }
+
+  .vault-empty h2 {
+    margin: 0 0 8px;
+    font-size: 28px;
+    font-weight: 600;
+  }
+
+  .vault-empty-icon {
+    width: 54px;
+    height: 54px;
+    margin: 0 auto 14px;
+    border-radius: 18px;
+    display: grid;
+    place-items: center;
+    background: rgba(200, 138, 44, 0.13);
+    color: var(--gold-2);
+    font-size: 24px;
+  }
+
+  .meta-strip {
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+  }
+
+  .access-pill {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-2);
+  }
+
+  .profile-stack {
+    display: grid;
+    gap: 16px;
+  }
+
+  .profile-card {
+    padding: 18px;
+  }
+
+  .profile-header {
+    display: flex;
+    gap: 14px;
+    align-items: center;
+  }
+
+  .profile-avatar {
+    width: 58px;
+    height: 58px;
+    border-radius: 20px;
+    background: linear-gradient(135deg, #9c6828, #d7a45e);
+    display: grid;
+    place-items: center;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--bg);
+  }
+
+  .profile-name {
+    font-size: 18px;
+    font-weight: 700;
+  }
+
+  .profile-handle {
+    font-size: 13px;
+    color: var(--text-3);
+    margin-top: 3px;
+  }
+
+  .profile-list {
+    margin-top: 16px;
+    display: grid;
+    gap: 10px;
+  }
+
+  .profile-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    color: var(--text-2);
+  }
+
+  .bottom-nav {
+    position: fixed;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: 0;
+    width: min(430px, 100%);
+    padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+    background: linear-gradient(180deg, rgba(11, 9, 8, 0), rgba(11, 9, 8, 0.92) 28%, rgba(11, 9, 8, 0.98));
+    z-index: 22;
+  }
+
+  .bottom-nav-inner {
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 24px;
+    background: rgba(20, 17, 15, 0.92);
+    backdrop-filter: blur(16px);
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    padding: 8px;
+    gap: 6px;
+  }
+
+  .tabbar-button {
+    border: 0;
+    background: transparent;
+    color: var(--text-3);
+    padding: 10px 6px;
+    border-radius: 16px;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    position: relative;
+  }
+
+  .tabbar-button.active {
+    color: var(--gold-2);
+    background: rgba(200, 138, 44, 0.12);
+  }
+
+  .tabbar-label {
+    font-size: 11px;
+  }
+
+  .modal-scrim,
+  .drawer-scrim {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.62);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.22s;
+    z-index: 40;
+  }
+
+  .modal-scrim.open,
+  .drawer-scrim.open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .modal,
+  .drawer-shell {
+    position: fixed;
+    left: 50%;
+    width: min(430px, 100%);
+    z-index: 41;
+    pointer-events: none;
+  }
+
+  .modal {
+    bottom: 0;
+    transform: translateX(-50%);
+    display: flex;
+    justify-content: center;
+    padding: 0 12px 12px;
+  }
+
+  .modal-card {
+    width: 100%;
+    max-height: calc(100vh - 24px);
+    transform: translateY(102%);
+    transition: transform 0.28s ease;
+    overflow: hidden;
+    pointer-events: auto;
+  }
+
+  .modal.open .modal-card {
+    transform: translateY(0);
+  }
+
+  .modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 18px 18px 12px;
+  }
+
+  .modal-title {
+    margin: 0;
+    font-size: 32px;
+    font-weight: 600;
+  }
+
+  .modal-copy {
+    font-size: 13px;
+    margin-top: 6px;
+  }
+
+  .close-button {
+    width: 40px;
+    height: 40px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: var(--surface-2);
+    color: var(--text);
+  }
+
+  .overlay-scroll,
+  .modal-scroll,
+  .drawer-body {
+    overflow-y: auto;
+    scrollbar-width: none;
+  }
+
+  .overlay-scroll::-webkit-scrollbar,
+  .modal-scroll::-webkit-scrollbar,
+  .drawer-body::-webkit-scrollbar {
+    display: none;
+  }
+
+  .overlay-visual {
+    height: 270px;
+  }
+
+  .overlay-body {
+    padding-top: 18px;
+  }
+
+  .overlay-title {
+    font-size: 38px;
+    margin: 0;
+    font-weight: 600;
+  }
+
+  .detail-copy {
+    margin-top: 10px;
+    font-size: 14px;
+  }
+
+  .detail-list {
+    display: grid;
+    gap: 12px;
+    margin-top: 20px;
+  }
+
+  .detail-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .detail-row span:first-child {
+    color: var(--text-3);
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .detail-row span:last-child {
+    text-align: right;
+  }
+
+  .overlay-actions {
+    gap: 10px;
+    margin-top: 22px;
+    padding-bottom: 10px;
+  }
+
+  .overlay-actions > * {
+    flex: 1;
+  }
+
+  .drawer-shell {
+    top: 0;
+    bottom: 0;
+    transform: translateX(-50%);
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  .drawer {
+    width: 100%;
+    max-width: 380px;
+    height: 100%;
+    border-radius: 0;
+    transform: translateX(104%);
+    transition: transform 0.28s ease;
+    pointer-events: auto;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .drawer-shell.open .drawer {
+    transform: translateX(0);
+  }
+
+  .drawer-header {
+    padding: 20px 18px 12px;
+    display: flex;
+    align-items: start;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .drawer-title {
+    font-size: 30px;
+    font-family: "Cormorant Garamond", serif;
+    font-weight: 600;
+    margin: 0;
+  }
+
+  .drawer-body {
+    padding: 8px 18px 18px;
+    flex: 1;
+  }
+
+  .cart-list,
+  .compose-product-list {
+    display: grid;
+    gap: 12px;
+  }
+
+  .cart-item,
+  .compose-product-option {
+    display: grid;
+    grid-template-columns: 64px 1fr auto;
+    gap: 12px;
+    align-items: center;
+    padding: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+  }
+
+  .compose-product-option {
+    cursor: pointer;
+  }
+
+  .compose-product-option.selected {
+    border-color: rgba(200, 138, 44, 0.5);
+    background: rgba(200, 138, 44, 0.08);
+  }
+
+  .thumb {
+    width: 64px;
+    height: 64px;
+    border-radius: 14px;
+    overflow: hidden;
+    background: var(--surface-2);
+  }
+
+  .qty-controls {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+  }
+
+  .qty-button {
+    width: 28px;
+    height: 28px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: var(--surface-2);
+    color: var(--text);
+  }
+
+  .drawer-footer {
+    flex-direction: column;
+    gap: 14px;
+    padding: 16px 18px 20px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    background: rgba(20, 17, 15, 0.96);
+  }
+
+  .checkout-summary {
+    justify-content: space-between;
+    gap: 12px;
+    color: var(--text-2);
+    font-size: 14px;
+  }
+
+  .checkout-summary strong {
+    color: var(--text);
+  }
+
+  .empty-state {
+    border: 1px dashed rgba(255, 255, 255, 0.12);
+    border-radius: var(--radius);
+    padding: 20px;
+    color: var(--text-2);
+    text-align: center;
+  }
+
+  .checkout-form,
+  .compose-form {
+    display: grid;
+    gap: 14px;
+    padding: 0 18px 18px;
+  }
+
+  .checkout-field,
+  .compose-field {
+    display: grid;
+    gap: 8px;
+  }
+
+  .field-label {
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    color: var(--text-3);
+    text-transform: uppercase;
+  }
+
+  .compose-textarea {
+    min-height: 120px;
+    resize: vertical;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--line);
+    background: var(--surface-2);
+    padding: 14px;
+  }
+
+  .checkout-card {
+    margin: 0 18px 18px;
+  }
+
+  .checkout-card ul {
+    margin: 10px 0 0;
+    padding-left: 18px;
+    color: var(--text-2);
+  }
+
+  .reader-card {
+    margin: 0 18px 18px;
+    overflow: hidden;
+  }
+
+  .reader-hero {
+    height: 210px;
+  }
+
+  .reader-body {
+    padding: 18px;
+    font-size: 15px;
+  }
+
+  .toast {
+    position: fixed;
+    left: 50%;
+    bottom: 96px;
+    transform: translateX(-50%) translateY(20px);
+    min-width: 220px;
+    max-width: calc(100vw - 32px);
+    padding: 13px 16px;
+    border-radius: 999px;
+    background: rgba(15, 12, 10, 0.92);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: var(--text);
+    text-align: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s, transform 0.2s;
+    z-index: 60;
+  }
+
+  .toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  .visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    border: 0;
+  }
+
+  @media (max-width: 390px) {
+    .screen {
+      padding-inline: 16px;
+    }
+
+    .product-grid,
+    .vault-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+</head>
+<body>
+<div class="app-shell">
+  <header class="header">
+    <div class="header-row">
+      <div class="brand">
+        <div class="brand-mark">V<span>.</span>ault</div>
+        <div class="brand-copy">Collect, read, and download digital work</div>
+      </div>
+      <div class="header-actions">
+        <button class="icon-button" type="button" aria-label="Search the catalog" onclick="focusSearch()">
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"></circle><line x1="16.65" y1="16.65" x2="21" y2="21"></line></svg>
+        </button>
+        <button class="icon-button" type="button" aria-label="Open cart" onclick="openCart()">
+          <svg viewBox="0 0 24 24"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg>
+          <span class="badge" id="cartBadge">0</span>
+        </button>
+      </div>
+    </div>
+    <nav class="segmented-nav" aria-label="Primary sections">
+      <button class="nav-button active" data-screen="shop" type="button" onclick="switchScreen('shop')">Shop</button>
+      <button class="nav-button" data-screen="feed" type="button" onclick="switchScreen('feed')">Feed <span class="nav-pill" id="feedNavPill">3</span></button>
+      <button class="nav-button" data-screen="vault" type="button" onclick="switchScreen('vault')">My Vault</button>
+      <button class="nav-button" data-screen="profile" type="button" onclick="switchScreen('profile')">Profile</button>
+    </nav>
+  </header>
+
+  <main>
+    <section class="screen active" id="screen-shop">
+      <div class="hero">
+        <div class="eyebrow" id="greetingLabel">Good evening</div>
+        <h1>Discover <em>digital</em><br>masterworks.</h1>
+        <p>Browse collectible art, working ebooks, and production-ready creative tools in one polished storefront.</p>
+      </div>
+
+      <div class="search-card">
+        <div class="search-input-wrap">
+          <svg viewBox="0 0 24 24" style="width:18px;height:18px;stroke:var(--text-3);fill:none;stroke-width:1.9"><circle cx="11" cy="11" r="7"></circle><line x1="16.65" y1="16.65" x2="21" y2="21"></line></svg>
+          <input id="searchInput" type="search" placeholder="Search art, books, tools..." oninput="filterProducts()">
+        </div>
+        <div class="chips" id="categoryChips"></div>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stats-card">
+          <strong id="statsProducts">0</strong>
+          <span>Products</span>
+        </div>
+        <div class="stats-card">
+          <strong id="statsCollected">0</strong>
+          <span>Collected</span>
+        </div>
+        <div class="stats-card">
+          <strong id="statsCreators">0</strong>
+          <span>Creators</span>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-header">
+          <div>
+            <h2 class="section-title">Featured drops</h2>
+            <div class="section-meta">Curated work with instant access after checkout.</div>
+          </div>
+          <button class="ghost-button" type="button" onclick="scrollToCatalog()">See all</button>
+        </div>
+        <div class="featured-row" id="featuredRow"></div>
+      </div>
+
+      <div class="section" id="catalogSection">
+        <div class="section-header">
+          <div>
+            <h2 class="section-title">Catalog</h2>
+            <div class="section-meta" id="catalogMeta">0 items</div>
+          </div>
+        </div>
+        <div class="product-grid" id="productGrid"></div>
+      </div>
+    </section>
+
+    <section class="screen" id="screen-feed">
+      <div class="feed-banner">
+        <span class="live-dot"></span>
+        Live creator feed with drops, launch notes, and collector discussion.
+      </div>
+
+      <div class="compose-card">
+        <div class="compose-top">
+          <div class="avatar">YO</div>
+          <button class="compose-trigger" type="button" onclick="openCompose()">Share a launch update, a note, or a product drop...</button>
+        </div>
+        <div class="compose-actions">
+          <button class="secondary-button" type="button" onclick="openCompose()">New post</button>
+          <button class="ghost-button" type="button" onclick="openCompose(true)">Attach product</button>
+        </div>
+      </div>
+
+      <div class="feed-list" id="feedList"></div>
+    </section>
+
+    <section class="screen" id="screen-vault">
+      <div class="hero">
+        <div class="eyebrow">Your collection</div>
+        <h1>My <em>Vault</em></h1>
+        <p>Everything you have purchased lives here, ready to open again without re-buying.</p>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stats-card">
+          <strong id="vaultBooksStat">0</strong>
+          <span>Ebooks</span>
+        </div>
+        <div class="stats-card">
+          <strong id="vaultArtStat">0</strong>
+          <span>Art</span>
+        </div>
+        <div class="stats-card">
+          <strong id="vaultToolsStat">0</strong>
+          <span>Tools</span>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-header">
+          <div>
+            <h2 class="section-title">Ready to open</h2>
+            <div class="section-meta">Collected items and completed downloads.</div>
+          </div>
+        </div>
+        <div class="vault-summary" id="vaultSummary"></div>
+        <div class="vault-grid" id="vaultGrid"></div>
+      </div>
+    </section>
+
+    <section class="screen" id="screen-profile">
+      <div class="hero">
+        <div class="eyebrow">Account</div>
+        <h1>Collector <em>profile</em></h1>
+        <p>View your activity, purchase history snapshot, and demo account details.</p>
+      </div>
+
+      <div class="profile-stack">
+        <div class="profile-card">
+          <div class="profile-header">
+            <div class="profile-avatar">YO</div>
+            <div>
+              <div class="profile-name">Your demo account</div>
+              <div class="profile-handle">@vault.collector</div>
+            </div>
+          </div>
+          <div class="profile-list">
+            <div class="profile-row"><span>Wishlist items</span><strong id="profileWishlistCount">0</strong></div>
+            <div class="profile-row"><span>Cart total items</span><strong id="profileCartCount">0</strong></div>
+            <div class="profile-row"><span>Feed posts published</span><strong id="profilePostCount">0</strong></div>
+          </div>
+        </div>
+
+        <div class="profile-card">
+          <strong>How this build works</strong>
+          <p class="muted">This is a fully interactive single-file product demo. Cart, vault, wishlist, comments, and custom posts persist in local storage on this device.</p>
+        </div>
+
+        <div class="profile-card">
+          <strong>Quick actions</strong>
+          <div class="compose-actions" style="margin-top:12px">
+            <button class="secondary-button" type="button" onclick="openCheckout()">Checkout</button>
+            <button class="ghost-button" type="button" onclick="switchScreen('vault')">Open vault</button>
+            <button class="ghost-button" type="button" onclick="resetDemo()">Reset demo data</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<nav class="bottom-nav" aria-label="Bottom navigation">
+  <div class="bottom-nav-inner">
+    <button class="tabbar-button active" type="button" data-screen="shop" onclick="switchScreen('shop')">
+      <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"></path><path d="M9 22V12h6v10"></path></svg>
+      <span class="tabbar-label">Shop</span>
+    </button>
+    <button class="tabbar-button" type="button" data-screen="feed" onclick="switchScreen('feed')">
+      <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z"></path></svg>
+      <span class="tabbar-label">Feed</span>
+    </button>
+    <button class="tabbar-button" type="button" data-screen="vault" onclick="switchScreen('vault')">
+      <svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2Z"></path></svg>
+      <span class="tabbar-label">Vault</span>
+    </button>
+    <button class="tabbar-button" type="button" data-screen="profile" onclick="switchScreen('profile')">
+      <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+      <span class="tabbar-label">Profile</span>
+    </button>
+  </div>
+</nav>
+
+<div class="modal-scrim" id="modalScrim" onclick="closeActiveModal()"></div>
+
+<div class="modal" id="detailModal" aria-hidden="true">
+  <div class="modal-card">
+    <div class="overlay-scroll">
+      <div class="overlay-visual" id="detailVisualWrap">
+        <canvas id="detailCanvas" style="width:100%;height:100%;display:block"></canvas>
+      </div>
+      <div class="overlay-body">
+        <div class="modal-header" style="padding:0 16px 0">
+          <div>
+            <div class="eyebrow" id="detailEyebrow">Product</div>
+            <h2 class="overlay-title" id="detailTitle"></h2>
+          </div>
+          <button class="close-button" type="button" aria-label="Close details" onclick="closeDetail()">
+            <svg viewBox="0 0 24 24"><line x1="6" y1="6" x2="18" y2="18"></line><line x1="18" y1="6" x2="6" y2="18"></line></svg>
+          </button>
+        </div>
+        <div class="overlay-body" style="padding-top:10px">
+          <p class="detail-copy" id="detailDescription"></p>
+          <div class="meta-strip" id="detailMetaStrip"></div>
+          <div class="detail-list">
+            <div class="detail-row"><span>Format</span><span id="detailFormat"></span></div>
+            <div class="detail-row"><span>Rating</span><span id="detailRating"></span></div>
+            <div class="detail-row"><span>Access</span><span id="detailAccess"></span></div>
+            <div class="detail-row"><span>Creator</span><span id="detailCreator"></span></div>
+          </div>
+          <div class="overlay-actions">
+            <button class="primary-button" id="detailPrimaryButton" type="button" onclick="handlePrimaryDetailAction()">Collect</button>
+            <button class="secondary-button" id="detailWishlistButton" type="button" onclick="toggleWishlistFromDetail()">Save</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="composeModal" aria-hidden="true">
+  <div class="modal-card">
+    <div class="modal-header">
+      <div>
+        <h2 class="modal-title">New post</h2>
+        <div class="modal-copy">Share a launch note, attach a product, and publish it to the feed.</div>
+      </div>
+      <button class="close-button" type="button" aria-label="Close composer" onclick="closeCompose()">
+        <svg viewBox="0 0 24 24"><line x1="6" y1="6" x2="18" y2="18"></line><line x1="18" y1="6" x2="6" y2="18"></line></svg>
+      </button>
+    </div>
+    <div class="modal-scroll">
+      <form class="compose-form" onsubmit="event.preventDefault(); submitPost();">
+        <div class="compose-field">
+          <label class="field-label" for="composeCaption">Caption</label>
+          <textarea class="compose-textarea" id="composeCaption" placeholder="Tell collectors what is new, what shipped, or why this drop matters."></textarea>
+        </div>
+        <div class="compose-field">
+          <label class="field-label">Attach a product</label>
+          <div class="compose-product-list" id="composeProductList"></div>
+        </div>
+        <button class="primary-button" type="submit">Post to feed</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="checkoutModal" aria-hidden="true">
+  <div class="modal-card">
+    <div class="modal-header">
+      <div>
+        <h2 class="modal-title">Checkout</h2>
+        <div class="modal-copy">Finish your purchase and unlock the items in your vault right away.</div>
+      </div>
+      <button class="close-button" type="button" aria-label="Close checkout" onclick="closeCheckout()">
+        <svg viewBox="0 0 24 24"><line x1="6" y1="6" x2="18" y2="18"></line><line x1="18" y1="6" x2="6" y2="18"></line></svg>
+      </button>
+    </div>
+    <div class="modal-scroll">
+      <div class="checkout-card">
+        <div class="overlay-body">
+          <strong>Order summary</strong>
+          <div class="checkout-summary" style="margin-top:12px"><span>Items</span><strong id="checkoutItemCount">0</strong></div>
+          <div class="checkout-summary"><span>Total</span><strong id="checkoutTotal">$0</strong></div>
+          <ul id="checkoutItems"></ul>
+        </div>
+      </div>
+      <form class="checkout-form" onsubmit="event.preventDefault(); completeCheckout();">
+        <div class="checkout-field">
+          <label class="field-label" for="checkoutName">Full name</label>
+          <div class="checkout-input"><input id="checkoutName" type="text" placeholder="Collector name"></div>
+        </div>
+        <div class="checkout-field">
+          <label class="field-label" for="checkoutEmail">Email</label>
+          <div class="checkout-input"><input id="checkoutEmail" type="email" placeholder="collector@example.com"></div>
+        </div>
+        <div class="checkout-field">
+          <label class="field-label" for="checkoutCard">Card</label>
+          <div class="checkout-input"><input id="checkoutCard" type="text" inputmode="numeric" placeholder="4242 4242 4242 4242"></div>
+        </div>
+        <button class="primary-button" type="submit">Complete purchase</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="readerModal" aria-hidden="true">
+  <div class="modal-card">
+    <div class="modal-header">
+      <div>
+        <h2 class="modal-title" id="readerTitle">Reader</h2>
+        <div class="modal-copy" id="readerSubtitle">Open your collected item.</div>
+      </div>
+      <button class="close-button" type="button" aria-label="Close reader" onclick="closeReader()">
+        <svg viewBox="0 0 24 24"><line x1="6" y1="6" x2="18" y2="18"></line><line x1="18" y1="6" x2="6" y2="18"></line></svg>
+      </button>
+    </div>
+    <div class="modal-scroll">
+      <div class="reader-card">
+        <div class="reader-hero">
+          <canvas id="readerCanvas" style="width:100%;height:100%;display:block"></canvas>
+        </div>
+        <div class="reader-body" id="readerBody"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="drawer-scrim" id="drawerScrim" onclick="closeCart()"></div>
+<aside class="drawer-shell" id="cartDrawer" aria-hidden="true">
+  <div class="drawer">
+    <div class="drawer-header">
+      <div>
+        <h2 class="drawer-title">Your cart</h2>
+        <div class="drawer-note">Add items now and complete checkout when ready.</div>
+      </div>
+      <button class="close-button" type="button" aria-label="Close cart" onclick="closeCart()">
+        <svg viewBox="0 0 24 24"><line x1="6" y1="6" x2="18" y2="18"></line><line x1="18" y1="6" x2="6" y2="18"></line></svg>
+      </button>
+    </div>
+    <div class="drawer-body">
+      <div class="cart-list" id="cartList"></div>
+    </div>
+    <div class="drawer-footer">
+      <div class="checkout-summary"><span>Subtotal</span><strong id="cartSubtotal">$0</strong></div>
+      <button class="primary-button" type="button" onclick="openCheckout()">Checkout</button>
+    </div>
+  </div>
+</aside>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const STORAGE_KEY = "vault-product-state-v1";
+
+const products = [
+  {
+    id: 1,
+    cat: "art",
+    name: "Neon Dreams",
+    sub: "Digital art print series",
+    price: 24,
+    rating: 4.9,
+    format: "PNG / SVG",
+    featured: true,
+    creator: "Mira Kojo",
+    desc: "A set of twelve electric city prints rendered at large print-ready resolution with clean vector companions for layout work.",
+    accessType: "collect",
+    accessNote: "Collected in-app and ready to reopen from your vault.",
+    palette: ["#ff3366", "#ff9f63", "#190d1a", "#7d39ff", "#ffd3ae"],
+    style: "neon",
+    readerText: "This collected art pack includes layered PNG exports, sharp SVG assets, and a curation note from the artist about color rhythm and pacing."
+  },
+  {
+    id: 2,
+    cat: "ebook",
+    name: "Design Systems",
+    sub: "The complete field guide",
+    price: 12,
+    rating: 4.8,
+    format: "PDF / EPUB",
+    featured: true,
+    creator: "Ade Osei",
+    desc: "A practical handbook for teams building scalable systems, with chapters on tokens, audits, migration, component API design, and documentation rituals.",
+    accessType: "collect",
+    accessNote: "Available inside your vault reader immediately after checkout.",
+    palette: ["#153f2d", "#2d8a61", "#0c1f17", "#5fd3a0", "#def6ea"],
+    style: "book",
+    readerText: "Chapter 1 starts by defining consistency debt, then walks through token governance, rollout sequencing, and team agreement templates."
+  },
+  {
+    id: 3,
+    cat: "tool",
+    name: "ColorSage Pro",
+    sub: "Intelligent palette generator",
+    price: 29,
+    rating: 4.7,
+    format: "Web App License",
+    featured: true,
+    creator: "Nadia Studio",
+    desc: "Generate accessible palettes, export to CSS and Figma variables, and analyze contrast pairings with a workflow built for product teams.",
+    accessType: "download",
+    accessNote: "Unlocks a downloadable license and setup checklist.",
+    palette: ["#0d2137", "#2e5f99", "#081220", "#6ba1e6", "#d7e6fb"],
+    style: "tool",
+    readerText: "Your download includes setup instructions, a license key pattern for demos, and a quick-start workflow for palette generation."
+  },
+  {
+    id: 4,
+    cat: "art",
+    name: "Abstract Void",
+    sub: "Generative motion series",
+    price: 38,
+    rating: 5.0,
+    format: "PNG / MP4",
+    featured: false,
+    creator: "Mira Kojo",
+    desc: "A generative set exploring negative space, with stills for print and motion loops for ambient gallery playback.",
+    accessType: "collect",
+    accessNote: "Stored in your vault as collected media.",
+    palette: ["#060606", "#2d2d2d", "#f0e1bf", "#9b8b77", "#ffffff"],
+    style: "abstract",
+    readerText: "Each piece ships with a still composition and a loopable motion export suited for installations or presentation backgrounds."
+  },
+  {
+    id: 5,
+    cat: "ebook",
+    name: "The Creative Mind",
+    sub: "Psychology of art",
+    price: 9,
+    rating: 4.6,
+    format: "PDF / EPUB",
+    featured: false,
+    creator: "Ade Osei",
+    desc: "An essay-rich reading experience covering flow states, creative recovery, attention, and long-form making rituals.",
+    accessType: "collect",
+    accessNote: "Readable in-app from the vault.",
+    palette: ["#2b1b0f", "#6f4b24", "#1a120c", "#c69963", "#f0ddbb"],
+    style: "book2",
+    readerText: "The opening section explores the distance between inspiration and repeatable practice, with short reflective prompts after each chapter."
+  },
+  {
+    id: 6,
+    cat: "tool",
+    name: "FontVault",
+    sub: "Typography library",
+    price: 19,
+    rating: 4.8,
+    format: "Desktop App",
+    featured: false,
+    creator: "Tunde W.",
+    desc: "Browse premium type pairings, preview them in a specimen view, and export implementation-ready CSS declarations.",
+    accessType: "download",
+    accessNote: "Download package plus onboarding checklist.",
+    palette: ["#1f1432", "#4a2f80", "#11091b", "#b98df5", "#e6d6ff"],
+    style: "font",
+    readerText: "This tool package includes a downloadable bundle and a setup guide describing installation, pairing suggestions, and export modes."
+  },
+  {
+    id: 7,
+    cat: "art",
+    name: "Urban Decay",
+    sub: "Photo collection",
+    price: 18,
+    rating: 4.5,
+    format: "JPEG / TIFF",
+    featured: false,
+    creator: "Mira Kojo",
+    desc: "Sixty documentary photographs of weathered structures, tuned for prints, editorial layouts, and reference boards.",
+    accessType: "collect",
+    accessNote: "Collected in your gallery vault.",
+    palette: ["#21150e", "#463422", "#6f5639", "#c49c72", "#f2e2cc"],
+    style: "photo",
+    readerText: "Collected files include print-ready stills and a short note on framing choices, texture preservation, and documentary sequencing."
+  },
+  {
+    id: 8,
+    cat: "tool",
+    name: "PixelFlow",
+    sub: "Animation toolkit",
+    price: 45,
+    rating: 4.9,
+    format: "Plugin + Files",
+    featured: false,
+    creator: "Tunde W.",
+    desc: "A motion system toolkit with easing presets, sequence planning templates, and export helpers for handoff to production.",
+    accessType: "download",
+    accessNote: "Download externally after purchase.",
+    palette: ["#0c1c2d", "#17567f", "#06131e", "#49abdf", "#cdeefe"],
+    style: "motion",
+    readerText: "You will receive a plugin bundle, motion cheat sheet, and a concise guide for integrating presets into design workflows."
+  },
+  {
+    id: 9,
+    cat: "ebook",
+    name: "Code and Craft",
+    sub: "Dev meets design",
+    price: 15,
+    rating: 4.7,
+    format: "PDF / EPUB",
+    featured: false,
+    creator: "Nadia Studio",
+    desc: "A handbook for design engineers covering CSS systems, animation, component polish, and the taste required to ship elegant interfaces.",
+    accessType: "collect",
+    accessNote: "Opens from your vault after purchase.",
+    palette: ["#102112", "#214f24", "#09130a", "#51b455", "#d8f5d8"],
+    style: "book3",
+    readerText: "This guide walks through taste-driven implementation decisions, from spacing systems to motion restraint and UI review checklists."
+  }
+];
+
+const creators = [
+  { initials: "MK", name: "Mira Kojo", badge: true, color: "#d15b45" },
+  { initials: "AO", name: "Ade Osei", badge: true, color: "#2f9c7f" },
+  { initials: "NS", name: "Nadia Studio", badge: false, color: "#4576bb" },
+  { initials: "TW", name: "Tunde W.", badge: true, color: "#8f66df" }
+];
+
+const defaultFeedPosts = [
+  {
+    id: 100,
+    creator: creators[0],
+    productId: 1,
+    caption: "Just dropped Neon Dreams. Collector pack includes bonus alternate color studies for early buyers.",
+    time: "Just now",
+    likes: 14,
+    likedByMe: false
+  },
+  {
+    id: 101,
+    creator: creators[1],
+    productId: 2,
+    caption: "Design Systems is live with PDF and EPUB formats. Built to be readable in one sitting or used chapter by chapter.",
+    time: "18m ago",
+    likes: 27,
+    likedByMe: false
+  },
+  {
+    id: 102,
+    creator: creators[3],
+    productId: 8,
+    caption: "PixelFlow v2 ships today with cleaner timing presets and better handoff notes for motion-heavy product teams.",
+    time: "1h ago",
+    likes: 41,
+    likedByMe: false
+  }
+];
+
+const defaultComments = {
+  100: [
+    { id: 1, user: "Kemi A.", color: "#4576bb", text: "The palette balance on this drop is excellent.", time: "2m" },
+    { id: 2, user: "Lara V.", color: "#8f66df", text: "Would love a dark print variation too.", time: "5m" }
+  ],
+  101: [
+    { id: 3, user: "Dev A.", color: "#2f9c7f", text: "The token chapters are immediately useful.", time: "12m" }
+  ],
+  102: [
+    { id: 4, user: "Seun B.", color: "#d15b45", text: "Downloaded already. The easing presets are sharp.", time: "1h" }
+  ]
+};
+
+let state = {
+  activeScreen: "shop",
+  category: "all",
+  wishlist: [],
+  cart: [],
+  collected: [],
+  downloads: [],
+  feedPosts: [],
+  comments: {},
+  customPostId: 1000
+};
+
+let currentDetailId = null;
+let currentReaderId = null;
+let activeModal = null;
+let selectedComposeProduct = null;
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) {
+      resetState(false);
+      return;
+    }
+    const parsed = JSON.parse(raw);
+    state = {
+      ...state,
+      ...parsed,
+      feedPosts: Array.isArray(parsed.feedPosts) && parsed.feedPosts.length ? parsed.feedPosts : structuredClone(defaultFeedPosts),
+      comments: parsed.comments && typeof parsed.comments === "object" ? parsed.comments : structuredClone(defaultComments)
+    };
+  } catch (error) {
+    resetState(false);
+  }
+}
+
+function resetState(save = true) {
+  state = {
+    activeScreen: "shop",
+    category: "all",
+    wishlist: [],
+    cart: [],
+    collected: [],
+    downloads: [],
+    feedPosts: structuredClone(defaultFeedPosts),
+    comments: structuredClone(defaultComments),
+    customPostId: 1000
+  };
+  if (save) {
+    saveState();
+  }
+}
+
+function saveState() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+function getProduct(productId) {
+  return products.find((product) => product.id === productId) || null;
+}
+
+function formatPrice(value) {
+  return "$" + Number(value || 0).toFixed(0);
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function getCategoryLabel(cat) {
+  if (cat === "ebook") return "Ebook";
+  if (cat === "tool") return "Tool";
+  return "Art";
+}
+
+function getTypeClass(cat) {
+  return cat === "ebook" ? "type-ebook" : cat === "tool" ? "type-tool" : "type-art";
+}
+
+function getAccessLabel(product) {
+  return product.accessType === "collect" ? "Collect in vault" : "Download after purchase";
+}
+
+function getCartCount() {
+  return state.cart.reduce((sum, item) => sum + item.quantity, 0);
+}
+
+function getCartSubtotal() {
+  return state.cart.reduce((sum, item) => {
+    const product = getProduct(item.productId);
+    return sum + (product ? product.price * item.quantity : 0);
+  }, 0);
+}
+
+function isWishlisted(productId) {
+  return state.wishlist.includes(productId);
+}
+
+function isCollected(productId) {
+  return state.collected.includes(productId);
+}
+
+function isDownloaded(productId) {
+  return state.downloads.includes(productId);
+}
+
+function drawArt(canvas, product, width, height) {
+  if (!canvas || !product) return;
+  const w = width || canvas.clientWidth || 200;
+  const h = height || canvas.clientHeight || 140;
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  const palette = product.palette;
+  ctx.clearRect(0, 0, w, h);
+  const gradient = ctx.createLinearGradient(0, 0, w, h);
+  gradient.addColorStop(0, palette[0]);
+  gradient.addColorStop(0.5, palette[1]);
+  gradient.addColorStop(1, palette[2]);
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, w, h);
+
+  if (product.style === "neon") {
+    ctx.lineWidth = 2;
+    for (let index = 0; index < 8; index += 1) {
+      ctx.strokeStyle = palette[index % palette.length];
+      ctx.shadowColor = palette[index % palette.length];
+      ctx.shadowBlur = 12;
+      ctx.beginPath();
+      ctx.moveTo(Math.random() * w, Math.random() * h);
+      ctx.quadraticCurveTo(Math.random() * w, Math.random() * h, Math.random() * w, Math.random() * h);
+      ctx.stroke();
+    }
+    ctx.shadowBlur = 0;
+  } else if (product.style.startsWith("book")) {
+    ctx.fillStyle = "rgba(255,255,255,0.08)";
+    for (let row = 0; row < 7; row += 1) {
+      ctx.fillRect(w * 0.12, 24 + row * 19, w * 0.76, 4);
+    }
+    ctx.fillStyle = palette[4];
+    ctx.globalAlpha = 0.24;
+    ctx.beginPath();
+    ctx.arc(w * 0.72, h * 0.34, Math.min(w, h) * 0.22, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  } else if (product.style === "abstract") {
+    for (let ring = 0; ring < 7; ring += 1) {
+      ctx.strokeStyle = palette[ring % palette.length];
+      ctx.globalAlpha = 0.16;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(w / 2, h / 2, 18 + ring * 20, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  } else if (product.style === "photo") {
+    ctx.strokeStyle = "rgba(255,255,255,0.18)";
+    ctx.lineWidth = 1.2;
+    for (let frame = 0; frame < 4; frame += 1) {
+      ctx.strokeRect(18 + frame * 26, 14 + frame * 14, w * 0.44, h * 0.42);
+    }
+  } else {
+    ctx.strokeStyle = "rgba(255,255,255,0.14)";
+    ctx.lineWidth = 1;
+    const step = Math.max(26, Math.floor(Math.min(w, h) / 5));
+    for (let x = 0; x <= w; x += step) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, h);
+      ctx.stroke();
+    }
+    for (let y = 0; y <= h; y += step) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(w, y);
+      ctx.stroke();
+    }
+  }
+}
+
+function renderCategoryChips() {
+  const categories = [
+    { id: "all", label: "All", color: "var(--gold)" },
+    { id: "art", label: "Art", color: "var(--art)" },
+    { id: "ebook", label: "Ebooks", color: "var(--ebook)" },
+    { id: "tool", label: "Tools", color: "var(--tool)" }
+  ];
+
+  document.getElementById("categoryChips").innerHTML = categories.map((category) => `
+    <button
+      class="chip ${state.category === category.id ? "active" : ""}"
+      type="button"
+      onclick="setCategory('${category.id}')"
+    >
+      <span class="dot" style="background:${category.color}"></span>
+      ${escapeHtml(category.label)}
+    </button>
+  `).join("");
+}
+
+function renderFeatured() {
+  const featured = products.filter((product) => product.featured);
+  const container = document.getElementById("featuredRow");
+  container.innerHTML = featured.map((product) => `
+    <article class="featured-card">
+      <button type="button" style="all:unset;display:block;width:100%;cursor:pointer" onclick="openDetail(${product.id})">
+        <div class="featured-visual">
+          <canvas id="featuredCanvas${product.id}" style="width:100%;height:100%;display:block"></canvas>
+          <span class="type-tag ${getTypeClass(product.cat)}">${escapeHtml(getCategoryLabel(product.cat))}</span>
+          <span class="price-chip">${formatPrice(product.price)}</span>
+        </div>
+        <div class="featured-body">
+          <h3 class="featured-title">${escapeHtml(product.name)}</h3>
+          <p class="subtle">${escapeHtml(product.sub)}</p>
+          <div class="featured-footer">
+            <span class="subtle">Rating ${product.rating}</span>
+            <button class="inline-button" type="button" aria-label="Add ${escapeHtml(product.name)} to cart" onclick="event.stopPropagation(); addToCart(${product.id}, 1)">
+              <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            </button>
+          </div>
+        </div>
+      </button>
+    </article>
+  `).join("");
+
+  requestAnimationFrame(() => {
+    featured.forEach((product) => drawArt(document.getElementById("featuredCanvas" + product.id), product, 286, 180));
+  });
+}
+
+function getFilteredProducts() {
+  const query = document.getElementById("searchInput").value.trim().toLowerCase();
+  return products.filter((product) => {
+    const categoryMatch = state.category === "all" || product.cat === state.category;
+    const queryMatch = !query || [product.name, product.sub, product.creator, product.desc].join(" ").toLowerCase().includes(query);
+    return categoryMatch && queryMatch;
+  });
+}
+
+function renderCatalog() {
+  const filtered = getFilteredProducts();
+  const container = document.getElementById("productGrid");
+  document.getElementById("catalogMeta").textContent = filtered.length + (filtered.length === 1 ? " item" : " items");
+  container.innerHTML = filtered.map((product) => `
+    <article class="product-card">
+      <button type="button" style="all:unset;display:block;width:100%;cursor:pointer" onclick="openDetail(${product.id})">
+        <div class="product-visual">
+          <canvas id="productCanvas${product.id}" style="width:100%;height:100%;display:block"></canvas>
+          <span class="type-tag ${getTypeClass(product.cat)}">${escapeHtml(getCategoryLabel(product.cat))}</span>
+        </div>
+        <div class="product-body">
+          <h3 class="product-title">${escapeHtml(product.name)}</h3>
+          <p class="subtle">${escapeHtml(product.sub)}</p>
+          <div class="meta-strip">
+            <span class="access-pill">${escapeHtml(product.format)}</span>
+          </div>
+          <div class="product-footer">
+            <span class="price">${formatPrice(product.price)}</span>
+            <button class="inline-button" type="button" aria-label="Add ${escapeHtml(product.name)} to cart" onclick="event.stopPropagation(); addToCart(${product.id}, 1)">
+              <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            </button>
+          </div>
+        </div>
+      </button>
+    </article>
+  `).join("");
+
+  requestAnimationFrame(() => {
+    filtered.forEach((product) => {
+      const canvas = document.getElementById("productCanvas" + product.id);
+      if (canvas) drawArt(canvas, product, canvas.clientWidth || 180, 132);
+    });
+  });
+}
+
+function buildFeedPostHtml(post) {
+  const product = getProduct(post.productId);
+  const comments = state.comments[post.id] || [];
+  const productHtml = product ? `
+    <button class="feed-product" type="button" onclick="openDetail(${product.id})">
+      <div class="feed-product-visual">
+        <canvas id="feedCanvas${post.id}" style="width:100%;height:100%;display:block"></canvas>
+      </div>
+      <div class="post-product-row">
+        <div>
+          <div class="post-product-title">${escapeHtml(product.name)}</div>
+          <div class="subtle">${escapeHtml(product.sub)}</div>
+          <div class="meta-strip">
+            <span class="access-pill">${escapeHtml(getAccessLabel(product))}</span>
+          </div>
+        </div>
+        <div class="price">${formatPrice(product.price)}</div>
+      </div>
+    </button>
+  ` : "";
+
+  return `
+    <article class="post-card">
+      <div class="post-body">
+        <div class="post-header">
+          <div class="mini-avatar" style="background:${escapeHtml(post.creator.color)}">${escapeHtml(post.creator.initials)}</div>
+          <div class="post-meta">
+            <div class="post-author">
+              ${escapeHtml(post.creator.name)}
+              ${post.creator.badge ? '<span class="creator-pill">Creator</span>' : ""}
+            </div>
+            <div class="post-time">${escapeHtml(post.time)}</div>
+          </div>
+        </div>
+        <p class="post-copy">${escapeHtml(post.caption)}</p>
+        ${productHtml}
+        <div class="feed-actions">
+          <button class="feed-button ${post.likedByMe ? "active" : ""}" type="button" onclick="togglePostLike(${post.id})">
+            <svg viewBox="0 0 24 24"><path d="M12 21s-7-4.35-9-9.14C1.44 7.82 4.27 4 8.14 4c1.83 0 2.98.74 3.86 1.86C12.88 4.74 14.03 4 15.86 4 19.73 4 22.56 7.82 21 11.86 19 16.65 12 21 12 21Z"></path></svg>
+            ${post.likes}
+          </button>
+          <button class="feed-button" type="button" onclick="focusComment(${post.id})">
+            <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z"></path></svg>
+            ${comments.length}
+          </button>
+          <button class="feed-button" type="button" onclick="${product ? `openDetail(${product.id})` : `showToast('This post has no product attached.')`}">
+            <svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2Z"></path></svg>
+            ${product ? (isCollected(product.id) || isDownloaded(product.id) ? "Open" : "View") : "Post"}
+          </button>
+          <button class="feed-button" type="button" onclick="sharePost(${post.id})">
+            <svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>
+            Share
+          </button>
+        </div>
+        <div class="comments" id="commentList${post.id}">
+          ${comments.map(buildCommentHtml).join("")}
+          <div class="comment-entry">
+            <input id="commentInput${post.id}" type="text" placeholder="Add a comment..." onkeydown="if(event.key==='Enter'){ event.preventDefault(); submitComment(${post.id}); }">
+            <button class="send-button" type="button" aria-label="Send comment" onclick="submitComment(${post.id})">
+              <svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </article>
+  `;
+}
+
+function buildCommentHtml(comment) {
+  const initials = comment.user.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase();
+  return `
+    <div class="comment">
+      <div class="comment-avatar" style="background:${escapeHtml(comment.color)}">${escapeHtml(initials)}</div>
+      <div class="comment-bubble">
+        <div class="comment-author">${escapeHtml(comment.user)}</div>
+        <div>${escapeHtml(comment.text)}</div>
+        <div class="comment-time">${escapeHtml(comment.time)}</div>
+      </div>
+    </div>
+  `;
+}
+
+function renderFeed() {
+  const container = document.getElementById("feedList");
+  container.innerHTML = state.feedPosts.map(buildFeedPostHtml).join("");
+  document.getElementById("feedNavPill").textContent = String(state.feedPosts.length);
+
+  requestAnimationFrame(() => {
+    state.feedPosts.forEach((post) => {
+      const product = getProduct(post.productId);
+      if (!product) return;
+      const canvas = document.getElementById("feedCanvas" + post.id);
+      if (canvas) drawArt(canvas, product, canvas.clientWidth || 360, 196);
+    });
+  });
+}
+
+function renderVault() {
+  const summary = document.getElementById("vaultSummary");
+  const grid = document.getElementById("vaultGrid");
+  const items = [...new Set([...state.collected, ...state.downloads])]
+    .map(getProduct)
+    .filter(Boolean);
+
+  if (!items.length) {
+    summary.innerHTML = `
+      <div class="vault-empty card">
+        <div class="vault-empty-icon">V</div>
+        <h2>Your <em>Vault</em> is empty</h2>
+        <p class="muted">Collect an ebook, art pack, or creative tool and it will appear here right after checkout.</p>
+        <div class="compose-actions" style="justify-content:center;margin-top:14px">
+          <button class="primary-button" type="button" onclick="switchScreen('shop')">Browse products</button>
+        </div>
+      </div>
+    `;
+    grid.innerHTML = "";
+  } else {
+    summary.innerHTML = "";
+    grid.innerHTML = items.map((product) => `
+      <article class="vault-card">
+        <button type="button" style="all:unset;display:block;width:100%;cursor:pointer" onclick="openReader(${product.id})">
+          <div class="vault-visual">
+            <canvas id="vaultCanvas${product.id}" style="width:100%;height:100%;display:block"></canvas>
+            <span class="type-tag ${getTypeClass(product.cat)}">${escapeHtml(getCategoryLabel(product.cat))}</span>
+          </div>
+          <div class="vault-body">
+            <h3 class="vault-title">${escapeHtml(product.name)}</h3>
+            <p class="subtle">${escapeHtml(product.accessType === "collect" ? "Open in Vault" : "Download package available")}</p>
+            <div class="vault-footer">
+              <span class="access-pill">${escapeHtml(product.format)}</span>
+              <span class="price">${product.accessType === "collect" ? "Open" : "Download"}</span>
+            </div>
+          </div>
+        </button>
+      </article>
+    `).join("");
+
+    requestAnimationFrame(() => {
+      items.forEach((product) => {
+        const canvas = document.getElementById("vaultCanvas" + product.id);
+        if (canvas) drawArt(canvas, product, canvas.clientWidth || 180, 132);
+      });
+    });
+  }
+
+  document.getElementById("vaultBooksStat").textContent = String(items.filter((item) => item.cat === "ebook").length);
+  document.getElementById("vaultArtStat").textContent = String(items.filter((item) => item.cat === "art").length);
+  document.getElementById("vaultToolsStat").textContent = String(items.filter((item) => item.cat === "tool").length);
+}
+
+function renderProfile() {
+  document.getElementById("profileWishlistCount").textContent = String(state.wishlist.length);
+  document.getElementById("profileCartCount").textContent = String(getCartCount());
+  const customPosts = state.feedPosts.filter((post) => post.creator.name === "You").length;
+  document.getElementById("profilePostCount").textContent = String(customPosts);
+}
+
+function renderStats() {
+  document.getElementById("statsProducts").textContent = String(products.length);
+  document.getElementById("statsCollected").textContent = String(state.collected.length + state.downloads.length);
+  document.getElementById("statsCreators").textContent = String(creators.length);
+}
+
+function renderCart() {
+  document.getElementById("cartBadge").textContent = String(getCartCount());
+  document.getElementById("cartSubtotal").textContent = formatPrice(getCartSubtotal());
+  const list = document.getElementById("cartList");
+
+  if (!state.cart.length) {
+    list.innerHTML = `
+      <div class="empty-state">
+        Your cart is empty. Add a product from the catalog or a featured drop.
+      </div>
+    `;
+    return;
+  }
+
+  list.innerHTML = state.cart.map((item) => {
+    const product = getProduct(item.productId);
+    if (!product) return "";
+    return `
+      <div class="cart-item">
+        <canvas class="thumb" id="cartCanvas${product.id}" width="64" height="64"></canvas>
+        <div>
+          <strong>${escapeHtml(product.name)}</strong>
+          <div class="subtle">${escapeHtml(product.sub)}</div>
+          <div class="qty-controls">
+            <button class="qty-button" type="button" aria-label="Decrease quantity" onclick="changeCartQuantity(${product.id}, -1)">-</button>
+            <span>${item.quantity}</span>
+            <button class="qty-button" type="button" aria-label="Increase quantity" onclick="changeCartQuantity(${product.id}, 1)">+</button>
+          </div>
+        </div>
+        <div style="text-align:right">
+          <div class="price">${formatPrice(product.price * item.quantity)}</div>
+          <button class="ghost-button" style="min-height:34px;padding:0 10px;margin-top:10px" type="button" onclick="removeFromCart(${product.id})">Remove</button>
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  requestAnimationFrame(() => {
+    state.cart.forEach((item) => {
+      const product = getProduct(item.productId);
+      if (!product) return;
+      drawArt(document.getElementById("cartCanvas" + product.id), product, 64, 64);
+    });
+  });
+}
+
+function renderComposeProducts() {
+  const container = document.getElementById("composeProductList");
+  container.innerHTML = `
+    <button class="compose-product-option ${selectedComposeProduct === null ? "selected" : ""}" type="button" onclick="selectComposeProduct(null)">
+      <div class="thumb" style="display:grid;place-items:center;color:var(--gold-2);font-weight:700">No</div>
+      <div>
+        <strong>Post without attachment</strong>
+        <div class="subtle">Share a text-only update.</div>
+      </div>
+      <div class="subtle">Optional</div>
+    </button>
+  ` + products.map((product) => `
+    <button class="compose-product-option ${selectedComposeProduct === product.id ? "selected" : ""}" type="button" onclick="selectComposeProduct(${product.id})">
+      <canvas class="thumb" id="composeCanvas${product.id}" width="64" height="64"></canvas>
+      <div>
+        <strong>${escapeHtml(product.name)}</strong>
+        <div class="subtle">${escapeHtml(product.sub)}</div>
+      </div>
+      <div class="price">${formatPrice(product.price)}</div>
+    </button>
+  `).join("");
+
+  requestAnimationFrame(() => {
+    products.forEach((product) => {
+      const canvas = document.getElementById("composeCanvas" + product.id);
+      if (canvas) drawArt(canvas, product, 64, 64);
+    });
+  });
+}
+
+function renderCheckoutSummary() {
+  const count = getCartCount();
+  const total = getCartSubtotal();
+  document.getElementById("checkoutItemCount").textContent = String(count);
+  document.getElementById("checkoutTotal").textContent = formatPrice(total);
+
+  const itemsEl = document.getElementById("checkoutItems");
+  if (!state.cart.length) {
+    itemsEl.innerHTML = "<li>Your cart is empty.</li>";
+    return;
+  }
+
+  itemsEl.innerHTML = state.cart.map((item) => {
+    const product = getProduct(item.productId);
+    if (!product) return "";
+    return `<li>${escapeHtml(product.name)} x ${item.quantity}</li>`;
+  }).join("");
+}
+
+function renderAll() {
+  renderCategoryChips();
+  renderFeatured();
+  renderCatalog();
+  renderFeed();
+  renderVault();
+  renderProfile();
+  renderStats();
+  renderCart();
+  renderCheckoutSummary();
+  updateNavigation();
+  saveState();
+}
+
+function updateNavigation() {
+  document.querySelectorAll(".screen").forEach((screen) => {
+    screen.classList.toggle("active", screen.id === "screen-" + state.activeScreen);
+  });
+  document.querySelectorAll(".nav-button, .tabbar-button").forEach((button) => {
+    button.classList.toggle("active", button.dataset.screen === state.activeScreen);
+  });
+}
+
+function switchScreen(screen) {
+  state.activeScreen = screen;
+  updateNavigation();
+  saveState();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function setCategory(category) {
+  state.category = category;
+  renderCategoryChips();
+  renderCatalog();
+  saveState();
+}
+
+function filterProducts() {
+  renderCatalog();
+}
+
+function scrollToCatalog() {
+  document.getElementById("catalogSection").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function focusSearch() {
+  switchScreen("shop");
+  setTimeout(() => document.getElementById("searchInput").focus(), 100);
+}
+
+function addToCart(productId, quantity = 1) {
+  const product = getProduct(productId);
+  if (!product) return;
+  const existing = state.cart.find((item) => item.productId === productId);
+  if (existing) {
+    existing.quantity += quantity;
+  } else {
+    state.cart.push({ productId, quantity });
+  }
+  renderCart();
+  renderProfile();
+  renderCheckoutSummary();
+  saveState();
+  showToast(product.name + " added to cart.");
+}
+
+function changeCartQuantity(productId, delta) {
+  const item = state.cart.find((entry) => entry.productId === productId);
+  if (!item) return;
+  item.quantity += delta;
+  if (item.quantity <= 0) {
+    state.cart = state.cart.filter((entry) => entry.productId !== productId);
+  }
+  renderCart();
+  renderProfile();
+  renderCheckoutSummary();
+  saveState();
+}
+
+function removeFromCart(productId) {
+  const product = getProduct(productId);
+  state.cart = state.cart.filter((entry) => entry.productId !== productId);
+  renderCart();
+  renderProfile();
+  renderCheckoutSummary();
+  saveState();
+  if (product) showToast(product.name + " removed from cart.");
+}
+
+function openCart() {
+  document.getElementById("drawerScrim").classList.add("open");
+  document.getElementById("cartDrawer").classList.add("open");
+  document.getElementById("cartDrawer").setAttribute("aria-hidden", "false");
+}
+
+function closeCart() {
+  document.getElementById("drawerScrim").classList.remove("open");
+  document.getElementById("cartDrawer").classList.remove("open");
+  document.getElementById("cartDrawer").setAttribute("aria-hidden", "true");
+}
+
+function openDetail(productId) {
+  const product = getProduct(productId);
+  if (!product) return;
+  currentDetailId = productId;
+  document.getElementById("detailEyebrow").textContent = getCategoryLabel(product.cat) + " by " + product.creator;
+  document.getElementById("detailTitle").textContent = product.name;
+  document.getElementById("detailDescription").textContent = product.desc;
+  document.getElementById("detailFormat").textContent = product.format;
+  document.getElementById("detailRating").textContent = String(product.rating);
+  document.getElementById("detailAccess").textContent = getAccessLabel(product);
+  document.getElementById("detailCreator").textContent = product.creator;
+  document.getElementById("detailMetaStrip").innerHTML = `
+    <span class="access-pill">${formatPrice(product.price)}</span>
+    <span class="access-pill">${escapeHtml(product.accessNote)}</span>
+  `;
+
+  const primary = document.getElementById("detailPrimaryButton");
+  if (product.accessType === "collect" && isCollected(product.id)) {
+    primary.textContent = "Open in Vault";
+  } else if (product.accessType === "download" && isDownloaded(product.id)) {
+    primary.textContent = "Download Again";
+  } else if (state.cart.some((item) => item.productId === product.id)) {
+    primary.textContent = "View Cart";
+  } else {
+    primary.textContent = "Add to Cart";
+  }
+
+  const wishlistButton = document.getElementById("detailWishlistButton");
+  wishlistButton.textContent = isWishlisted(product.id) ? "Saved" : "Save";
+
+  openModal("detailModal");
+  requestAnimationFrame(() => drawArt(document.getElementById("detailCanvas"), product, document.getElementById("detailVisualWrap").clientWidth || 390, 270));
+}
+
+function closeDetail() {
+  closeModal("detailModal");
+}
+
+function handlePrimaryDetailAction() {
+  const product = getProduct(currentDetailId);
+  if (!product) return;
+
+  if (product.accessType === "collect" && isCollected(product.id)) {
+    closeDetail();
+    openReader(product.id);
+    return;
+  }
+
+  if (product.accessType === "download" && isDownloaded(product.id)) {
+    closeDetail();
+    openReader(product.id);
+    return;
+  }
+
+  if (state.cart.some((item) => item.productId === product.id)) {
+    closeDetail();
+    openCart();
+    return;
+  }
+
+  addToCart(product.id, 1);
+  openCart();
+  openDetail(product.id);
+}
+
+function toggleWishlistFromDetail() {
+  const product = getProduct(currentDetailId);
+  if (!product) return;
+  toggleWishlist(product.id);
+  openDetail(product.id);
+}
+
+function toggleWishlist(productId) {
+  if (isWishlisted(productId)) {
+    state.wishlist = state.wishlist.filter((id) => id !== productId);
+    showToast("Removed from wishlist.");
+  } else {
+    state.wishlist.push(productId);
+    showToast("Saved to wishlist.");
+  }
+  renderProfile();
+  saveState();
+}
+
+function openCompose(preselectProduct = false) {
+  selectedComposeProduct = preselectProduct && currentDetailId ? currentDetailId : null;
+  renderComposeProducts();
+  openModal("composeModal");
+}
+
+function closeCompose() {
+  closeModal("composeModal");
+}
+
+function selectComposeProduct(productId) {
+  selectedComposeProduct = productId;
+  renderComposeProducts();
+}
+
+function submitPost() {
+  const textarea = document.getElementById("composeCaption");
+  const caption = textarea.value.trim();
+  if (!caption) {
+    showToast("Add a caption before posting.");
+    return;
+  }
+
+  const post = {
+    id: state.customPostId,
+    creator: { initials: "YO", name: "You", badge: true, color: "#c88a2c" },
+    productId: selectedComposeProduct || null,
+    caption,
+    time: "Just now",
+    likes: 0,
+    likedByMe: false
+  };
+
+  state.customPostId += 1;
+  state.feedPosts.unshift(post);
+  state.comments[post.id] = [];
+  textarea.value = "";
+  renderFeed();
+  renderProfile();
+  saveState();
+  closeCompose();
+  selectedComposeProduct = null;
+  switchScreen("feed");
+  showToast("Post published to feed.");
+}
+
+function togglePostLike(postId) {
+  const post = state.feedPosts.find((entry) => entry.id === postId);
+  if (!post) return;
+  post.likedByMe = !post.likedByMe;
+  post.likes += post.likedByMe ? 1 : -1;
+  renderFeed();
+  saveState();
+}
+
+function focusComment(postId) {
+  const input = document.getElementById("commentInput" + postId);
+  if (!input) return;
+  input.focus();
+  input.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+function submitComment(postId) {
+  const input = document.getElementById("commentInput" + postId);
+  if (!input) return;
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = "";
+  if (!Array.isArray(state.comments[postId])) {
+    state.comments[postId] = [];
+  }
+  state.comments[postId].push({
+    id: Date.now(),
+    user: "You",
+    color: "#4576bb",
+    text,
+    time: "Just now"
+  });
+  renderFeed();
+  saveState();
+  showToast("Comment posted.");
+}
+
+function sharePost(postId) {
+  const url = window.location.href.split("#")[0] + "#post-" + postId;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(url).then(() => showToast("Post link copied."), () => showToast("Share link ready: " + url));
+  } else {
+    showToast("Share link ready: " + url);
+  }
+}
+
+function openCheckout() {
+  if (!state.cart.length) {
+    showToast("Add something to your cart first.");
+    return;
+  }
+  closeCart();
+  renderCheckoutSummary();
+  openModal("checkoutModal");
+}
+
+function closeCheckout() {
+  closeModal("checkoutModal");
+}
+
+function completeCheckout() {
+  if (!state.cart.length) {
+    showToast("Your cart is empty.");
+    return;
+  }
+
+  const name = document.getElementById("checkoutName").value.trim();
+  const email = document.getElementById("checkoutEmail").value.trim();
+  const card = document.getElementById("checkoutCard").value.trim();
+
+  if (!name || !email || card.replace(/\s/g, "").length < 8) {
+    showToast("Complete the checkout form first.");
+    return;
+  }
+
+  state.cart.forEach((item) => {
+    const product = getProduct(item.productId);
+    if (!product) return;
+    if (product.accessType === "collect") {
+      if (!state.collected.includes(product.id)) state.collected.push(product.id);
+    } else {
+      if (!state.downloads.includes(product.id)) state.downloads.push(product.id);
+    }
+  });
+
+  state.cart = [];
+  document.getElementById("checkoutCard").value = "";
+  saveState();
+  renderAll();
+  closeCheckout();
+  switchScreen("vault");
+  showToast("Purchase complete. Your items are ready.");
+}
+
+function openReader(productId) {
+  const product = getProduct(productId);
+  if (!product) return;
+
+  if (product.accessType === "collect" && !isCollected(product.id)) {
+    showToast("Collect this item first.");
+    return;
+  }
+
+  if (product.accessType === "download" && !isDownloaded(product.id)) {
+    showToast("Purchase this tool first.");
+    return;
+  }
+
+  currentReaderId = productId;
+  document.getElementById("readerTitle").textContent = product.name;
+  document.getElementById("readerSubtitle").textContent = product.accessType === "collect" ? "Opened from your vault." : "Download details and setup guide.";
+  document.getElementById("readerBody").innerHTML = `
+    <p>${escapeHtml(product.readerText)}</p>
+    <div class="meta-strip">
+      <span class="access-pill">${escapeHtml(product.format)}</span>
+      <span class="access-pill">${escapeHtml(product.accessType === "collect" ? "Vault access active" : "Download unlocked")}</span>
+    </div>
+    <div class="compose-actions" style="margin-top:18px">
+      ${product.accessType === "collect"
+        ? '<button class="primary-button" type="button" onclick="showToast(\'Reading session started.\')">Open item</button>'
+        : '<button class="primary-button" type="button" onclick="downloadTool()">Download package</button>'}
+      <button class="ghost-button" type="button" onclick="openDetail(' + product.id + ')">View details</button>
+    </div>
+  `;
+  openModal("readerModal");
+  requestAnimationFrame(() => drawArt(document.getElementById("readerCanvas"), product, document.querySelector("#readerModal .reader-hero").clientWidth || 390, 210));
+}
+
+function downloadTool() {
+  const product = getProduct(currentReaderId);
+  if (!product) return;
+  showToast("Download prepared for " + product.name + ".");
+}
+
+function closeReader() {
+  closeModal("readerModal");
+}
+
+function openModal(id) {
+  closeActiveModal();
+  activeModal = id;
+  document.getElementById("modalScrim").classList.add("open");
+  const modal = document.getElementById(id);
+  modal.classList.add("open");
+  modal.setAttribute("aria-hidden", "false");
+}
+
+function closeModal(id) {
+  const modal = document.getElementById(id);
+  modal.classList.remove("open");
+  modal.setAttribute("aria-hidden", "true");
+  if (activeModal === id) {
+    activeModal = null;
+    document.getElementById("modalScrim").classList.remove("open");
+  }
+}
+
+function closeActiveModal() {
+  if (!activeModal) return;
+  const modalId = activeModal;
+  activeModal = null;
+  document.getElementById("modalScrim").classList.remove("open");
+  document.getElementById(modalId).classList.remove("open");
+  document.getElementById(modalId).setAttribute("aria-hidden", "true");
+}
+
+function showToast(message) {
+  const toast = document.getElementById("toast");
+  toast.textContent = message;
+  toast.classList.add("show");
+  clearTimeout(showToast.timer);
+  showToast.timer = setTimeout(() => toast.classList.remove("show"), 2200);
+}
+
+function getGreeting() {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 18) return "Good afternoon";
+  return "Good evening";
+}
+
+function resetDemo() {
+  resetState(true);
+  renderAll();
+  closeActiveModal();
+  closeCart();
+  document.getElementById("searchInput").value = "";
+  document.getElementById("checkoutName").value = "";
+  document.getElementById("checkoutEmail").value = "";
+  document.getElementById("checkoutCard").value = "";
+  document.getElementById("composeCaption").value = "";
+  showToast("Demo state reset.");
+}
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    closeActiveModal();
+    closeCart();
+  }
+});
+
+function initialize() {
+  loadState();
+  document.getElementById("greetingLabel").textContent = getGreeting();
+  renderAll();
+  switchScreen(state.activeScreen || "shop");
+}
+
+initialize();
+</script>
+</body>
 </html>
