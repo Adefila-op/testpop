@@ -2265,7 +2265,7 @@ function filterCreatorsBySearch() {
 function setCreatorFilter(filter, el) {
   currentCreatorFilter = filter;
   document.querySelectorAll('.cats .cat').forEach(c => c.classList.remove('active'));
-  el.classList.add('active');
+  if (el) el.classList.add('active');
   filterCreators();
 }
 
