@@ -929,11 +929,11 @@
   <div class="trade-content">
     <!-- Trading Stats -->
     <div class="trade-section">
-      <div class="trade-section-title">Trading Stats</div>
+      <div class="trade-section-title">Market Overview</div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
         <div style="text-align:center;">
           <div style="font-size:20px;font-weight:700;color:var(--gold-light);margin-bottom:4px;" id="tradeFloorPrice">$4.20</div>
-          <div style="font-size:10px;color:var(--text-3);">Floor Price</div>
+          <div style="font-size:10px;color:var(--text-3);">Floor (Listings)</div>
         </div>
         <div style="text-align:center;">
           <div style="font-size:20px;font-weight:700;color:var(--ebook);margin-bottom:4px;" id="tradeVolume24h">$84K</div>
@@ -946,22 +946,81 @@
       </div>
     </div>
 
-    <!-- Trading Chart (Placeholder) -->
+    <!-- Trading Chart -->
     <div class="trade-section">
       <div class="trade-section-title">Price History (7d)</div>
       <div class="trade-chart" id="tradeChartArea" onclick="showToast('Chart: coming soon')"></div>
     </div>
 
-    <!-- Buy Order -->
-    <div class="trade-section">
-      <div class="trade-section-title">💚 Place Buy Order</div>
-      <div class="trade-input-group">
-        <label class="trade-input-label">Amount</label>
-        <input type="number" class="trade-input" id="tradeAmount" placeholder="Enter amount to buy" min="0.01" step="0.01" value="1">
+    <!-- Buy from Listings -->
+    <div class="trade-section" id="buySection">
+      <div class="trade-section-title">💚 Buy from Peer Listings</div>
+      <div style="margin-bottom:12px;font-size:11px;color:var(--text-2);background:var(--surface-3);padding:8px;border-radius:var(--r-sm);">
+        Only available cards: listed by other collectors or creator pool
       </div>
       <div class="trade-input-group">
-        <label class="trade-input-label">Max Price</label>
-        <input type="number" class="trade-input" id="tradePrice" placeholder="Price in ETH" min="0.01" step="0.01" value="4.20">
+        <label class="trade-input-label">Amount to Buy</label>
+        <input type="number" class="trade-input" id="tradeBuyAmount" placeholder="Enter quantity" min="1" step="1" value="1" max="50">
+      </div>
+      <div class="trade-input-group">
+        <label class="trade-input-label">Your Price per Card</label>
+        <div style="font-size:14px;color:var(--gold-light);padding:10px;background:var(--surface-3);border-radius:var(--r-sm);" id="bestAskPrice">$4.20</div>
+      </div>
+    </div>
+
+    <!-- Open Orders / Listings -->
+    <div class="trade-section">
+      <div class="trade-section-title">Available Listings</div>
+      <div class="trade-history" id="openOrdersList" style="max-height:150px;overflow-y:auto;">
+        <div style="font-size:12px;color:var(--text-3);padding:8px;text-align:center;">Loading listings...</div>
+      </div>
+    </div>
+
+    <!-- Sell Options (if you have cards) -->
+    <div class="trade-section" id="sellSection" style="display:none;">
+      <div class="trade-section-title">📊 Sell Your Cards</div>
+      <div style="margin-bottom:12px;font-size:11px;color:var(--text-2);">
+        <div style="background:var(--surface-3);padding:8px;border-radius:var(--r-sm);margin-bottom:8px;">
+          You own: <strong id="yourPortfolioCount">0 cards</strong>
+        </div>
+      </div>
+      
+      <div style="display:flex;gap:8px;margin-bottom:12px;">
+        <button class="trade-btn" id="sellToPoolBtn" onclick="showSellToPool()" style="background:var(--art);color:var(--bg);flex:1;padding:10px;border:none;border-radius:50px;cursor:pointer;font-weight:600;font-size:12px;">
+          💰 Sell to Team (Instant)
+        </button>
+        <button class="trade-btn" id="listForSaleBtn" onclick="showListForSale()" style="background:var(--feed-accent);color:var(--bg);flex:1;padding:10px;border:none;border-radius:50px;cursor:pointer;font-weight:600;font-size:12px;">
+          📋 List for Peers
+        </button>
+      </div>
+
+      <!-- Sell to Pool Form -->
+      <div id="sellToPoolForm" style="display:none;">
+        <div style="background:var(--surface-3);border:1px solid var(--surface-3);border-radius:var(--r-sm);padding:12px;margin-bottom:12px;">
+          <div style="font-size:10px;color:var(--text-3);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px;">Sell to Team Liquidity</div>
+          <div style="font-size:18px;color:var(--art);font-weight:700;margin-bottom:4px;" id="poolFloorPrice">$4.20</div>
+          <div style="font-size:10px;color:var(--text-3);">Immediate payout (back to team)</div>
+        </div>
+        <div class="trade-input-group">
+          <label class="trade-input-label">Amount to Sell</label>
+          <input type="number" class="trade-input" id="sellPoolAmount" placeholder="Enter quantity" min="1" step="1" value="1">
+        </div>
+      </div>
+
+      <!-- List for Sale Form -->
+      <div id="listForSaleForm" style="display:none;">
+        <div style="background:var(--surface-3);border:1px solid var(--surface-3);border-radius:var(--r-sm);padding:12px;margin-bottom:12px;">
+          <div style="font-size:10px;color:var(--text-3);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px;">List for Peer Purchase</div>
+          <div style="font-size:10px;color:var(--text-2);">Other collectors will see your listing</div>
+        </div>
+        <div class="trade-input-group">
+          <label class="trade-input-label">Amount to List</label>
+          <input type="number" class="trade-input" id="listAmount" placeholder="Enter quantity" min="1" step="1" value="1">
+        </div>
+        <div class="trade-input-group">
+          <label class="trade-input-label">Price per Card (ETH)</label>
+          <input type="number" class="trade-input" id="listPrice" placeholder="Set your price" min="0.01" step="0.01" value="4.50">
+        </div>
       </div>
     </div>
 
@@ -972,20 +1031,8 @@
     </div>
   </div>
   <div class="trade-actions">
-    <button class="trade-btn trade-buy" onclick="executeBuyOrder()">Buy Card</button>
-    <button class="trade-btn trade-sell" onclick="executeSellOrder()">Sell Card</button>
-  </div>
-</div>
-
-<!-- TOAST -->
-<div class="toast" id="toast"></div>
-
-<script>
-// ═══════════════════════════════════════════
-// DATA
-// ═══════════════════════════════════════════
-const products = [
-  { id:1, cat:'art', name:'Neon Dreams', sub:'Digital art print series', price:24, rating:'4.9', format:'PNG / SVG', featured:true,
+    <button class="trade-btn trade-buy" id="buyBtn" onclick="executeBuyOrder()">Buy Cards</button>
+    <button class="trade-btn trade-sell" id="sellBtn" onclick="executeSellOrder()" style="display:none;">Sell Cards</button>
     desc:'A stunning collection of 12 high-resolution neon-inspired digital prints. Each piece captures the pulse of the electric city, rendered at 6000×6000px.',
     palette:['#FF3366','#FF6B9D','#1A0A1A','#8B00FF','#4B0082'], style:'neon',
     // art & PDF → collect in-app. Tools → download externally
@@ -1064,8 +1111,10 @@ let postLikes = {};
 let postComments = {};
 let selectedComposeProduct = null;
 let feedPosts = [];
-let creatorPortfolio = {}; // { creatorId: { owned: count, avgPrice: value }}
+let creatorPortfolio = {}; // { creatorId: { owned: count, avgPrice: value } }
 let tradeHistory = {}; // { creatorId: [{user, action, amount, time}, ...] }
+let creatorListings = {}; // { creatorId: [{ seller, amount, pricePerCard }, ...] }
+let creatorPool = {}; // { creatorId: { reserve: count, floorPrice: value } }
 
 // ═══════════════════════════════════════════
 // CANVAS ART GENERATOR
@@ -1654,107 +1703,110 @@ function showSearch() {
 // ═══════════════════════════════════════════
 function initializeCreatorTradeHistory() {
   creators.forEach((c, idx) => {
+    // Trade history
     tradeHistory[idx] = [
-      { user:'Kemi A.', action:'Bought', amount:5, price:4.15, time:'2m ago' },
-      { user:'Lara V.', action:'Sold', amount:2, price:4.30, time:'8m ago' },
-      { user:'Dev A.', action:'Bought', amount:10, price:4.10, time:'15m ago' },
-      { user:'Seun B.', action:'Sold', amount:3, price:4.25, time:'22m ago' },
+      { user:'Kemi A.', action:'Sold', amount:5, price:4.15, time:'2m ago', type:'peer' },
+      { user:'Lara V.', action:'Bought', amount:2, price:4.30, time:'8m ago', type:'peer' },
+      { user:'Dev A.', action:'Sold', amount:10, price:4.10, time:'15m ago', type:'peer' },
+      { user:'Seun B.', action:'Bought', amount:3, price:4.25, time:'22m ago', type:'peer' },
     ];
+    
+    // Creator pool (team manages this)
+    creatorPool[idx] = {
+      reserve: Math.floor(Math.random() * 200) + 100, // Pool has inventory
+      floorPrice: c.floorPrice
+    };
+    
+    // User listings on secondary market (peer-to-peer)
+    const listingsCount = Math.floor(Math.random() * 5) + 2;
+    creatorListings[idx] = [];
+    for (let i = 0; i < listingsCount; i++) {
+      creatorListings[idx].push({
+        seller: ['Kemi A.', 'Lara V.', 'Dev A.', 'Seun B.'][Math.floor(Math.random() * 4)],
+        amount: Math.floor(Math.random() * 20) + 1,
+        pricePerCard: c.floorPrice + (Math.random() * 0.5).toFixed(2)
+      });
+    }
+    // Sort by price (best ask first)
+    creatorListings[idx].sort((a, b) => a.pricePerCard - b.pricePerCard);
   });
 }
 
-function renderCreators() {
-  const arr = filterCreatorsBySearch();
-  const el = document.getElementById('creatorGrid');
-  document.getElementById('creatorsCount').textContent = arr.length + ' creators';
+function getFloorPrice(creatorIdx) {
+  // Floor price = best ask from listings, or pool floor
+  const listings = creatorListings[creatorIdx] || [];
+  if (listings.length > 0) {
+    return Math.min(parseFloat(listings[0].pricePerCard), creators[creatorIdx].floorPrice);
+  }
+  return creators[creatorIdx].floorPrice;
+}
+
+function renderOpenOrders(creatorIdx) {
+  const listings = creatorListings[creatorIdx] || [];
+  const bestAsk = getFloorPrice(creatorIdx);
   
-  el.innerHTML = arr.map((c, idx) => `
-    <div class="creator-card" onclick="openTradeModal(${creators.indexOf(c)})">
-      <div class="creator-card-avatar">
-        ${c.initials}
-        ${c.verified ? '<div class="creator-card-verified">✓</div>' : ''}
-      </div>
-      <div class="creator-card-info">
-        <div class="creator-card-name">${c.name}</div>
-        <div class="creator-card-handle">${c.handle}</div>
-        
-        <div class="creator-stats">
-          <div class="stat-item">
-            <span class="stat-value">$${(c.earnings/1000).toFixed(1)}K</span>
-            <span>Earnings</span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-value">${c.holders}</span>
-            <span>Holders</span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-value">${c.trendScore}%</span>
-            <span>Trend</span>
-          </div>
-        </div>
-
-        <div class="creator-pool">
-          <div class="pool-header">Floor Price</div>
-          <div class="pool-price">$${c.floorPrice.toFixed(2)}</div>
-          <div class="pool-info">
-            <span>24h: $${(c.volume24h/1000).toFixed(0)}K vol</span>
-          </div>
-          <div class="pool-bar">
-            <div class="pool-bar-fill" style="width:${Math.random()*60+40}%"></div>
-          </div>
-        </div>
-
-        <div class="creator-actions">
-          <button class="creator-btn" onclick="event.stopPropagation();openTradeModal(${creators.indexOf(c)})">Trade</button>
-          <button class="creator-btn primary" onclick="event.stopPropagation();buyCreatorCard(${creators.indexOf(c)})">Buy Card</button>
-        </div>
+  const listEl = document.getElementById('openOrdersList');
+  listEl.innerHTML = listings.slice(0, 8).map(l => `
+    <div class="trade-item">
+      <div class="trade-item-user" style="color:var(--text-2);font-size:11px;">${l.seller}</div>
+      <div class="trade-item-action" style="color:var(--gold);min-width:50px;text-align:center;font-size:11px;">×${l.amount}</div>
+      <div class="trade-item-price" style="color:${l.pricePerCard === bestAsk ? 'var(--ebook)' : 'var(--text-2)'};font-weight:${l.pricePerCard === bestAsk ? '700' : '400'};font-size:11px;">
+        $${parseFloat(l.pricePerCard).toFixed(2)} ${l.pricePerCard === bestAsk ? '(best)' : ''}
       </div>
     </div>
   `).join('');
-}
-
-function filterCreatorsBySearch() {
-  const q = document.getElementById('creatorSearchInput').value.toLowerCase();
-  let arr = creators;
   
-  if (currentCreatorFilter === 'verified') {
-    arr = arr.filter(c => c.verified);
-  } else if (currentCreatorFilter === 'trending') {
-    arr = arr.sort((a, b) => b.trendScore - a.trendScore);
-  } else if (currentCreatorFilter === 'hot') {
-    arr = arr.sort((a, b) => b.volume24h - a.volume24h);
+  if (listings.length === 0) {
+    listEl.innerHTML = '<div style="font-size:12px;color:var(--text-3);padding:8px;text-align:center;">No listings. Pool floor: $' + creators[creatorIdx].floorPrice.toFixed(2) + '</div>';
   }
-  
-  if (q) {
-    arr = arr.filter(c => c.name.toLowerCase().includes(q) || c.handle.toLowerCase().includes(q));
-  }
-  
-  return arr;
 }
 
-function setCreatorFilter(filter, el) {
-  currentCreatorFilter = filter;
-  document.querySelectorAll('.cats .cat').forEach(c => c.classList.remove('active'));
-  el.classList.add('active');
-  filterCreators();
+function showSellToPool() {
+  document.getElementById('sellToPoolForm').style.display = 'block';
+  document.getElementById('listForSaleForm').style.display = 'none';
 }
 
-function filterCreators() {
-  renderCreators();
+function showListForSale() {
+  document.getElementById('listForSaleForm').style.display = 'block';
+  document.getElementById('sellToPoolForm').style.display = 'none';
 }
 
 function openTradeModal(creatorIdx) {
   const c = creators[creatorIdx];
   currentTradeCreator = creatorIdx;
+  const portfolio = creatorPortfolio[creatorIdx];
+  const floorPrice = getFloorPrice(creatorIdx);
   
   document.getElementById('tradeCreatorName').textContent = c.name;
   document.getElementById('tradeCreatorHandle').textContent = c.handle;
-  document.getElementById('tradeFloorPrice').textContent = '$' + c.floorPrice.toFixed(2);
+  document.getElementById('tradeFloorPrice').textContent = '$' + floorPrice.toFixed(2);
   document.getElementById('tradeVolume24h').textContent = '$' + (c.volume24h/1000).toFixed(0) + 'K';
   document.getElementById('tradeHolders').textContent = c.holders;
-  document.getElementById('tradePrice').value = c.floorPrice.toFixed(2);
-
-  // Render trade history
+  document.getElementById('bestAskPrice').textContent = '$' + floorPrice.toFixed(2);
+  document.getElementById('poolFloorPrice').textContent = '$' + c.floorPrice.toFixed(2);
+  document.getElementById('tradeBuyAmount').value = '1';
+  document.getElementById('listPrice').value = (floorPrice + 0.30).toFixed(2);
+  
+  // Show sell section only if user owns cards
+  const buyBtn = document.getElementById('buyBtn');
+  const sellSection = document.getElementById('sellSection');
+  if (portfolio && portfolio.owned > 0) {
+    sellSection.style.display = 'block';
+    buyBtn.textContent = 'Buy Cards';
+    document.getElementById('yourPortfolioCount').textContent = portfolio.owned + ' card' + (portfolio.owned !== 1 ? 's' : '') + ' @ avg $' + portfolio.avgPrice.toFixed(2);
+    document.getElementById('sellPoolAmount').max = portfolio.owned;
+    document.getElementById('listAmount').max = portfolio.owned;
+  } else {
+    sellSection.style.display = 'none';
+    buyBtn.textContent = 'Buy Cards';
+  }
+  
+  // Reset sell forms
+  showSellToPool();
+  
+  // Render listings and trade history
+  renderOpenOrders(creatorIdx);
+  
   const history = tradeHistory[creatorIdx] || [];
   const historyEl = document.getElementById('tradeHistory');
   historyEl.innerHTML = history.map(t => `
@@ -1818,23 +1870,35 @@ function drawTradeChart() {
 }
 
 function executeBuyOrder() {
-  const amount = parseFloat(document.getElementById('tradeAmount').value);
-  const pricePerCard = parseFloat(document.getElementById('tradePrice').value);
+  const amount = parseInt(document.getElementById('tradeBuyAmount').value);
+  const c = creators[currentTradeCreator];
+  const floorPrice = getFloorPrice(currentTradeCreator);
   
-  if (!amount || amount <= 0 || !pricePerCard) {
-    showToast('Enter valid amount and price');
+  if (!amount || amount <= 0) {
+    showToast('Enter valid amount');
     return;
   }
   
-  const totalCost = (amount * pricePerCard).toFixed(2);
-  const c = creators[currentTradeCreator];
+  // Check if enough listings available
+  const listings = creatorListings[currentTradeCreator] || [];
+  let availableCount = 0;
+  for (let l of listings) {
+    availableCount += l.amount;
+  }
   
-  // Update creator portfolio
+  if (availableCount < amount) {
+    showToast(`Only ${availableCount} card${availableCount !== 1 ? 's' : ''} available for purchase`);
+    return;
+  }
+  
+  const totalCost = (amount * floorPrice).toFixed(2);
+  
+  // Update portfolio
   if (!creatorPortfolio[currentTradeCreator]) {
     creatorPortfolio[currentTradeCreator] = { owned: 0, avgPrice: 0 };
   }
   const portfolio = creatorPortfolio[currentTradeCreator];
-  portfolio.avgPrice = ((portfolio.owned * portfolio.avgPrice) + (amount * pricePerCard)) / (portfolio.owned + amount);
+  portfolio.avgPrice = ((portfolio.owned * portfolio.avgPrice) + (amount * floorPrice)) / (portfolio.owned + amount);
   portfolio.owned += amount;
   
   // Add to trade history
@@ -1843,12 +1907,26 @@ function executeBuyOrder() {
     user: 'You',
     action: 'Bought',
     amount: amount,
-    price: pricePerCard,
-    time: 'Just now'
+    price: floorPrice,
+    time: 'Just now',
+    type: 'peer'
   });
   
+  // Remove from listings
+  let toRemove = amount;
+  for (let i = 0; i < listings.length && toRemove > 0; i++) {
+    if (listings[i].amount <= toRemove) {
+      toRemove -= listings[i].amount;
+      listings.splice(i, 1);
+      i--;
+    } else {
+      listings[i].amount -= toRemove;
+      toRemove = 0;
+    }
+  }
+  
   closeTradeModal();
-  showToast(`Purchased ${amount} ${c.name} card${amount>1?'s':''} for $${totalCost} ✓`);
+  showToast(`Purchased ${amount} ${c.name} card${amount>1?'s':''} for $${totalCost} ✓ (from peer listings)`);
   renderCreators();
 }
 
@@ -1861,43 +1939,160 @@ function executeSellOrder() {
     return;
   }
   
-  const amount = parseFloat(document.getElementById('tradeAmount').value);
-  if (!amount || amount <= 0 || amount > portfolio.owned) {
-    showToast(`Enter valid amount (max: ${portfolio.owned})`);
-    return;
+  // Check which sell option is selected
+  const sellToPoolForm = document.getElementById('sellToPoolForm');
+  const listForSaleForm = document.getElementById('listForSaleForm');
+  
+  if (sellToPoolForm.style.display !== 'none') {
+    // Sell to team liquidity pool
+    const amount = parseInt(document.getElementById('sellPoolAmount').value);
+    if (!amount || amount <= 0 || amount > portfolio.owned) {
+      showToast(`Enter valid amount (max: ${portfolio.owned})`);
+      return;
+    }
+    
+    const poolPrice = c.floorPrice;
+    const totalRevenue = (amount * poolPrice).toFixed(2);
+    
+    portfolio.owned -= amount;
+    creatorPool[currentTradeCreator].reserve += amount;
+    
+    if (!tradeHistory[currentTradeCreator]) tradeHistory[currentTradeCreator] = [];
+    tradeHistory[currentTradeCreator].unshift({
+      user: 'You',
+      action: 'Sold',
+      amount: amount,
+      price: poolPrice,
+      time: 'Just now',
+      type: 'pool'
+    });
+    
+    closeTradeModal();
+    showToast(`Sold ${amount} ${c.name} card${amount>1?'s':''} to team for $${totalRevenue} ✓ (instant)`);
+  } else {
+    // List for peer purchase
+    const amount = parseInt(document.getElementById('listAmount').value);
+    const price = parseFloat(document.getElementById('listPrice').value);
+    
+    if (!amount || amount <= 0 || amount > portfolio.owned) {
+      showToast(`Enter valid amount (max: ${portfolio.owned})`);
+      return;
+    }
+    
+    if (!price || price <= 0) {
+      showToast('Enter valid price');
+      return;
+    }
+    
+    portfolio.owned -= amount;
+    
+    if (!creatorListings[currentTradeCreator]) creatorListings[currentTradeCreator] = [];
+    creatorListings[currentTradeCreator].push({
+      seller: 'You',
+      amount: amount,
+      pricePerCard: price
+    });
+    creatorListings[currentTradeCreator].sort((a, b) => a.pricePerCard - b.pricePerCard);
+    
+    if (!tradeHistory[currentTradeCreator]) tradeHistory[currentTradeCreator] = [];
+    tradeHistory[currentTradeCreator].unshift({
+      user: 'You',
+      action: 'Listed',
+      amount: amount,
+      price: price,
+      time: 'Just now',
+      type: 'listing'
+    });
+    
+    closeTradeModal();
+    showToast(`Listed ${amount} ${c.name} card${amount>1?'s':''} for $${price.toFixed(2)} each (awaiting buyers)`);
   }
   
-  const pricePerCard = parseFloat(document.getElementById('tradePrice').value);
-  const totalRevenue = (amount * pricePerCard).toFixed(2);
-  
-  // Update portfolio
-  portfolio.owned -= amount;
-  
-  // Add to trade history
-  if (!tradeHistory[currentTradeCreator]) tradeHistory[currentTradeCreator] = [];
-  tradeHistory[currentTradeCreator].unshift({
-    user: 'You',
-    action: 'Sold',
-    amount: amount,
-    price: pricePerCard,
-    time: 'Just now'
-  });
-  
-  closeTradeModal();
-  showToast(`Sold ${amount} ${c.name} card${amount>1?'s':''} for $${totalRevenue} ✓`);
   renderCreators();
 }
 
-function buyCreatorCard(creatorIdx) {
-  const c = creators[creatorIdx];
-  document.getElementById('tradeAmount').value = '1';
-  document.getElementById('tradePrice').value = c.floorPrice.toFixed(2);
-  openTradeModal(creatorIdx);
+// ═══════════════════════════════════════════
+// RENDER CREATORS
+// ═══════════════════════════════════════════
+function renderCreators() {
+  const arr = filterCreatorsBySearch();
+  const el = document.getElementById('creatorGrid');
+  document.getElementById('creatorsCount').textContent = arr.length + ' creators';
+  
+  el.innerHTML = arr.map((c, idx) => `
+    <div class="creator-card" onclick="openTradeModal(${creators.indexOf(c)})">
+      <div class="creator-card-avatar">
+        ${c.initials}
+        ${c.verified ? '<div class="creator-card-verified">✓</div>' : ''}
+      </div>
+      <div class="creator-card-info">
+        <div class="creator-card-name">${c.name}</div>
+        <div class="creator-card-handle">${c.handle}</div>
+        
+        <div class="creator-stats">
+          <div class="stat-item">
+            <span class="stat-value">$${(c.earnings/1000).toFixed(1)}K</span>
+            <span>Earnings</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-value">${c.holders}</span>
+            <span>Holders</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-value">${c.trendScore}%</span>
+            <span>Trend</span>
+          </div>
+        </div>
+
+        <div class="creator-pool">
+          <div class="pool-header">Floor (Listings)</div>
+          <div class="pool-price">$${getFloorPrice(creators.indexOf(c)).toFixed(2)}</div>
+          <div class="pool-info">
+            <span>Pool: $${c.floorPrice.toFixed(2)} | 24h vol</span>
+          </div>
+          <div class="pool-bar">
+            <div class="pool-bar-fill" style="width:${Math.random()*60+40}%"></div>
+          </div>
+        </div>
+
+        <div class="creator-actions">
+          <button class="creator-btn" onclick="event.stopPropagation();openTradeModal(${creators.indexOf(c)})">Trade</button>
+          <button class="creator-btn primary" onclick="event.stopPropagation();openTradeModal(${creators.indexOf(c)})">Buy</button>
+        </div>
+      </div>
+    </div>
+  `).join('');
 }
 
-// ═══════════════════════════════════════════
-// INIT
-// ═══════════════════════════════════════════
+function filterCreatorsBySearch() {
+  const q = document.getElementById('creatorSearchInput').value.toLowerCase();
+  let arr = creators;
+  
+  if (currentCreatorFilter === 'verified') {
+    arr = arr.filter(c => c.verified);
+  } else if (currentCreatorFilter === 'trending') {
+    arr = arr.sort((a, b) => b.trendScore - a.trendScore);
+  } else if (currentCreatorFilter === 'hot') {
+    arr = arr.sort((a, b) => b.volume24h - a.volume24h);
+  }
+  
+  if (q) {
+    arr = arr.filter(c => c.name.toLowerCase().includes(q) || c.handle.toLowerCase().includes(q));
+  }
+  
+  return arr;
+}
+
+function setCreatorFilter(filter, el) {
+  currentCreatorFilter = filter;
+  document.querySelectorAll('.cats .cat').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  filterCreators();
+}
+
+function filterCreators() {
+  renderCreators();
+}
 renderFeatured();
 renderGrid();
 buildInitialFeed();
