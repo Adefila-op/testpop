@@ -112,7 +112,8 @@
     flex: 1;
     overflow-y: auto;
     scrollbar-width: none;
-    padding-bottom: 140px;
+    padding-top: 80px;
+    padding-bottom: 20px;
   }
   .scroll-main::-webkit-scrollbar { display: none; }
 
@@ -405,14 +406,14 @@
 
   /* ── BOTTOM NAV ── */
   .bottom-nav {
-    position: absolute;
-    bottom: 0;
+    position: fixed;
+    top: 0;
     left: 0;
     right: 0;
     background: rgba(10,9,7,0.95);
     backdrop-filter: blur(20px);
-    border-top: 1px solid var(--surface-2);
-    padding: 12px 0 24px;
+    border-bottom: 1px solid var(--surface-2);
+    padding: 12px 0;
     display: flex;
     z-index: 50;
   }
